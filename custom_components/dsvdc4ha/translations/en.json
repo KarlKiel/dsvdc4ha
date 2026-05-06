@@ -1,0 +1,13 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure dSVDC",
+        "description": "Set up the dSVDC integration"
+      }
+    }
+  },
+  "entity": {
+    "name": "dSVDC Device"
+  }
+}
