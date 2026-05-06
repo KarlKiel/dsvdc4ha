@@ -8,10 +8,21 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.helpers import selector as selector_module
 
-from pydsvdcapi.enums import ColorGroup
-from pydsvdcapi.enums import ButtonType, ButtonFunction, ButtonMode, ButtonElementID
-from pydsvdcapi.enums import BinaryInputType, BinaryInputUsage, SensorType, SensorUsage
-from pydsvdcapi.enums import OutputFunction, OutputMode, OutputUsage, OutputChannelType
+from .api import (
+    BinaryInputType,
+    BinaryInputUsage,
+    ButtonElementID,
+    ButtonFunction,
+    ButtonMode,
+    ButtonType,
+    ColorGroup,
+    OutputChannelType,
+    OutputFunction,
+    OutputMode,
+    OutputUsage,
+    SensorType,
+    SensorUsage,
+)
 
 from .const import (
     CONF_ENTRY_TYPE,
