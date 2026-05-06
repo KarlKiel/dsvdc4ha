@@ -255,3 +255,34 @@ class DsvdcApi:
 
     def get_device(self, entry_id: str) -> Device | None:
         return self._devices.get(entry_id)
+
+    async def report_button_click(self, button: ButtonInput, click_type: int) -> None:
+        assert self._host is not None
+        await button.update_click(click_type=click_type, session=self._host.session)
+
+    async def report_button_action(self, button: ButtonInput, action_id: int) -> None:
+        assert self._host is not None
+        await button.update_action(action_id=action_id, session=self._host.session)
+
+    async def report_sensor_value(self, sensor: SensorInput, value: float | None) -> None:
+        assert self._host is not None
+        await sensor.update_value(value=value, session=self._host.session)
+
+    async def report_binary_value(self, bi: BinaryInput, value: bool | None) -> None:
+        assert self._host is not None
+        await bi.update_value(value=value, session=self._host.session)
+
+    async def report_binary_extended_value(self, bi: BinaryInput, value: int | None) -> None:
+        assert self._host is not None
+        await bi.update_extended_value(value=value, session=self._host.session)
+
+    async def report_channel_value(self, channel: OutputChannel, value: float) -> None:
+        await channel.update_value(value)
+
+    def set_channel_applied_callback(
+        self,
+        output: Output,
+        callback: Any,
+    ) -> None:
+        """Register callback for dS→HA output commands."""
+        output.on_channel_applied = callback

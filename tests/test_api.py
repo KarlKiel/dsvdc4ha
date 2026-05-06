@@ -114,3 +114,22 @@ async def test_api_announce_device_builds_vdsd():
         assert call_kwargs["primary_group"].value == 1  # ColorGroup(1)
         mock_vdsd.derive_model_features.assert_called_once()
         mock_device.add_vdsd.assert_called_once_with(mock_vdsd)
+
+
+@pytest.mark.asyncio
+async def test_report_button_click_calls_update_click():
+    with patch("custom_components.dsvdc4ha.api.VdcHost") as MockHost, \
+         patch("custom_components.dsvdc4ha.api.Vdc"), \
+         patch("custom_components.dsvdc4ha.api.VdcCapabilities"):
+        mock_host = MagicMock()
+        mock_host.start = AsyncMock()
+        mock_host.session = MagicMock()
+        MockHost.return_value = mock_host
+
+        api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+        await api.start()
+
+        mock_btn = MagicMock()
+        mock_btn.update_click = AsyncMock()
+        await api.report_button_click(mock_btn, 7)
+        mock_btn.update_click.assert_awaited_once_with(click_type=7, session=mock_host.session)
