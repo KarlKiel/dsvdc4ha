@@ -1,26 +1,594 @@
-"""Config flow for dSVDC integration."""
-
+"""Config flow for dsvdc4ha."""
 from __future__ import annotations
+
+import logging
+from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers import selector as selector_module
 
-from .const import DOMAIN
+from .api import (
+    BinaryInputType,
+    BinaryInputUsage,
+    ButtonElementID,
+    ButtonFunction,
+    ButtonMode,
+    ButtonType,
+    ColorGroup,
+    OutputChannelType,
+    OutputFunction,
+    OutputMode,
+    OutputUsage,
+    SensorType,
+    SensorUsage,
+)
 
+from .const import (
+    CONF_ENTRY_TYPE,
+    CONF_PORT,
+    DOMAIN,
+    ENTRY_TYPE_DEVICE,
+    ENTRY_TYPE_HUB,
+)
 
-STEP_USER_DATA_SCHEMA = vol.Schema({})
+_LOGGER = logging.getLogger(__name__)
+
+selector = selector_module
+
+_COLOR_GROUP_OPTIONS = [
+    selector.SelectOptionDict(value=str(g.value), label=g.name.replace("_", " ").title())
+    for g in ColorGroup
+]
+
+_BUTTON_TYPE_OPTIONS = [
+    selector.SelectOptionDict(value=str(t.value), label=t.name.replace("_", " ").title())
+    for t in ButtonType
+]
+# Number of button elements per ButtonType value
+# UNDEFINED=1, SINGLE_PUSHBUTTON=1, TWO_WAY_PUSHBUTTON=2, FOUR_WAY_NAVIGATION=4,
+# FOUR_WAY_WITH_CENTER=5, EIGHT_WAY_WITH_CENTER=9, ON_OFF_SWITCH=1
+_BUTTON_ELEMENTS_BY_TYPE: dict[int, int] = {0: 1, 1: 1, 2: 2, 3: 4, 4: 5, 5: 9, 6: 1}
+
+_BINARY_INPUT_TYPE_OPTIONS = [
+    selector.SelectOptionDict(value=str(t.value), label=t.name.replace("_", " ").title())
+    for t in BinaryInputType
+]
+_SENSOR_TYPE_OPTIONS = [
+    selector.SelectOptionDict(value=str(t.value), label=t.name.replace("_", " ").title())
+    for t in SensorType
+]
+_OUTPUT_FUNCTION_OPTIONS = [
+    selector.SelectOptionDict(value=str(f.value), label=f.name.replace("_", " ").title())
+    for f in OutputFunction
+]
+_CHANNEL_TYPE_OPTIONS = [
+    selector.SelectOptionDict(value=str(c.value), label=c.name.replace("_", " ").title())
+    for c in OutputChannelType
+]
+# OutputFunction values that require manual channel config
+# POSITIONAL=2, BIPOLAR=5, INTERNALLY_CONTROLLED=6, CUSTOM=127
+_MANUAL_CHANNEL_FUNCTIONS: set[int] = {
+    f.value for f in OutputFunction if f.name in ("POSITIONAL", "BIPOLAR", "INTERNALLY_CONTROLLED", "CUSTOM")
+}
+
+HUB_SCHEMA = vol.Schema({
+    vol.Required(CONF_PORT, default=8444): vol.All(vol.Coerce(int), vol.Range(min=1024, max=65535)),
+})
+
+DEVICE_INFO_SCHEMA = vol.Schema({
+    vol.Required("name"): selector.TextSelector(),
+    vol.Required("vendorName"): selector.TextSelector(),
+    vol.Required("displayId"): selector.TextSelector(),
+})
 
 
 class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for dSVDC."""
+    """Config flow for dsvdc4ha."""
 
     VERSION = 1
-    CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_POLLING
 
-    async def async_step_user(self, user_input=None) -> FlowResult:
-        """Handle the initial step."""
+    def __init__(self) -> None:
+        self._device_name: str = ""
+        self._vendor_name: str = ""
+        self._display_id: str = ""
+        self._vdsds: list[dict[str, Any]] = []
+        self._current_vdsd: dict[str, Any] = {}
+        self._current_buttons: list[dict[str, Any]] = []
+        self._current_binary_inputs: list[dict[str, Any]] = []
+        self._current_sensors: list[dict[str, Any]] = []
+        self._current_output: dict[str, Any] | None = None
+        self._current_channels: list[dict[str, Any]] = []
+        self._current_button_element_idx: int = 0
+        self._current_button_elements_total: int = 1
+        self._current_button_type: int = 1
+        self._optional_return_step: str = ""
+
+    async def async_step_user(self, user_input: dict | None = None):
+        """Route to hub flow or device flow based on existing entries."""
+        hub_entries = [
+            e for e in self._async_current_entries()
+            if e.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_HUB
+        ]
+        if hub_entries:
+            return await self.async_step_device_info()
+        return await self.async_step_hub()
+
+    async def async_step_hub(self, user_input: dict | None = None):
+        """Handle the hub setup step — collect the port number."""
+        errors: dict[str, str] = {}
         if user_input is not None:
-            return self.async_create_entry(title="dSVDC", data=user_input)
+            return self.async_create_entry(
+                title="dSVDC Hub",
+                data={CONF_ENTRY_TYPE: ENTRY_TYPE_HUB, CONF_PORT: int(user_input[CONF_PORT])},
+            )
+        return self.async_show_form(step_id="hub", data_schema=HUB_SCHEMA, errors=errors)
 
-        return self.async_show_form(step_id="user", data_schema=STEP_USER_DATA_SCHEMA)
+    async def async_step_device_info(self, user_input: dict | None = None):
+        """Collect basic device identity."""
+        if user_input is not None:
+            self._device_name = user_input["name"]
+            self._vendor_name = user_input["vendorName"]
+            self._display_id = user_input["displayId"]
+            return await self.async_step_vdsd_creation()
+        return self.async_show_form(step_id="device_info", data_schema=DEVICE_INFO_SCHEMA)
+
+    async def async_step_vdsd_creation(self, user_input: dict | None = None):
+        """Collect vDSD-specific settings."""
+        if user_input is not None:
+            display_id = user_input["displayId"]
+            primary_group = int(user_input["primaryGroup"])
+            model_version = user_input["modelVersion"]
+            self._current_vdsd = {
+                "displayId": display_id,
+                "primaryGroup": primary_group,
+                "model": display_id,
+                "vendorName": self._vendor_name,
+                "modelVersion": model_version,
+                "modelUID": f"{self._vendor_name}{model_version}".replace(" ", ""),
+                "name": self._device_name,
+                "active": True,
+                "identify_action": user_input.get("identify_action"),
+                "firmwareUpdate_action": user_input.get("firmwareUpdate_action"),
+                "optional": {},
+            }
+            self._current_buttons = []
+            self._current_binary_inputs = []
+            self._current_sensors = []
+            self._current_output = None
+            self._current_channels = []
+            return await self.async_step_vdsd_overview()
+        schema = vol.Schema({
+            vol.Required("displayId"): selector.TextSelector(),
+            vol.Required("primaryGroup", default="1"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_COLOR_GROUP_OPTIONS)
+            ),
+            vol.Required("modelVersion"): selector.TextSelector(),
+            vol.Optional("identify_action"): selector.ActionSelector(),
+            vol.Optional("firmwareUpdate_action"): selector.ActionSelector(),
+        })
+        return self.async_show_form(step_id="vdsd_creation", data_schema=schema)
+
+    async def async_step_vdsd_overview(self, user_input: dict | None = None):
+        """Show overview of the current vdSD with action buttons."""
+        if user_input is not None:
+            action = user_input.get("action", "next")
+            if action == "optional_settings":
+                self._optional_return_step = "vdsd_overview"
+                return await self.async_step_optional_settings()
+            if action == "add_button":
+                self._current_button_element_idx = 0
+                return await self.async_step_button()
+            if action == "add_binary_input":
+                return await self.async_step_binary_input()
+            if action == "add_sensor":
+                return await self.async_step_sensor()
+            if action == "add_output":
+                return await self.async_step_output()
+            if action == "next":
+                return await self.async_step_model_features()
+
+        buttons_summary = [b["name"] for b in self._current_buttons]
+        bi_summary = [b["name"] for b in self._current_binary_inputs]
+        si_summary = [s["name"] for s in self._current_sensors]
+        has_output = self._current_output is not None
+
+        action_options = [
+            selector.SelectOptionDict(value="optional_settings", label="Optional Settings"),
+            selector.SelectOptionDict(value="add_button", label="Add Button"),
+            selector.SelectOptionDict(value="add_binary_input", label="Add Binary Input"),
+            selector.SelectOptionDict(value="add_sensor", label="Add Sensor"),
+        ]
+        if not has_output:
+            action_options.append(
+                selector.SelectOptionDict(value="add_output", label="Add Output")
+            )
+        action_options.append(selector.SelectOptionDict(value="next", label="Next →"))
+
+        schema = vol.Schema({
+            vol.Required("action", default="next"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=action_options)
+            ),
+        })
+        description_placeholders = {
+            "vdsd_name": self._current_vdsd.get("displayId", ""),
+            "buttons": ", ".join(buttons_summary) or "none",
+            "binary_inputs": ", ".join(bi_summary) or "none",
+            "sensors": ", ".join(si_summary) or "none",
+            "output": self._current_output.get("name", "") if has_output else "none",
+        }
+        return self.async_show_form(
+            step_id="vdsd_overview",
+            data_schema=schema,
+            description_placeholders=description_placeholders,
+        )
+
+    async def async_step_optional_settings(self, user_input: dict | None = None):
+        """Collect optional device metadata."""
+        if user_input is not None:
+            self._current_vdsd["optional"].update(
+                {k: v for k, v in user_input.items() if v}
+            )
+            return_step = self._optional_return_step or "vdsd_overview"
+            self._optional_return_step = ""
+            return await getattr(self, f"async_step_{return_step}")()
+        schema = vol.Schema({
+            vol.Optional("hardwareVersion"): selector.TextSelector(),
+            vol.Optional("hardwareGuid"): selector.TextSelector(),
+            vol.Optional("vendorGuid"): selector.TextSelector(),
+            vol.Optional("oemGuid"): selector.TextSelector(),
+        })
+        return self.async_show_form(step_id="optional_settings", data_schema=schema)
+
+    async def async_step_model_features(self, user_input: dict | None = None):
+        """Select optional model features, then finalise and save the current vdSD."""
+        if user_input is not None:
+            self._current_vdsd["model_features"] = user_input.get("features", [])
+            self._current_vdsd["buttons"] = self._current_buttons
+            self._current_vdsd["binary_inputs"] = self._current_binary_inputs
+            self._current_vdsd["sensors"] = self._current_sensors
+            self._current_vdsd["output"] = self._current_output
+            self._vdsds.append(dict(self._current_vdsd))
+            return await self.async_step_device_summary()
+        schema = vol.Schema({
+            vol.Optional("features", default=[]): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        selector.SelectOptionDict(value="dontcare", label="No special features"),
+                        selector.SelectOptionDict(value="identification", label="Identification"),
+                        selector.SelectOptionDict(value="firmwareUpgrade", label="Firmware Upgrade"),
+                    ],
+                    multiple=True,
+                )
+            ),
+        })
+        return self.async_show_form(step_id="model_features", data_schema=schema)
+
+    async def async_step_button(self, user_input: dict | None = None):
+        """Collect button element configuration."""
+        if user_input is not None:
+            btn_type = int(user_input["buttonType"])
+            element_idx = self._current_button_element_idx
+            total = _BUTTON_ELEMENTS_BY_TYPE.get(btn_type, 1)
+
+            btn_data = {
+                "dsIndex": len(self._current_buttons),
+                "name": user_input["name"],
+                "buttonType": btn_type,
+                "buttonElementID": element_idx,
+                "group": int(user_input.get("group", 1)),
+                "function": int(user_input.get("function", 0)),
+                "mode": int(user_input.get("mode", 0)),
+                "channel": int(user_input.get("channel", 0)),
+                "supportsLocalKeyMode": bool(user_input.get("supportsLocalKeyMode", False)),
+                "setsLocalPriority": bool(user_input.get("setsLocalPriority", False)),
+                "callsPresent": bool(user_input.get("callsPresent", True)),
+                "buttonID": 0,
+                "callbackType": user_input.get("callbackType", "clickTypes"),
+                "callback_entity": user_input.get("callback_entity"),
+            }
+            self._current_buttons.append(btn_data)
+
+            if element_idx + 1 < total:
+                self._current_button_element_idx += 1
+                self._current_button_type = btn_type
+                return await self.async_step_button()
+
+            self._current_button_element_idx = 0
+            return await self.async_step_vdsd_overview()
+
+        schema = vol.Schema({
+            vol.Required("name"): selector.TextSelector(),
+            vol.Required("buttonType", default="1"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_BUTTON_TYPE_OPTIONS)
+            ),
+            vol.Required("group", default="1"): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=9, mode="box")
+            ),
+            vol.Required("function", default="0"): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=255, mode="box")
+            ),
+            vol.Required("mode", default="0"): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=255, mode="box")
+            ),
+            vol.Optional("channel", default=0): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=255, mode="box")
+            ),
+            vol.Optional("supportsLocalKeyMode", default=False): selector.BooleanSelector(),
+            vol.Optional("setsLocalPriority", default=False): selector.BooleanSelector(),
+            vol.Optional("callsPresent", default=True): selector.BooleanSelector(),
+            vol.Required("callbackType", default="clickTypes"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value="clickTypes", label="Click Types"),
+                    selector.SelectOptionDict(value="actionIds", label="Action IDs"),
+                ])
+            ),
+            vol.Optional("callback_entity"): selector.EntitySelector(),
+        })
+        return self.async_show_form(step_id="button", data_schema=schema)
+
+    async def async_step_binary_input(self, user_input: dict | None = None):
+        """Collect binary input configuration."""
+        if user_input is not None:
+            self._current_binary_inputs.append({
+                "dsIndex": len(self._current_binary_inputs),
+                "name": user_input["name"],
+                "group": int(user_input.get("group", 8)),
+                "sensorFunction": int(user_input["sensorFunction"]),
+                "hardwiredFunction": int(user_input.get("hardwiredFunction", 0)),
+                "updateInterval": float(user_input.get("updateInterval", 0)),
+                "inputType": int(user_input.get("inputType", 1)),
+                "inputUsage": int(user_input.get("inputUsage", 0)),
+                "valueType": user_input.get("valueType", "boolean"),
+                "callback_entity": user_input.get("callback_entity"),
+            })
+            return await self.async_step_vdsd_overview()
+        schema = vol.Schema({
+            vol.Required("name"): selector.TextSelector(),
+            vol.Required("group", default="8"): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=9, mode="box")
+            ),
+            vol.Required("sensorFunction", default="0"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_BINARY_INPUT_TYPE_OPTIONS)
+            ),
+            vol.Required("hardwiredFunction", default="0"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_BINARY_INPUT_TYPE_OPTIONS)
+            ),
+            vol.Optional("updateInterval", default=0): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, mode="box")
+            ),
+            vol.Required("inputType", default="1"): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=2, mode="box")
+            ),
+            vol.Required("inputUsage", default="0"): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, mode="box")
+            ),
+            vol.Required("valueType", default="boolean"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value="boolean", label="Boolean"),
+                    selector.SelectOptionDict(value="integer", label="Integer (extended)"),
+                ])
+            ),
+            vol.Optional("callback_entity"): selector.EntitySelector(),
+        })
+        return self.async_show_form(step_id="binary_input", data_schema=schema)
+
+    async def async_step_sensor(self, user_input: dict | None = None):
+        """Collect sensor configuration."""
+        if user_input is not None:
+            self._current_sensors.append({
+                "dsIndex": len(self._current_sensors),
+                "name": user_input["name"],
+                "group": int(user_input.get("group", 0)),
+                "sensorType": int(user_input["sensorType"]),
+                "sensorUsage": int(user_input.get("sensorUsage", 0)),
+                "min": float(user_input["min"]),
+                "max": float(user_input["max"]),
+                "resolution": float(user_input["resolution"]),
+                "updateInterval": float(user_input.get("updateInterval", 0)),
+                "aliveSignInterval": float(user_input.get("aliveSignInterval", 0)),
+                "minPushInterval": float(user_input.get("minPushInterval", 2.0)),
+                "changesOnlyInterval": float(user_input.get("changesOnlyInterval", 0)),
+                "callback_entity": user_input.get("callback_entity"),
+            })
+            return await self.async_step_vdsd_overview()
+        schema = vol.Schema({
+            vol.Required("name"): selector.TextSelector(),
+            vol.Required("group", default="0"): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=9, mode="box")
+            ),
+            vol.Required("sensorType", default="1"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_SENSOR_TYPE_OPTIONS)
+            ),
+            vol.Required("sensorUsage", default="0"): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, mode="box")
+            ),
+            vol.Required("min", default=0): selector.NumberSelector(
+                selector.NumberSelectorConfig(mode="box")
+            ),
+            vol.Required("max", default=100): selector.NumberSelector(
+                selector.NumberSelectorConfig(mode="box")
+            ),
+            vol.Required("resolution", default=0.1): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, mode="box", step=0.01)
+            ),
+            vol.Optional("updateInterval", default=0): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, mode="box")
+            ),
+            vol.Optional("aliveSignInterval", default=0): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, mode="box")
+            ),
+            vol.Optional("minPushInterval", default=2.0): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, mode="box", step=0.1)
+            ),
+            vol.Optional("changesOnlyInterval", default=0): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, mode="box")
+            ),
+            vol.Optional("callback_entity"): selector.EntitySelector(),
+        })
+        return self.async_show_form(step_id="sensor", data_schema=schema)
+
+    async def async_step_output(self, user_input: dict | None = None):
+        """Collect output configuration."""
+        if user_input is not None:
+            fn = int(user_input["function"])
+            self._current_output = {
+                "name": user_input["name"],
+                "groups": [int(g) for g in user_input["groups"]],
+                "defaultGroup": int(user_input["defaultGroup"]),
+                "activeGroup": int(user_input["defaultGroup"]),
+                "function": fn,
+                "outputUsage": int(user_input.get("outputUsage", 0)),
+                "variableRamp": bool(user_input.get("variableRamp", False)),
+                "mode": int(user_input.get("mode", 0)),
+                "onThreshold": 50,
+            }
+            self._current_channels = []
+            if fn in _MANUAL_CHANNEL_FUNCTIONS:
+                return await self.async_step_channel()
+            return await self.async_step_channel_mapping()
+        schema = vol.Schema({
+            vol.Required("name"): selector.TextSelector(),
+            vol.Required("groups", default=["1"]): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[selector.SelectOptionDict(value=str(i), label=str(i)) for i in range(1, 10)],
+                    multiple=True,
+                )
+            ),
+            vol.Required("defaultGroup", default="1"): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=1, max=9, mode="box")
+            ),
+            vol.Required("function", default="0"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_OUTPUT_FUNCTION_OPTIONS)
+            ),
+            vol.Required("outputUsage", default="0"): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, mode="box")
+            ),
+            vol.Optional("variableRamp", default=False): selector.BooleanSelector(),
+            vol.Required("mode", default="0"): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, mode="box")
+            ),
+        })
+        return self.async_show_form(step_id="output", data_schema=schema)
+
+    async def async_step_output_optional(self, user_input: dict | None = None):
+        """Collect optional output settings."""
+        if user_input is not None:
+            if self._current_output:
+                for k, v in user_input.items():
+                    if v is not None and v != "":
+                        self._current_output[k] = v
+            return await self.async_step_output()
+        schema = vol.Schema({
+            vol.Optional("onThreshold", default=50): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=100, mode="box")
+            ),
+            vol.Optional("minBrightness"): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, max=100, mode="box")
+            ),
+            vol.Optional("maxPower"): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, mode="box")
+            ),
+            vol.Optional("activeCoolingMode", default=False): selector.BooleanSelector(),
+        })
+        return self.async_show_form(step_id="output_optional", data_schema=schema)
+
+    async def async_step_channel(self, user_input: dict | None = None):
+        """Collect channel configuration for manual-channel output functions."""
+        if user_input is not None:
+            self._current_channels.append({
+                "dsIndex": len(self._current_channels),
+                "channelType": int(user_input["channelType"]),
+                "name": user_input.get("name", ""),
+                "min": float(user_input.get("min", 0)),
+                "max": float(user_input.get("max", 100)),
+                "resolution": float(user_input.get("resolution", 0.4)),
+            })
+            action = user_input.get("action", "next")
+            if action == "add_another":
+                return await self.async_step_channel()
+            return await self.async_step_channel_mapping()
+        schema = vol.Schema({
+            vol.Required("channelType", default="1"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_CHANNEL_TYPE_OPTIONS)
+            ),
+            vol.Required("name"): selector.TextSelector(),
+            vol.Required("min", default=0): selector.NumberSelector(
+                selector.NumberSelectorConfig(mode="box")
+            ),
+            vol.Required("max", default=100): selector.NumberSelector(
+                selector.NumberSelectorConfig(mode="box")
+            ),
+            vol.Required("resolution", default=0.4): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, step=0.01, mode="box")
+            ),
+            vol.Required("action", default="next"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value="next", label="Done — go to channel mapping"),
+                    selector.SelectOptionDict(value="add_another", label="Add another channel"),
+                ])
+            ),
+        })
+        return self.async_show_form(step_id="channel", data_schema=schema)
+
+    async def async_step_channel_mapping(self, user_input: dict | None = None):
+        """Map HA entities to output channels (read binding + write action)."""
+        if user_input is not None:
+            if self._current_output and self._current_channels:
+                for ch in self._current_channels:
+                    ch["read_entity"] = user_input.get(f"read_{ch['dsIndex']}")
+                    ch["write_action"] = user_input.get(f"write_{ch['dsIndex']}")
+                self._current_output["channels"] = self._current_channels
+            elif self._current_output:
+                self._current_output["channels"] = []
+            return await self.async_step_vdsd_overview()
+
+        schema_dict: dict = {}
+        for ch in self._current_channels:
+            schema_dict[vol.Optional(f"read_{ch['dsIndex']}")] = selector.EntitySelector()
+            schema_dict[vol.Optional(f"write_{ch['dsIndex']}")] = selector.ActionSelector()
+        if not schema_dict:
+            # No channels to map — auto-skip
+            if self._current_output:
+                self._current_output["channels"] = []
+            return await self.async_step_vdsd_overview()
+        return self.async_show_form(
+            step_id="channel_mapping", data_schema=vol.Schema(schema_dict)
+        )
+
+    async def async_step_device_summary(self, user_input: dict | None = None):
+        """Show device summary; allow adding another vdSD or creating the entry."""
+        if user_input is not None and user_input.get("confirm"):
+            action = user_input.get("action", "create")
+            if action == "add_vdsd":
+                return await self.async_step_vdsd_creation()
+            return self.async_create_entry(
+                title=self._device_name,
+                data={
+                    "entry_type": ENTRY_TYPE_DEVICE,
+                    "name": self._device_name,
+                    "vendorName": self._vendor_name,
+                    "displayId": self._display_id,
+                    "vdsds": self._vdsds,
+                },
+            )
+        vdsd_summary = [
+            f"{v['displayId']} (group {v['primaryGroup']})" for v in self._vdsds
+        ]
+        schema = vol.Schema({
+            vol.Required("action", default="create"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value="create", label="Create device"),
+                    selector.SelectOptionDict(value="add_vdsd", label="Add another vdSD first"),
+                ])
+            ),
+            vol.Required("confirm", default=False): selector.BooleanSelector(),
+        })
+        return self.async_show_form(
+            step_id="device_summary",
+            data_schema=schema,
+            description_placeholders={
+                "device_name": self._device_name,
+                "vdsds": ", ".join(vdsd_summary),
+            },
+        )
