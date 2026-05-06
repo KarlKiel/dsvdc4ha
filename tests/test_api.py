@@ -133,3 +133,50 @@ async def test_report_button_click_calls_update_click():
         mock_btn.update_click = AsyncMock()
         await api.report_button_click(mock_btn, 7)
         mock_btn.update_click.assert_awaited_once_with(click_type=7, session=mock_host.session)
+
+
+@pytest.mark.asyncio
+async def test_report_sensor_value_calls_update_value():
+    with patch("custom_components.dsvdc4ha.api.VdcHost") as MockHost, \
+         patch("custom_components.dsvdc4ha.api.Vdc"), \
+         patch("custom_components.dsvdc4ha.api.VdcCapabilities"):
+        mock_host = MagicMock()
+        mock_host.start = AsyncMock()
+        mock_host.session = MagicMock()
+        MockHost.return_value = mock_host
+
+        api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+        await api.start()
+
+        mock_sensor = MagicMock()
+        mock_sensor.update_value = AsyncMock()
+        await api.report_sensor_value(mock_sensor, 42.5)
+        mock_sensor.update_value.assert_awaited_once_with(value=42.5, session=mock_host.session)
+
+
+def test_set_channel_applied_callback_sets_property():
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+
+    mock_output = MagicMock()
+    my_callback = MagicMock()
+    api.set_channel_applied_callback(mock_output, my_callback)
+    assert mock_output.on_channel_applied == my_callback
+
+
+@pytest.mark.asyncio
+async def test_report_channel_value_calls_update_value():
+    with patch("custom_components.dsvdc4ha.api.VdcHost") as MockHost, \
+         patch("custom_components.dsvdc4ha.api.Vdc"), \
+         patch("custom_components.dsvdc4ha.api.VdcCapabilities"):
+        mock_host = MagicMock()
+        mock_host.start = AsyncMock()
+        mock_host.session = MagicMock()
+        MockHost.return_value = mock_host
+
+        api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+        await api.start()
+
+        mock_channel = MagicMock()
+        mock_channel.update_value = AsyncMock()
+        await api.report_channel_value(mock_channel, 75.0)
+        mock_channel.update_value.assert_awaited_once_with(75.0)

@@ -277,6 +277,7 @@ class DsvdcApi:
         await bi.update_extended_value(value=value, session=self._host.session)
 
     async def report_channel_value(self, channel: OutputChannel, value: float) -> None:
+        assert self._host is not None
         await channel.update_value(value)
 
     def set_channel_applied_callback(
