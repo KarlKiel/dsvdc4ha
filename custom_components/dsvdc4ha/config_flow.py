@@ -51,8 +51,8 @@ _COLOR_GROUP_LABELS: dict[int, str] = {
     3: "Blue — Climate (Heating, Cooling, Ventilation)",
     4: "Cyan — Audio",
     5: "Magenta — Video",
-    6: "Red — Security (deprecated)",
-    7: "Green — Access Control (deprecated)",
+    6: "Red — Security",
+    7: "Green — Access Control",
     8: "Black — Joker / Configurable",
     9: "White — Single Device / Appliance",
 }
@@ -61,7 +61,7 @@ _COLOR_GROUP_LABELS: dict[int, str] = {
 _BUTTON_GROUP_LABELS: dict[int, str] = {
     1: "1 — Yellow / Light",
     2: "2 — Grey / Shadow",
-    3: "3 — Blue / Climate (Heating)",
+    3: "3 — Blue / Heating",
     4: "4 — Cyan / Audio",
     5: "5 — Magenta / Video",
     6: "6 — Red / Security",
@@ -104,14 +104,14 @@ _COLOR_CLASS_LABELS: dict[int, str] = {
     3: "3 — Heating (Blue)",
     4: "4 — Audio (Cyan)",
     5: "5 — Video (Magenta)",
-    6: "6 — Security (Red, deprecated)",
-    7: "7 — Access (Green, deprecated)",
+    6: "6 — Security (Red)",
+    7: "7 — Access (Green)",
     8: "8 — Joker / Configurable (Black)",
     9: "9 — Cooling (Blue)",
     10: "10 — Ventilation (Blue)",
     11: "11 — Window (Blue)",
     12: "12 — Recirculation / Fan-coil (Blue)",
-    48: "48 — Temperature Control",
+    48: "48 — Temperature Control (Blue)",
 }
 
 _BUTTON_TYPE_LABELS: dict[int, str] = {
@@ -197,7 +197,7 @@ _BINARY_INPUT_TYPE_LABELS: dict[int, str] = {
 }
 
 _BINARY_INPUT_USAGE_LABELS: dict[int, str] = {
-    0: "Undefined",
+    0: "Generic",
     1: "Room Climate",
     2: "Outdoor Climate",
     3: "Climate Setting",
@@ -242,7 +242,7 @@ _SENSOR_TYPE_LABELS: dict[int, str] = {
 }
 
 _SENSOR_USAGE_LABELS: dict[int, str] = {
-    0: "Undefined",
+    0: "Generic",
     1: "Room",
     2: "Outdoor",
     3: "User Interaction",
@@ -264,10 +264,10 @@ _OUTPUT_FUNCTION_LABELS: dict[int, str] = {
 
 # OutputMode: configurator UI hint (auto-derived by pydsvdcapi from function)
 _OUTPUT_MODE_LABELS: dict[int, str] = {
-    0: "Disabled (no configurator UI controls)",
-    1: "Binary (on/off toggle only)",
-    2: "Gradual (continuous range slider)",
-    127: "Auto-derive from function (recommended)",
+    0: "Disabled",
+    1: "Binary (on/off only)",
+    2: "Gradual (continuous range)",
+    127: "unspecified 'active'",
 }
 
 _OUTPUT_USAGE_LABELS: dict[int, str] = {
