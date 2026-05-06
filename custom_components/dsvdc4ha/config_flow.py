@@ -230,8 +230,28 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(step_id="optional_settings", data_schema=schema)
 
     async def async_step_model_features(self, user_input: dict | None = None):
-        """Placeholder — implemented in Task 14."""
-        return self.async_show_form(step_id="model_features", data_schema=vol.Schema({}))
+        """Select optional model features, then finalise and save the current vdSD."""
+        if user_input is not None:
+            self._current_vdsd["model_features"] = user_input.get("features", [])
+            self._current_vdsd["buttons"] = self._current_buttons
+            self._current_vdsd["binary_inputs"] = self._current_binary_inputs
+            self._current_vdsd["sensors"] = self._current_sensors
+            self._current_vdsd["output"] = self._current_output
+            self._vdsds.append(dict(self._current_vdsd))
+            return await self.async_step_device_summary()
+        schema = vol.Schema({
+            vol.Optional("features", default=[]): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        selector.SelectOptionDict(value="dontcare", label="No special features"),
+                        selector.SelectOptionDict(value="identification", label="Identification"),
+                        selector.SelectOptionDict(value="firmwareUpgrade", label="Firmware Upgrade"),
+                    ],
+                    multiple=True,
+                )
+            ),
+        })
+        return self.async_show_form(step_id="model_features", data_schema=schema)
 
     async def async_step_button(self, user_input: dict | None = None):
         """Collect button element configuration."""
@@ -501,5 +521,63 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(step_id="channel", data_schema=schema)
 
     async def async_step_channel_mapping(self, user_input: dict | None = None):
-        """Placeholder — implemented in Task 14."""
-        return self.async_show_form(step_id="channel_mapping", data_schema=vol.Schema({}))
+        """Map HA entities to output channels (read binding + write action)."""
+        if user_input is not None:
+            if self._current_output and self._current_channels:
+                for ch in self._current_channels:
+                    ch["read_entity"] = user_input.get(f"read_{ch['dsIndex']}")
+                    ch["write_action"] = user_input.get(f"write_{ch['dsIndex']}")
+                self._current_output["channels"] = self._current_channels
+            elif self._current_output:
+                self._current_output["channels"] = []
+            return await self.async_step_vdsd_overview()
+
+        schema_dict: dict = {}
+        for ch in self._current_channels:
+            schema_dict[vol.Optional(f"read_{ch['dsIndex']}")] = selector.EntitySelector()
+            schema_dict[vol.Optional(f"write_{ch['dsIndex']}")] = selector.ActionSelector()
+        if not schema_dict:
+            # No channels to map — auto-skip
+            if self._current_output:
+                self._current_output["channels"] = []
+            return await self.async_step_vdsd_overview()
+        return self.async_show_form(
+            step_id="channel_mapping", data_schema=vol.Schema(schema_dict)
+        )
+
+    async def async_step_device_summary(self, user_input: dict | None = None):
+        """Show device summary; allow adding another vdSD or creating the entry."""
+        if user_input is not None and user_input.get("confirm"):
+            action = user_input.get("action", "create")
+            if action == "add_vdsd":
+                return await self.async_step_vdsd_creation()
+            return self.async_create_entry(
+                title=self._device_name,
+                data={
+                    "entry_type": ENTRY_TYPE_DEVICE,
+                    "name": self._device_name,
+                    "vendorName": self._vendor_name,
+                    "displayId": self._display_id,
+                    "vdsds": self._vdsds,
+                },
+            )
+        vdsd_summary = [
+            f"{v['displayId']} (group {v['primaryGroup']})" for v in self._vdsds
+        ]
+        schema = vol.Schema({
+            vol.Required("action", default="create"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value="create", label="Create device"),
+                    selector.SelectOptionDict(value="add_vdsd", label="Add another vdSD first"),
+                ])
+            ),
+            vol.Required("confirm", default=False): selector.BooleanSelector(),
+        })
+        return self.async_show_form(
+            step_id="device_summary",
+            data_schema=schema,
+            description_placeholders={
+                "device_name": self._device_name,
+                "vdsds": ", ".join(vdsd_summary),
+            },
+        )

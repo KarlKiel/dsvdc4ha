@@ -199,7 +199,40 @@ async def test_output_step_stores_output():
         "variableRamp": False,
         "mode": "0",
     })
-    # Function=1 (DIMMER) — not a manual channel function, goes to channel_mapping
-    assert result2["step_id"] in ("channel", "channel_mapping")
+    # Function=1 (DIMMER) — not a manual channel function; no channels yet so auto-skips
+    # channel_mapping → vdsd_overview
+    assert result2["step_id"] in ("channel", "channel_mapping", "vdsd_overview")
     assert flow._current_output is not None
     assert flow._current_output["name"] == "Dimmer"
+
+
+@pytest.mark.asyncio
+async def test_full_device_flow_no_output_creates_entry():
+    """Full device flow without output creates entry correctly."""
+    flow = DsvdcConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {}
+    flow._async_current_entries = MagicMock(return_value=[MagicMock(data={"entry_type": "hub"})])
+
+    # device_info
+    await flow.async_step_device_info(
+        {"name": "Test Lamp", "vendorName": "Acme", "displayId": "LampV1"}
+    )
+    # vdsd_creation
+    await flow.async_step_vdsd_creation(
+        {"displayId": "LampUnit", "primaryGroup": "1", "modelVersion": "v1"}
+    )
+    # vdsd_overview → next (no components)
+    await flow.async_step_vdsd_overview({"action": "next"})
+    # model_features → accept defaults
+    await flow.async_step_model_features({"features": []})
+    # device_summary → CREATE
+    result = await flow.async_step_device_summary({"action": "create", "confirm": True})
+
+    assert result["type"] == "create_entry"
+    data = result["data"]
+    assert data["entry_type"] == "device"
+    assert data["name"] == "Test Lamp"
+    assert data["vendorName"] == "Acme"
+    assert len(data["vdsds"]) == 1
+    assert data["vdsds"][0]["displayId"] == "LampUnit"
