@@ -16,16 +16,30 @@ def mock_hass():
 
 @pytest.mark.asyncio
 async def test_coordinator_start_delegates_to_api(mock_hass, mock_api):
-    with patch("custom_components.dsvdc4ha.coordinator.DsvdcApi", return_value=mock_api):
+    mock_zeroconf = MagicMock()
+    with (
+        patch("custom_components.dsvdc4ha.coordinator.DsvdcApi", return_value=mock_api),
+        patch(
+            "custom_components.dsvdc4ha.coordinator.async_get_instance",
+            new=AsyncMock(return_value=mock_zeroconf),
+        ),
+    ):
         from custom_components.dsvdc4ha.coordinator import HubCoordinator
         coord = HubCoordinator(mock_hass, port=9090)
         await coord.async_start()
-        mock_api.start.assert_awaited_once()
+        mock_api.start.assert_awaited_once_with(zeroconf=mock_zeroconf)
 
 
 @pytest.mark.asyncio
 async def test_coordinator_stop_delegates_to_api(mock_hass, mock_api):
-    with patch("custom_components.dsvdc4ha.coordinator.DsvdcApi", return_value=mock_api):
+    mock_zeroconf = MagicMock()
+    with (
+        patch("custom_components.dsvdc4ha.coordinator.DsvdcApi", return_value=mock_api),
+        patch(
+            "custom_components.dsvdc4ha.coordinator.async_get_instance",
+            new=AsyncMock(return_value=mock_zeroconf),
+        ),
+    ):
         from custom_components.dsvdc4ha.coordinator import HubCoordinator
         coord = HubCoordinator(mock_hass, port=9090)
         await coord.async_start()
@@ -40,8 +54,15 @@ async def test_async_setup_entry_hub_starts_coordinator(mock_api):
     mock_hass.config.internal_url = "http://ha.local"
     mock_hass.config.path = MagicMock(return_value="/tmp/dsvdc4ha_state")
     mock_hass.config_entries = MagicMock()
+    mock_zeroconf = MagicMock()
 
-    with patch("custom_components.dsvdc4ha.coordinator.DsvdcApi", return_value=mock_api):
+    with (
+        patch("custom_components.dsvdc4ha.coordinator.DsvdcApi", return_value=mock_api),
+        patch(
+            "custom_components.dsvdc4ha.coordinator.async_get_instance",
+            new=AsyncMock(return_value=mock_zeroconf),
+        ),
+    ):
         entry = MagicMock(spec=ConfigEntry)
         entry.data = {"entry_type": "hub", "port": 9090}
         entry.entry_id = "test-hub-id"
@@ -51,4 +72,4 @@ async def test_async_setup_entry_hub_starts_coordinator(mock_api):
 
         assert result is True
         assert "hub" in mock_hass.data.get("dsvdc4ha", {})
-        mock_api.start.assert_awaited_once()
+        mock_api.start.assert_awaited_once_with(zeroconf=mock_zeroconf)

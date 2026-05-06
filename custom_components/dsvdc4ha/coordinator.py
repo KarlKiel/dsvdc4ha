@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 from importlib.metadata import version as pkg_version, PackageNotFoundError
 
+from homeassistant.components.zeroconf import async_get_instance
 from homeassistant.core import HomeAssistant
 
 from .api import DsvdcApi
@@ -37,7 +38,8 @@ class HubCoordinator:
         )
 
     async def async_start(self) -> None:
-        await self.api.start()
+        zeroconf = await async_get_instance(self.hass)
+        await self.api.start(zeroconf=zeroconf)
         _LOGGER.info("dsvdc4ha hub started")
 
     async def async_stop(self) -> None:
