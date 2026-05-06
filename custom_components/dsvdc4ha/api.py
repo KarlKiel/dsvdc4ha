@@ -15,17 +15,20 @@ from pydsvdcapi.binary_input import BinaryInput
 from pydsvdcapi.button_input import ButtonInput
 from pydsvdcapi.dsuid import DsUid, DsUidNamespace
 from pydsvdcapi.enums import (
+    BinaryInputGroup,
     BinaryInputType,
     BinaryInputUsage,
-    ButtonElementID,
     ButtonFunction,
+    ButtonGroup,
     ButtonMode,
     ButtonType,
+    ColorClass,
     ColorGroup,
     OutputChannelType,
     OutputFunction,
     OutputMode,
     OutputUsage,
+    SensorGroup,
     SensorType,
     SensorUsage,
 )
