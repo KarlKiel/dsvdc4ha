@@ -108,3 +108,98 @@ async def test_vdsd_overview_optional_settings_returns():
     # Submit optional settings — should return to vdsd_overview
     result2 = await flow.async_step_optional_settings({"hardwareVersion": "1.0"})
     assert result2["step_id"] == "vdsd_overview"
+
+
+@pytest.mark.asyncio
+async def test_button_step_appends_button():
+    """Button step appends button data and returns to vdsd_overview."""
+    flow = DsvdcConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {}
+    flow._current_vdsd = {"displayId": "Unit", "optional": {}}
+    flow._current_buttons = []
+    flow._current_binary_inputs = []
+    flow._current_sensors = []
+    flow._current_output = None
+    flow._current_button_element_idx = 0
+
+    result = await flow.async_step_button()
+    assert result["step_id"] == "button"
+
+    result2 = await flow.async_step_button({
+        "name": "Main Button",
+        "buttonType": "1",
+        "group": "1",
+        "function": "0",
+        "mode": "0",
+        "channel": "0",
+        "supportsLocalKeyMode": False,
+        "setsLocalPriority": False,
+        "callsPresent": True,
+        "callbackType": "clickTypes",
+        "callback_entity": "sensor.my_button",
+    })
+    assert result2["step_id"] == "vdsd_overview"
+    assert len(flow._current_buttons) == 1
+    assert flow._current_buttons[0]["name"] == "Main Button"
+    assert flow._current_buttons[0]["buttonElementID"] == 0
+
+
+@pytest.mark.asyncio
+async def test_binary_input_step_appends_and_returns():
+    flow = DsvdcConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {}
+    flow._current_vdsd = {"displayId": "Unit", "optional": {}}
+    flow._current_buttons = []
+    flow._current_binary_inputs = []
+    flow._current_sensors = []
+    flow._current_output = None
+
+    result = await flow.async_step_binary_input()
+    assert result["step_id"] == "binary_input"
+
+    result2 = await flow.async_step_binary_input({
+        "name": "Window",
+        "group": "8",
+        "sensorFunction": "13",
+        "hardwiredFunction": "0",
+        "updateInterval": 0,
+        "inputType": "1",
+        "inputUsage": "0",
+        "valueType": "boolean",
+        "callback_entity": "binary_sensor.window",
+    })
+    assert result2["step_id"] == "vdsd_overview"
+    assert len(flow._current_binary_inputs) == 1
+    assert flow._current_binary_inputs[0]["name"] == "Window"
+
+
+@pytest.mark.asyncio
+async def test_output_step_stores_output():
+    flow = DsvdcConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {}
+    flow._current_vdsd = {"displayId": "Unit", "optional": {}}
+    flow._current_buttons = []
+    flow._current_binary_inputs = []
+    flow._current_sensors = []
+    flow._current_output = None
+    flow._current_channels = []
+
+    result = await flow.async_step_output()
+    assert result["step_id"] == "output"
+
+    result2 = await flow.async_step_output({
+        "name": "Dimmer",
+        "groups": ["1"],
+        "defaultGroup": "1",
+        "function": "1",
+        "outputUsage": "0",
+        "variableRamp": False,
+        "mode": "0",
+    })
+    # Function=1 (DIMMER) — not a manual channel function, goes to channel_mapping
+    assert result2["step_id"] in ("channel", "channel_mapping")
+    assert flow._current_output is not None
+    assert flow._current_output["name"] == "Dimmer"
