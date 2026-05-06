@@ -131,6 +131,7 @@ class DsvdcApi:
     async def announce_device(self, entry_id: str, vdsds_data: list[dict[str, Any]]) -> None:
         """Create a Device + its Vdsds and announce to dS."""
         assert self._vdc is not None and self._host is not None
+        assert self._host.session is not None, "VdcHost has no active session"
         dsuid = self._build_device_dsuid(entry_id)
         device = Device(vdc=self._vdc, dsuid=dsuid)
         for idx, vdsd_data in enumerate(vdsds_data):
