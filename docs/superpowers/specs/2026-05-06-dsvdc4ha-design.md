@@ -229,9 +229,9 @@ After `device_summary` the user confirms and the config entry is created.
 | vdSD `modelUID` | `vendorName` + `modelVersion` |
 | vdSD `configURL` | HA base URL at runtime |
 | button `buttonID` | 0 (same for all elements of a button group) |
-| button `dsIndex` | minimal free index in vdSD |
-| binary input `dsIndex` | minimal free index in vdSD |
-| sensor `dsIndex` | minimal free index in vdSD |
+| button `dsIndex` | minimal free index in vdSD for buttons |
+| binary input `dsIndex` | minimal free index in vdSD for binary inputs|
+| sensor `dsIndex` | minimal free index in vdSD for sensors
 | output `activeGroup` | `defaultGroup` |
 | modelFeatures | auto-derived from vdSD config, pre-selected; user can adjust |
 
