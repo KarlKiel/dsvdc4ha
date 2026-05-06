@@ -54,7 +54,7 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     entry_type = entry.data.get("entry_type")
 
     if entry_type == ENTRY_TYPE_HUB:
-        hub: HubCoordinator | None = hass.data.get(DOMAIN, {}).get("hub")
+        hub: HubCoordinator | None = hass.data.get(DOMAIN, {}).pop("hub", None)
         if hub:
             await hub.api.stop()
         return
