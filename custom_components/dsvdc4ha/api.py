@@ -2,24 +2,33 @@
 from __future__ import annotations
 
 import logging
+import socket
 from pathlib import Path
 from typing import Any
+
+from zeroconf import ServiceInfo
+from zeroconf.asyncio import AsyncZeroconf
+
+_VDC_SERVICE_TYPE = "_ds-vdc._tcp.local."
 
 from pydsvdcapi.binary_input import BinaryInput
 from pydsvdcapi.button_input import ButtonInput
 from pydsvdcapi.dsuid import DsUid, DsUidNamespace
 from pydsvdcapi.enums import (
+    BinaryInputGroup,
     BinaryInputType,
     BinaryInputUsage,
-    ButtonElementID,
     ButtonFunction,
+    ButtonGroup,
     ButtonMode,
     ButtonType,
+    ColorClass,
     ColorGroup,
     OutputChannelType,
     OutputFunction,
     OutputMode,
     OutputUsage,
+    SensorGroup,
     SensorType,
     SensorUsage,
 )
@@ -66,8 +75,13 @@ class DsvdcApi:
         self._vdc: Vdc | None = None
         self._devices: dict[str, Device] = {}  # entry_id → Device
 
-    async def start(self) -> None:
-        """Create VdcHost + Vdc and start serving."""
+    async def start(self, zeroconf: AsyncZeroconf | None = None) -> None:
+        """Create VdcHost + Vdc and start serving.
+
+        Pass the HA shared zeroconf instance (from async_get_instance) so the
+        integration does not create a second Zeroconf instance on the network.
+        When zeroconf is None the host falls back to its own instance (tests).
+        """
         if self._host is not None:
             raise RuntimeError("DsvdcApi.start() called while already running")
         host = VdcHost(
@@ -104,10 +118,35 @@ class DsvdcApi:
             capabilities=caps,
         )
         host.add_vdc(vdc)
-        await host.start(announce=True)
+        if zeroconf is not None:
+            await host.start(announce=False)
+            await self._register_zeroconf(host, zeroconf)
+        else:
+            await host.start(announce=True)
         self._host = host
         self._vdc = vdc
         _LOGGER.debug("VdcHost started on port %d", self._port)
+
+    async def _register_zeroconf(self, host: VdcHost, zeroconf: AsyncZeroconf) -> None:
+        """Register the vDC-host DNS-SD service using the HA shared Zeroconf instance.
+
+        Replicates VdcHost.announce() but injects the provided zeroconf so that
+        host._zeroconf and host._service_info are set — required for pydsvdcapi's
+        stop()/deannounce() to clean up correctly.
+        """
+        hostname = socket.gethostname()
+        service_name = f"{host.name} on {hostname}"
+        service_info = ServiceInfo(
+            type_=_VDC_SERVICE_TYPE,
+            name=f"{service_name}.{_VDC_SERVICE_TYPE}",
+            port=host._port,
+            properties={"dSUID": str(host._dsuid)},
+            server=f"{hostname}.local.",
+        )
+        host._service_info = service_info
+        host._zeroconf = zeroconf
+        await zeroconf.async_register_service(service_info)
+        _LOGGER.debug("Registered Zeroconf service '%s'", service_name)
 
     async def stop(self) -> None:
         """Stop serving (does not vanish devices — call vanish_device first)."""

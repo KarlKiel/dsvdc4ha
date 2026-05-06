@@ -9,17 +9,20 @@ from homeassistant import config_entries
 from homeassistant.helpers import selector as selector_module
 
 from .api import (
+    BinaryInputGroup,
     BinaryInputType,
     BinaryInputUsage,
-    ButtonElementID,
     ButtonFunction,
+    ButtonGroup,
     ButtonMode,
     ButtonType,
+    ColorClass,
     ColorGroup,
     OutputChannelType,
     OutputFunction,
     OutputMode,
     OutputUsage,
+    SensorGroup,
     SensorType,
     SensorUsage,
 )
@@ -36,41 +39,378 @@ _LOGGER = logging.getLogger(__name__)
 
 selector = selector_module
 
+# ---------------------------------------------------------------------------
+# Explicit label dicts — sourced from pydsvdcapi enums.py inline comments
+# and docstrings (https://github.com/KarlKiel/pydsvdcapi)
+# ---------------------------------------------------------------------------
+
+# ColorGroup: primaryGroup of a vdSD (device colour / functional category)
+_COLOR_GROUP_LABELS: dict[int, str] = {
+    1: "Yellow — Lights / Dimmers",
+    2: "Grey — Shades / Blinds",
+    3: "Blue — Climate (Heating, Cooling, Ventilation)",
+    4: "Cyan — Audio",
+    5: "Magenta — Video",
+    6: "Red — Security",
+    7: "Green — Access Control",
+    8: "Black — Joker / Configurable",
+    9: "White — Single Device / Appliance",
+}
+
+# ButtonGroup: group a button input controls (values 1–11, 48)
+_BUTTON_GROUP_LABELS: dict[int, str] = {
+    1: "1 — Yellow / Light",
+    2: "2 — Grey / Shadow",
+    3: "3 — Blue / Heating",
+    4: "4 — Cyan / Audio",
+    5: "5 — Magenta / Video",
+    6: "6 — Red / Security",
+    7: "7 — Green / Access",
+    8: "8 — Black / Joker",
+    9: "9 — Blue / Cooling",
+    10: "10 — Blue / Ventilation",
+    11: "11 — Blue / Window",
+    48: "48 — Room Temperature Control",
+}
+
+# BinaryInputGroup: group a binary input belongs to (values 1–8, Joker=8)
+_BINARY_INPUT_GROUP_LABELS: dict[int, str] = {
+    1: "1 — Yellow / Light",
+    2: "2 — Grey / Shadow",
+    3: "3 — Blue / Climate",
+    4: "4 — Cyan / Audio",
+    5: "5 — Magenta / Video",
+    6: "6 — Red / Security",
+    7: "7 — Green / Access",
+    8: "8 — Black / Joker",
+}
+
+# SensorGroup: group a sensor reading belongs to (values 0–7, Joker=0)
+_SENSOR_GROUP_LABELS: dict[int, str] = {
+    0: "0 — No group / Joker",
+    1: "1 — Yellow / Light",
+    2: "2 — Grey / Shadow",
+    3: "3 — Blue / Climate",
+    4: "4 — Cyan / Audio",
+    5: "5 — Magenta / Video",
+    6: "6 — Red / Security",
+    7: "7 — Green / Access",
+}
+
+# ColorClass: dS Application Group ID for output defaultGroup / groups (values 1–12, 48)
+_COLOR_CLASS_LABELS: dict[int, str] = {
+    1: "1 — Lights (Yellow)",
+    2: "2 — Blinds / Shades (Grey)",
+    3: "3 — Heating (Blue)",
+    4: "4 — Audio (Cyan)",
+    5: "5 — Video (Magenta)",
+    6: "6 — Security (Red)",
+    7: "7 — Access (Green)",
+    8: "8 — Joker / Configurable (Black)",
+    9: "9 — Cooling (Blue)",
+    10: "10 — Ventilation (Blue)",
+    11: "11 — Window (Blue)",
+    12: "12 — Recirculation / Fan-coil (Blue)",
+    48: "48 — Temperature Control (Blue)",
+}
+
+_BUTTON_TYPE_LABELS: dict[int, str] = {
+    0: "Undefined (unlimited elements)",
+    1: "Single pushbutton (1 element)",
+    2: "Two-way pushbutton (2 elements)",
+    3: "Four-way navigation (4 elements)",
+    4: "Four-way with center (5 elements)",
+    5: "Eight-way with center (9 elements)",
+    6: "On/Off switch (1 element)",
+}
+
+_BUTTON_FUNCTION_LABELS: dict[int, str] = {
+    0: "Device",
+    1: "Area 1",
+    2: "Area 2",
+    3: "Area 3",
+    4: "Area 4",
+    5: "Room",
+    6: "Extended 1",
+    7: "Extended 2",
+    8: "Extended 3",
+    9: "Extended 4",
+    10: "Extended Area 1",
+    11: "Extended Area 2",
+    12: "Extended Area 3",
+    13: "Extended Area 4",
+    14: "Apartment",
+    15: "App",
+}
+
+_BUTTON_MODE_LABELS: dict[int, str] = {
+    0: "Standard (1-way pushbutton)",
+    1: "Turbo (1-way)",
+    2: "Switched / Toggle",
+    5: "2-way Down, pair 1",
+    6: "2-way Down, pair 2",
+    7: "2-way Down, pair 3",
+    8: "2-way Down, pair 4",
+    9: "2-way Up, pair 1",
+    10: "2-way Up, pair 2",
+    11: "2-way Up, pair 3",
+    12: "2-way Up, pair 4",
+    13: "2-way",
+    14: "1-way (explicit)",
+    16: "AKM Standard (contact module)",
+    17: "AKM Inverted (contact module)",
+    18: "AKM On (rising edge)",
+    19: "AKM On (falling edge)",
+    20: "AKM Off (rising edge)",
+    21: "AKM Off (falling edge)",
+    22: "AKM Rising Edge",
+    23: "AKM Falling Edge",
+    65: "Heating Pushbutton (1-way)",
+    255: "Deactivated",
+}
+
+_BINARY_INPUT_TYPE_LABELS: dict[int, str] = {
+    0: "Generic",
+    1: "Presence",
+    2: "Brightness",
+    3: "Presence in Darkness",
+    4: "Twilight",
+    5: "Motion",
+    6: "Motion in Darkness",
+    7: "Smoke",
+    8: "Wind",
+    9: "Rain",
+    10: "Sun Radiation",
+    11: "Thermostat",
+    12: "Battery Low",
+    13: "Window Open",
+    14: "Door Open",
+    15: "Window Tilted",
+    16: "Garage Door Open",
+    17: "Sun Protection",
+    18: "Frost",
+    19: "Heating System Enabled",
+    20: "Heating Changeover",
+    21: "Initialization",
+    22: "Malfunction",
+    23: "Service",
+}
+
+_BINARY_INPUT_USAGE_LABELS: dict[int, str] = {
+    0: "Generic",
+    1: "Room Climate",
+    2: "Outdoor Climate",
+    3: "Climate Setting",
+}
+
+_SENSOR_TYPE_LABELS: dict[int, str] = {
+    0: "None",
+    1: "Temperature",
+    2: "Humidity",
+    3: "Illumination",
+    4: "Supply Voltage",
+    5: "CO Concentration",
+    6: "Radon Activity",
+    7: "Gas Type",
+    8: "Particles PM10",
+    9: "Particles PM2.5",
+    10: "Particles PM1",
+    11: "Room Operating Panel",
+    12: "Fan Speed",
+    13: "Wind Speed",
+    14: "Active Power",
+    15: "Electric Current",
+    16: "Energy Meter",
+    17: "Apparent Power",
+    18: "Air Pressure",
+    19: "Wind Direction",
+    20: "Sound Pressure Level",
+    21: "Precipitation",
+    22: "CO₂ Concentration",
+    23: "Wind Gust Speed",
+    24: "Wind Gust Direction",
+    25: "Generated Active Power",
+    26: "Generated Energy",
+    27: "Water Quantity",
+    28: "Water Flow Rate",
+    29: "Length",
+    30: "Mass",
+    31: "Duration",
+    32: "Percent",
+    33: "Percent Speed",
+    34: "Frequency",
+}
+
+_SENSOR_USAGE_LABELS: dict[int, str] = {
+    0: "Generic",
+    1: "Room",
+    2: "Outdoor",
+    3: "User Interaction",
+    4: "Device Level",
+    5: "Device Last Run",
+    6: "Device Average",
+}
+
+_OUTPUT_FUNCTION_LABELS: dict[int, str] = {
+    0: "On / Off",
+    1: "Dimmer",
+    2: "Positional (shade, valve)",
+    3: "Dimmer with Color Temperature",
+    4: "Full Color Dimmer (RGB / HSV)",
+    5: "Bipolar",
+    6: "Internally Controlled",
+    127: "Custom (no standard channels)",
+}
+
+# OutputMode: configurator UI hint (auto-derived by pydsvdcapi from function)
+_OUTPUT_MODE_LABELS: dict[int, str] = {
+    0: "Disabled",
+    1: "Binary (on/off only)",
+    2: "Gradual (continuous range)",
+    127: "unspecified 'active'",
+}
+
+_OUTPUT_USAGE_LABELS: dict[int, str] = {
+    0: "Undefined",
+    1: "Room",
+    2: "Outdoors",
+    3: "User",
+}
+
+_CHANNEL_TYPE_LABELS: dict[int, str] = {
+    0: "Default (none / catch-all)",
+    1: "Brightness",
+    2: "Hue",
+    3: "Saturation",
+    4: "Color Temperature (mired, 100–1000)",
+    5: "CIE X",
+    6: "CIE Y",
+    7: "Shade Position — Outside (0–100 %)",
+    8: "Shade Position — Indoor (0–100 %)",
+    9: "Shade Opening Angle — Outside",
+    10: "Shade Opening Angle — Indoor",
+    11: "Transparency",
+    12: "Air Flow Intensity",
+    13: "Air Flow Direction",
+    14: "Air Flap Position",
+    15: "Air Louver Position",
+    16: "Heating Power",
+    17: "Cooling Capacity",
+    18: "Audio Volume",
+    19: "Power State",
+    20: "Air Louver (Auto)",
+    21: "Air Flow (Auto)",
+    22: "Water Temperature",
+    23: "Water Flow Rate",
+    24: "Power Level",
+    25: "Video Station",
+    26: "Video Input Source",
+}
+
+# ---------------------------------------------------------------------------
+# SelectOptionDict lists built from label dicts
+# ---------------------------------------------------------------------------
+
 _COLOR_GROUP_OPTIONS = [
-    selector.SelectOptionDict(value=str(g.value), label=g.name.replace("_", " ").title())
+    selector.SelectOptionDict(value=str(g.value), label=_COLOR_GROUP_LABELS[g.value])
     for g in ColorGroup
 ]
 
+# Per-input-type group selectors (different enums per the pydsvdcapi spec)
+_BUTTON_GROUP_OPTIONS = [
+    selector.SelectOptionDict(value=str(g.value), label=_BUTTON_GROUP_LABELS[g.value])
+    for g in ButtonGroup
+]
+
+_BINARY_INPUT_GROUP_OPTIONS = [
+    selector.SelectOptionDict(value=str(g.value), label=_BINARY_INPUT_GROUP_LABELS[g.value])
+    for g in BinaryInputGroup
+]
+
+_SENSOR_GROUP_OPTIONS = [
+    selector.SelectOptionDict(value=str(g.value), label=_SENSOR_GROUP_LABELS[g.value])
+    for g in SensorGroup
+]
+
+# ColorClass options for output defaultGroup / groups (valid range 1–63)
+_COLOR_CLASS_OPTIONS = [
+    selector.SelectOptionDict(value=str(c.value), label=_COLOR_CLASS_LABELS[c.value])
+    for c in ColorClass
+    if c.value in _COLOR_CLASS_LABELS
+]
+
 _BUTTON_TYPE_OPTIONS = [
-    selector.SelectOptionDict(value=str(t.value), label=t.name.replace("_", " ").title())
+    selector.SelectOptionDict(value=str(t.value), label=_BUTTON_TYPE_LABELS[t.value])
     for t in ButtonType
 ]
-# Number of button elements per ButtonType value
-# UNDEFINED=1, SINGLE_PUSHBUTTON=1, TWO_WAY_PUSHBUTTON=2, FOUR_WAY_NAVIGATION=4,
-# FOUR_WAY_WITH_CENTER=5, EIGHT_WAY_WITH_CENTER=9, ON_OFF_SWITCH=1
-_BUTTON_ELEMENTS_BY_TYPE: dict[int, int] = {0: 1, 1: 1, 2: 2, 3: 4, 4: 5, 5: 9, 6: 1}
+
+_BUTTON_FUNCTION_OPTIONS = [
+    selector.SelectOptionDict(value=str(f.value), label=_BUTTON_FUNCTION_LABELS[f.value])
+    for f in ButtonFunction
+]
+
+_BUTTON_MODE_OPTIONS = [
+    selector.SelectOptionDict(value=str(m.value), label=_BUTTON_MODE_LABELS[m.value])
+    for m in ButtonMode
+]
 
 _BINARY_INPUT_TYPE_OPTIONS = [
-    selector.SelectOptionDict(value=str(t.value), label=t.name.replace("_", " ").title())
+    selector.SelectOptionDict(value=str(t.value), label=_BINARY_INPUT_TYPE_LABELS[t.value])
     for t in BinaryInputType
 ]
+
+_BINARY_INPUT_USAGE_OPTIONS = [
+    selector.SelectOptionDict(value=str(u.value), label=_BINARY_INPUT_USAGE_LABELS[u.value])
+    for u in BinaryInputUsage
+]
+
+_INPUT_TYPE_OPTIONS = [
+    selector.SelectOptionDict(value="0", label="Manual (no automatic detection)"),
+    selector.SelectOptionDict(value="1", label="Detects changes (push at change)"),
+    selector.SelectOptionDict(value="2", label="Polled (regular polling by DSS)"),
+]
+
 _SENSOR_TYPE_OPTIONS = [
-    selector.SelectOptionDict(value=str(t.value), label=t.name.replace("_", " ").title())
+    selector.SelectOptionDict(value=str(t.value), label=_SENSOR_TYPE_LABELS[t.value])
     for t in SensorType
 ]
+
+_SENSOR_USAGE_OPTIONS = [
+    selector.SelectOptionDict(value=str(u.value), label=_SENSOR_USAGE_LABELS[u.value])
+    for u in SensorUsage
+]
+
 _OUTPUT_FUNCTION_OPTIONS = [
-    selector.SelectOptionDict(value=str(f.value), label=f.name.replace("_", " ").title())
+    selector.SelectOptionDict(value=str(f.value), label=_OUTPUT_FUNCTION_LABELS[f.value])
     for f in OutputFunction
 ]
+
+_OUTPUT_MODE_OPTIONS = [
+    selector.SelectOptionDict(value=str(m.value), label=_OUTPUT_MODE_LABELS[m.value])
+    for m in OutputMode
+]
+
+_OUTPUT_USAGE_OPTIONS = [
+    selector.SelectOptionDict(value=str(u.value), label=_OUTPUT_USAGE_LABELS[u.value])
+    for u in OutputUsage
+]
+
 _CHANNEL_TYPE_OPTIONS = [
-    selector.SelectOptionDict(value=str(c.value), label=c.name.replace("_", " ").title())
+    selector.SelectOptionDict(value=str(c.value), label=_CHANNEL_TYPE_LABELS[c.value])
     for c in OutputChannelType
 ]
-# OutputFunction values that require manual channel config
-# POSITIONAL=2, BIPOLAR=5, INTERNALLY_CONTROLLED=6, CUSTOM=127
+
+# OutputFunction values that require manual channel configuration
 _MANUAL_CHANNEL_FUNCTIONS: set[int] = {
     f.value for f in OutputFunction if f.name in ("POSITIONAL", "BIPOLAR", "INTERNALLY_CONTROLLED", "CUSTOM")
 }
+
+# Number of button elements per ButtonType value
+_BUTTON_ELEMENTS_BY_TYPE: dict[int, int] = {0: 1, 1: 1, 2: 2, 3: 4, 4: 5, 5: 9, 6: 1}
+
+# ---------------------------------------------------------------------------
+# Schemas
+# ---------------------------------------------------------------------------
 
 HUB_SCHEMA = vol.Schema({
     vol.Required(CONF_PORT, default=8444): vol.All(vol.Coerce(int), vol.Range(min=1024, max=65535)),
@@ -302,14 +642,14 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Required("buttonType", default="1"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=_BUTTON_TYPE_OPTIONS)
             ),
-            vol.Required("group", default="1"): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=9, mode="box")
+            vol.Required("group", default="1"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_BUTTON_GROUP_OPTIONS)
             ),
-            vol.Required("function", default="0"): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=255, mode="box")
+            vol.Required("function", default="0"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_BUTTON_FUNCTION_OPTIONS)
             ),
-            vol.Required("mode", default="0"): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=255, mode="box")
+            vol.Required("mode", default="0"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_BUTTON_MODE_OPTIONS)
             ),
             vol.Optional("channel", default=0): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, max=255, mode="box")
@@ -319,8 +659,8 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Optional("callsPresent", default=True): selector.BooleanSelector(),
             vol.Required("callbackType", default="clickTypes"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="clickTypes", label="Click Types"),
-                    selector.SelectOptionDict(value="actionIds", label="Action IDs"),
+                    selector.SelectOptionDict(value="clickTypes", label="Click types"),
+                    selector.SelectOptionDict(value="actionIds", label="Scene / action IDs"),
                 ])
             ),
             vol.Optional("callback_entity"): selector.EntitySelector(),
@@ -345,8 +685,8 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_vdsd_overview()
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
-            vol.Required("group", default="8"): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=9, mode="box")
+            vol.Required("group", default="8"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_BINARY_INPUT_GROUP_OPTIONS)
             ),
             vol.Required("sensorFunction", default="0"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=_BINARY_INPUT_TYPE_OPTIONS)
@@ -357,16 +697,16 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Optional("updateInterval", default=0): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, mode="box")
             ),
-            vol.Required("inputType", default="1"): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=2, mode="box")
+            vol.Required("inputType", default="1"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_INPUT_TYPE_OPTIONS)
             ),
-            vol.Required("inputUsage", default="0"): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, mode="box")
+            vol.Required("inputUsage", default="0"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_BINARY_INPUT_USAGE_OPTIONS)
             ),
             vol.Required("valueType", default="boolean"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="boolean", label="Boolean"),
-                    selector.SelectOptionDict(value="integer", label="Integer (extended)"),
+                    selector.SelectOptionDict(value="boolean", label="Boolean (true / false)"),
+                    selector.SelectOptionDict(value="integer", label="Integer (extended value)"),
                 ])
             ),
             vol.Optional("callback_entity"): selector.EntitySelector(),
@@ -394,14 +734,14 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return await self.async_step_vdsd_overview()
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
-            vol.Required("group", default="0"): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=9, mode="box")
+            vol.Required("group", default="0"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_SENSOR_GROUP_OPTIONS)
             ),
             vol.Required("sensorType", default="1"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=_SENSOR_TYPE_OPTIONS)
             ),
-            vol.Required("sensorUsage", default="0"): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, mode="box")
+            vol.Required("sensorUsage", default="0"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_SENSOR_USAGE_OPTIONS)
             ),
             vol.Required("min", default=0): selector.NumberSelector(
                 selector.NumberSelectorConfig(mode="box")
@@ -440,7 +780,7 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "function": fn,
                 "outputUsage": int(user_input.get("outputUsage", 0)),
                 "variableRamp": bool(user_input.get("variableRamp", False)),
-                "mode": int(user_input.get("mode", 0)),
+                "mode": int(user_input.get("mode", 127)),
                 "onThreshold": 50,
             }
             self._current_channels = []
@@ -450,23 +790,20 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
             vol.Required("groups", default=["1"]): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=[selector.SelectOptionDict(value=str(i), label=str(i)) for i in range(1, 10)],
-                    multiple=True,
-                )
+                selector.SelectSelectorConfig(options=_COLOR_CLASS_OPTIONS, multiple=True)
             ),
-            vol.Required("defaultGroup", default="1"): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=1, max=9, mode="box")
+            vol.Required("defaultGroup", default="1"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_COLOR_CLASS_OPTIONS)
             ),
             vol.Required("function", default="0"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=_OUTPUT_FUNCTION_OPTIONS)
             ),
-            vol.Required("outputUsage", default="0"): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, mode="box")
+            vol.Required("outputUsage", default="0"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_OUTPUT_USAGE_OPTIONS)
             ),
             vol.Optional("variableRamp", default=False): selector.BooleanSelector(),
-            vol.Required("mode", default="0"): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, mode="box")
+            vol.Required("mode", default="127"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=_OUTPUT_MODE_OPTIONS)
             ),
         })
         return self.async_show_form(step_id="output", data_schema=schema)
@@ -548,7 +885,6 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             schema_dict[vol.Optional(f"read_{ch['dsIndex']}")] = selector.EntitySelector()
             schema_dict[vol.Optional(f"write_{ch['dsIndex']}")] = selector.ActionSelector()
         if not schema_dict:
-            # No channels to map — auto-skip
             if self._current_output:
                 self._current_output["channels"] = []
             return await self.async_step_vdsd_overview()
