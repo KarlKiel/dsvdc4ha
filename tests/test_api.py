@@ -45,3 +45,28 @@ async def test_api_stop_calls_host_stop():
         await api.stop()
 
         mock_host_instance.stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_api_announce_device_adds_to_vdc():
+    with patch("custom_components.dsvdc4ha.api.VdcHost") as MockHost, \
+         patch("custom_components.dsvdc4ha.api.Vdc") as MockVdc, \
+         patch("custom_components.dsvdc4ha.api.VdcCapabilities"), \
+         patch("custom_components.dsvdc4ha.api.Device") as MockDevice, \
+         patch("custom_components.dsvdc4ha.api.DsUid"):
+        mock_host = MagicMock()
+        mock_host.start = AsyncMock()
+        mock_host.session = MagicMock()
+        MockHost.return_value = mock_host
+        mock_vdc = MagicMock()
+        MockVdc.return_value = mock_vdc
+        mock_device = MagicMock()
+        mock_device.announce = AsyncMock(return_value=1)
+        MockDevice.return_value = mock_device
+
+        api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+        await api.start()
+        await api.announce_device("entry-abc", [])
+
+        mock_vdc.add_device.assert_called_once_with(mock_device)
+        mock_device.announce.assert_awaited_once()
