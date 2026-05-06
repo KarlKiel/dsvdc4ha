@@ -28,6 +28,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     if entry_type == ENTRY_TYPE_DEVICE:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        hub: HubCoordinator | None = hass.data[DOMAIN].get("hub")
+        if hub:
+            await hub.api.announce_device(entry.entry_id, entry.data.get("vdsds", []))
+            from .listeners import setup_input_listeners, setup_output_listeners
+            unsubs = setup_input_listeners(hass, hub.api, entry.entry_id, entry.data.get("vdsds", []))
+            unsubs += setup_output_listeners(hass, hub.api, entry.entry_id, entry.data.get("vdsds", []))
+            hass.data[DOMAIN][entry.entry_id] = {"unsubs": unsubs}
         return True
 
     _LOGGER.error("Unknown entry_type: %s", entry_type)
@@ -44,6 +51,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return True
 
     if entry_type == ENTRY_TYPE_DEVICE:
+        entry_data = hass.data[DOMAIN].pop(entry.entry_id, {})
+        for unsub in entry_data.get("unsubs", []):
+            unsub()
         return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     return True
