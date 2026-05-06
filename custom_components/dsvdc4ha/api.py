@@ -3,12 +3,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
 
-from pydsvdcapi.dsuid import DsUid, DsUidNamespace
 from pydsvdcapi.vdc import Vdc, VdcCapabilities
 from pydsvdcapi.vdc_host import VdcHost
-from pydsvdcapi.vdsd import Device, Vdsd
+from pydsvdcapi.vdsd import Device
 
 from .const import (
     VDC_DEVICE_ICON_NAME,
@@ -48,7 +46,9 @@ class DsvdcApi:
 
     async def start(self) -> None:
         """Create VdcHost + Vdc and start serving."""
-        self._host = VdcHost(
+        if self._host is not None:
+            raise RuntimeError("DsvdcApi.start() called while already running")
+        host = VdcHost(
             port=self._port,
             name=VDC_HOST_NAME,
             model=VDC_HOST_MODEL,
@@ -67,8 +67,8 @@ class DsvdcApi:
             identification=False,
             dynamic_definitions=True,
         )
-        self._vdc = Vdc(
-            host=self._host,
+        vdc = Vdc(
+            host=host,
             implementation_id=VDC_IMPLEMENTATION_ID,
             name=VDC_NAME,
             model=VDC_MODEL,
@@ -81,14 +81,18 @@ class DsvdcApi:
             device_icon_name=VDC_DEVICE_ICON_NAME,
             capabilities=caps,
         )
-        self._host.add_vdc(self._vdc)
-        await self._host.start(announce=True)
+        host.add_vdc(vdc)
+        await host.start(announce=True)
+        self._host = host
+        self._vdc = vdc
         _LOGGER.debug("VdcHost started on port %d", self._port)
 
     async def stop(self) -> None:
         """Stop serving (does not vanish devices — call vanish_device first)."""
         if self._host:
             await self._host.stop()
+            self._host = None
+            self._vdc = None
             _LOGGER.debug("VdcHost stopped")
 
     @property

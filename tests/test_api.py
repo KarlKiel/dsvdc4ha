@@ -25,6 +25,9 @@ async def test_api_start_creates_host_and_vdc():
         assert call_kwargs["model_version"] == "0.1.0"
         mock_host_instance.start.assert_awaited_once()
         MockVdc.assert_called_once()
+        mock_vdc_instance = MockVdc.return_value
+        mock_host_instance.add_vdc.assert_called_once_with(mock_vdc_instance)
+        mock_host_instance.start.assert_awaited_once_with(announce=True)
 
 
 @pytest.mark.asyncio
