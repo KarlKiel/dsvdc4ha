@@ -239,24 +239,18 @@ class DsvdcApi:
         )
         host._service_info = service_info
         host._zeroconf = zeroconf
+
+        # Pre-unregister any stale entry with this name (e.g. left over from a
+        # previous failed setup attempt in the same HA session).  Zeroconf
+        # looks up registrations by name, so we can pass the new ServiceInfo
+        # object — it has the right name.  Swallow errors: not registered is fine.
         try:
-            await zeroconf.async_register_service(service_info)
-        except Exception as exc:
-            if type(exc).__name__ == "NonUniqueNameException":
-                # Stale registration from a previous failed/aborted setup —
-                # unregister and re-register cleanly so the new address/port
-                # is picked up (update_service does not reliably re-announce).
-                _LOGGER.debug(
-                    "Zeroconf service '%s' already registered; re-registering",
-                    service_name,
-                )
-                try:
-                    await zeroconf.async_unregister_service(service_info)
-                except Exception:
-                    pass
-                await zeroconf.async_register_service(service_info)
-            else:
-                raise
+            await zeroconf.async_unregister_service(service_info)
+            _LOGGER.debug("Removed stale Zeroconf service '%s'", service_name)
+        except Exception:
+            pass
+
+        await zeroconf.async_register_service(service_info)
         _LOGGER.debug(
             "Registered Zeroconf service '%s' on port %d", service_name, host._port
         )
