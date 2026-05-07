@@ -409,6 +409,173 @@ _MANUAL_CHANNEL_FUNCTIONS: set[int] = {
 _BUTTON_ELEMENTS_BY_TYPE: dict[int, int] = {0: 1, 1: 1, 2: 2, 3: 4, 4: 5, 5: 9, 6: 1}
 
 # ---------------------------------------------------------------------------
+# Model features — labels, options, and auto-derive helper
+# ---------------------------------------------------------------------------
+
+# Human-readable labels for all auto-derivable model features.
+# Sourced from pydsvdcapi docs/model-features-auto-assignment.md
+_AUTO_FEATURE_LABELS: dict[str, str] = {
+    "dontcare":                     "Per-scene 'retain current value' checkbox",
+    "blink":                        "Per-scene blink effect checkbox",
+    "transt":                       "Per-scene transition time (standard / slow)",
+    "outvalue8":                    "8-bit output value slider",
+    "outputchannels":               "Multi-channel colour output controls",
+    "dimtimeconfig":                "Dim-time settings (up / down)",
+    "outconfigswitch":              "Switch output threshold configuration",
+    "impulseconfig":                "Impulse mode tab in device properties",
+    "pwmvalue":                     "PWM-mode indicator in output values",
+    "ventconfig":                   "Ventilation speed / flap configuration",
+    "shadeprops":                   "Shade device properties (positional timing)",
+    "shadeposition":                "16-bit position slider and up/down buttons",
+    "shadebladeang":                "Blade angle input / slider",
+    "motiontimefins":               "Blade motion timing in shade properties",
+    "locationconfig":               "Direction / orientation dropdown",
+    "operationlock":                "Ignore operation lock for weather alarms",
+    "windprotectionconfigblind":    "Wind protection class — jalousie / blind",
+    "windprotectionconfigawning":   "Wind protection class — awning / roller blind",
+    "heatingprops":                 "Climate device properties (valve / PWM settings)",
+    "heatinggroup":                 "Heating group dropdown",
+    "valvetype":                    "Attached terminal device dropdown",
+    "extendedvalvetypes":           "Extended valve type options",
+    "fcu":                          "Fan coil unit profile",
+    "temperatureoffset":            "Temperature offset adjustment",
+    "consumption":                  "Energy monitoring / consumption events menu",
+    "akmsensor":                    "AKM sensor function dropdown",
+    "akminput":                     "AKM input behaviour dropdown",
+    "akmdelay":                     "AKM turn-on / turn-off delay dropdowns",
+    "pushbutton":                   "Push button type dropdown",
+    "pushbadvanced":                "Per-preset click-type config and local priority",
+    "pushbdisabled":                "Dialog for disabling unused buttons",
+    "pushbarea":                    "Area push-button type option",
+    "pushbdevice":                  "Device push-button type option",
+    "pushbsensor":                  "Sensor-style button type option",
+    "highlevel":                    "App button type option",
+    "jokerconfig":                  "Colour group dropdown for Joker device",
+    "identification":               "Identify menu entry (sends Notify to VDC)",
+}
+
+# Human-readable labels for 'not tested' optional features.
+_OPTIONAL_FEATURE_LABELS: dict[str, str] = {
+    "blinkconfig":                          "Blink behaviour configuration menu (not tested)",
+    "customtransitiontime":                 "Per-scene custom transition time (not tested)",
+    "consumptiontimer":                     "Consumption timer / run-time panel (not tested)",
+    "outmodegeneric":                       "Output mode selector — generic values 0–6 (not tested)",
+    "outmodeauto":                          "Output mode: add Auto option (not tested)",
+    "jokertempcontrol":                     "Temperature-controlled output for Joker device (not tested)",
+    "umvrelay":                             "Relay function dropdown (not tested)",
+    "ftwtempcontrolventilationselect":      "FTW combined temperature + ventilation selector (not tested)",
+    "setumr200config":                      "UMR200 hardware configuration (not tested)",
+    "apartmentapplication":                 "Apartment application integration (not tested)",
+    "customactivityconfig":                 "Custom activity / app configuration (not tested)",
+}
+
+_TRANST_CHANNEL_TYPES: frozenset[int] = frozenset(set(range(1, 13)) | set(range(14, 19)) | set(range(22, 25)))
+_VENTILATION_CHANNEL_TYPES: frozenset[int] = frozenset({12, 13, 14, 15, 20, 21})
+
+
+def _compute_auto_features(
+    primary_group: int,
+    buttons: list[dict],
+    binary_inputs: list[dict],
+    sensors: list[dict],
+    output: dict | None,
+    has_identify: bool,
+) -> set[str]:
+    """Mirror pydsvdcapi Vdsd.derive_model_features() without building a real Vdsd."""
+    features: set[str] = set()
+    ch_types: set[int] = set()
+
+    if output is not None:
+        features.add("dontcare")
+        features.add("blink")
+        fn = int(output.get("function", 0))
+        ch_types = {int(ch["channelType"]) for ch in output.get("channels", [])}
+        has_blade = bool(ch_types & {9, 10})
+
+        if ch_types & _TRANST_CHANNEL_TYPES:
+            features.add("transt")
+
+        if primary_group == 2:  # GREY
+            features.add("shadeprops")
+            if fn == 2:  # POSITIONAL
+                features.add("shadeposition")
+                if has_blade:
+                    features.add("shadebladeang")
+                    features.add("motiontimefins")
+        else:
+            features.add("outvalue8")
+
+        if {2, 3} <= ch_types or {1, 4} <= ch_types:
+            features.add("outputchannels")
+
+        if fn in {1, 3, 4}:  # DIMMER / DIMMER_COLOR_TEMP / FULL_COLOR_DIMMER
+            features.add("dimtimeconfig")
+
+        if fn == 0:  # ON_OFF
+            features.add("outconfigswitch")
+            features.add("impulseconfig")
+
+        if primary_group == 3 and fn == 0:  # BLUE + ON_OFF
+            features.add("pwmvalue")
+
+        if 16 in ch_types:  # HEATING_POWER
+            features.add("pwmvalue")
+
+        if ch_types & _VENTILATION_CHANNEL_TYPES:
+            features.add("ventconfig")
+
+    sensor_types = {int(s["sensorType"]) for s in sensors}
+    if sensor_types & {14, 15, 16, 17}:
+        features.add("consumption")
+    if 1 in sensor_types and primary_group == 3:
+        features.add("temperatureoffset")
+
+    if binary_inputs:
+        features.add("akmsensor")
+        features.add("akminput")
+        features.add("akmdelay")
+
+    if buttons:
+        features.add("pushbutton")
+        features.add("pushbadvanced")
+        features.add("pushbdisabled")
+        for btn in buttons:
+            grp = int(btn.get("group", 1))
+            if grp != 8:
+                features.add("pushbarea")
+                if btn.get("supportsLocalKeyMode", False):
+                    features.add("pushbdevice")
+            else:
+                features.add("pushbsensor")
+                features.add("highlevel")
+
+    if primary_group == 3:  # BLUE
+        features.add("heatingprops")
+        features.add("heatinggroup")
+        if output is not None:
+            features.add("valvetype")
+            features.add("extendedvalvetypes")
+            if ch_types & _VENTILATION_CHANNEL_TYPES:
+                features.add("fcu")
+
+    if primary_group == 2 and output is not None:  # GREY
+        features.add("locationconfig")
+        features.add("operationlock")
+        if ch_types & {9, 10}:
+            features.add("windprotectionconfigblind")
+        else:
+            features.add("windprotectionconfigawning")
+
+    if primary_group == 8:  # BLACK
+        features.add("jokerconfig")
+
+    if has_identify:
+        features.add("identification")
+
+    return features
+
+
+# ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
 
@@ -581,7 +748,12 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(step_id="optional_settings", data_schema=schema)
 
     async def async_step_model_features(self, user_input: dict | None = None):
-        """Select optional model features, then finalise and save the current vdSD."""
+        """Select model features, then finalise and save the current vdSD.
+
+        Auto-derived features (based on the current device configuration) are
+        pre-selected. The user can deselect any of them and may also add
+        optional 'not tested' features from the bottom of the list.
+        """
         if user_input is not None:
             self._current_vdsd["model_features"] = user_input.get("features", [])
             self._current_vdsd["buttons"] = self._current_buttons
@@ -590,16 +762,27 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._current_vdsd["output"] = self._current_output
             self._vdsds.append(dict(self._current_vdsd))
             return await self.async_step_device_summary()
+
+        # Compute which features derive_model_features() would auto-assign.
+        auto_features = _compute_auto_features(
+            primary_group=int(self._current_vdsd.get("primaryGroup", 1)),
+            buttons=self._current_buttons,
+            binary_inputs=self._current_binary_inputs,
+            sensors=self._current_sensors,
+            output=self._current_output,
+            has_identify=bool(self._current_vdsd.get("identify_action")),
+        )
+
+        # Build option list: auto-derivable features first, optional ones after.
+        options: list[selector.SelectOptionDict] = []
+        for key, label in _AUTO_FEATURE_LABELS.items():
+            options.append(selector.SelectOptionDict(value=key, label=label))
+        for key, label in _OPTIONAL_FEATURE_LABELS.items():
+            options.append(selector.SelectOptionDict(value=key, label=label))
+
         schema = vol.Schema({
-            vol.Optional("features", default=[]): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=[
-                        selector.SelectOptionDict(value="dontcare", label="No special features"),
-                        selector.SelectOptionDict(value="identification", label="Identification"),
-                        selector.SelectOptionDict(value="firmwareUpgrade", label="Firmware Upgrade"),
-                    ],
-                    multiple=True,
-                )
+            vol.Optional("features", default=sorted(auto_features)): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=options, multiple=True)
             ),
         })
         return self.async_show_form(step_id="model_features", data_schema=schema)

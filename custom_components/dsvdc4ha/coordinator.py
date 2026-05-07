@@ -2,21 +2,15 @@
 from __future__ import annotations
 
 import logging
-from importlib.metadata import version as pkg_version, PackageNotFoundError
 
 from homeassistant.components.zeroconf import async_get_instance
 from homeassistant.core import HomeAssistant
+from homeassistant.loader import async_get_integration
 
 from .api import DsvdcApi
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _get_integration_version() -> str:
-    try:
-        return pkg_version("dsvdc4ha")
-    except PackageNotFoundError:
-        return "0.0.0"
 
 
 class HubCoordinator:
@@ -24,24 +18,29 @@ class HubCoordinator:
 
     def __init__(self, hass: HomeAssistant, port: int) -> None:
         self.hass = hass
+        self._port = port
+        self.api: DsvdcApi | None = None
+
+    async def async_start(self) -> None:
+        integration = await async_get_integration(self.hass, DOMAIN)
+        version = integration.version or "0.0.0"
         config_url = (
-            f"{hass.config.internal_url}/config/integrations"
-            if hass.config.internal_url
+            f"{self.hass.config.internal_url}/config/integrations"
+            if self.hass.config.internal_url
             else "http://homeassistant.local/config/integrations"
         )
-        state_path = hass.config.path(".storage", "dsvdc4ha_host_state")
+        state_path = self.hass.config.path(".storage", "dsvdc4ha_host_state")
         self.api = DsvdcApi(
-            port=port,
-            version=_get_integration_version(),
+            port=self._port,
+            version=version,
             config_url=config_url,
             state_path=state_path,
         )
-
-    async def async_start(self) -> None:
         zeroconf = await async_get_instance(self.hass)
         await self.api.start(zeroconf=zeroconf)
         _LOGGER.info("dsvdc4ha hub started")
 
     async def async_stop(self) -> None:
-        await self.api.stop()
+        if self.api:
+            await self.api.stop()
         _LOGGER.info("dsvdc4ha hub stopped")

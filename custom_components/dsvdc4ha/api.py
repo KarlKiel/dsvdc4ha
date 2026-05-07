@@ -1,6 +1,7 @@
 """pydsvdcapi wrapper — only file that imports pydsvdcapi directly."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import socket
 from pathlib import Path
@@ -65,8 +66,8 @@ class DsvdcApi:
         config_url: str,
         state_path: str,
     ) -> None:
-        icon_path = Path(__file__).parent / "vdc.png"
-        self._icon_bytes = icon_path.read_bytes() if icon_path.exists() else None
+        self._icon_path = Path(__file__).parent / "vdc.png"
+        self._icon_bytes: bytes | None = None  # loaded in start() off the event loop
         self._port = port
         self._version = version
         self._config_url = config_url
@@ -84,6 +85,23 @@ class DsvdcApi:
         """
         if self._host is not None:
             raise RuntimeError("DsvdcApi.start() called while already running")
+        # Load icon bytes and construct VdcHost+Vdc in a thread — both involve
+        # synchronous file I/O (read_bytes, persistence.py open) that must not
+        # run on the HA event loop.
+        if self._icon_path.exists():
+            self._icon_bytes = await asyncio.to_thread(self._icon_path.read_bytes)
+        host, vdc = await asyncio.to_thread(self._build_host_and_vdc)
+        if zeroconf is not None:
+            await host.start(announce=False)
+            await self._register_zeroconf(host, zeroconf)
+        else:
+            await host.start(announce=True)
+        self._host = host
+        self._vdc = vdc
+        _LOGGER.debug("VdcHost started on port %d", self._port)
+
+    def _build_host_and_vdc(self) -> tuple[VdcHost, Vdc]:
+        """Construct VdcHost and Vdc synchronously — called via asyncio.to_thread."""
         host = VdcHost(
             port=self._port,
             name=VDC_HOST_NAME,
@@ -118,14 +136,7 @@ class DsvdcApi:
             capabilities=caps,
         )
         host.add_vdc(vdc)
-        if zeroconf is not None:
-            await host.start(announce=False)
-            await self._register_zeroconf(host, zeroconf)
-        else:
-            await host.start(announce=True)
-        self._host = host
-        self._vdc = vdc
-        _LOGGER.debug("VdcHost started on port %d", self._port)
+        return host, vdc
 
     async def _register_zeroconf(self, host: VdcHost, zeroconf: AsyncZeroconf) -> None:
         """Register the vDC-host DNS-SD service using the HA shared Zeroconf instance.
@@ -151,10 +162,29 @@ class DsvdcApi:
     async def stop(self) -> None:
         """Stop serving (does not vanish devices — call vanish_device first)."""
         if self._host:
+            await self._deregister_zeroconf(self._host)
             await self._host.stop()
             self._host = None
             self._vdc = None
             _LOGGER.debug("VdcHost stopped")
+
+    async def _deregister_zeroconf(self, host: VdcHost) -> None:
+        """Unregister the DNS-SD service from the shared Zeroconf instance.
+
+        VdcHost.unannounce() calls async_close() on whatever zeroconf it holds,
+        which would shut down HA's shared instance and leave the TCP server open
+        (port blocked) if the close raises.  We unregister the service ourselves
+        and clear the reference so unannounce() becomes a no-op.
+        """
+        if host._zeroconf is None:
+            return
+        if host._service_info is not None:
+            try:
+                await host._zeroconf.async_unregister_service(host._service_info)
+            except Exception:
+                _LOGGER.debug("Zeroconf unregister raised (ignored)", exc_info=True)
+        host._zeroconf = None
+        host._service_info = None
 
     @property
     def vdc(self) -> Vdc | None:
@@ -203,6 +233,16 @@ class DsvdcApi:
         if output_data := data.get("output"):
             self._add_output(vdsd, output_data)
         vdsd.derive_model_features()
+        # Apply the user's explicit feature selection saved during config flow.
+        # derive_model_features() above seeds the set; we then add optional
+        # features the user enabled and remove auto-derived ones they deselected.
+        if user_features := data.get("model_features"):
+            user_set = set(user_features)
+            auto_set = set(vdsd.model_features)
+            for f in auto_set - user_set:
+                vdsd.remove_model_feature(f)
+            for f in user_set - auto_set:
+                vdsd.add_model_feature(f)
         return vdsd
 
     def _add_button(self, vdsd: Vdsd, data: dict[str, Any]) -> None:
