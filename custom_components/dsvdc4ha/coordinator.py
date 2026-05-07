@@ -21,7 +21,7 @@ class HubCoordinator:
         self._port = port
         self.api: DsvdcApi | None = None
 
-    async def async_start(self) -> None:
+    async def async_start(self, on_session_ready=None) -> None:
         integration = await async_get_integration(self.hass, DOMAIN)
         version = str(integration.version) if integration.version else "0.0.0"
         config_url = (
@@ -37,7 +37,7 @@ class HubCoordinator:
             state_path=state_path,
         )
         zeroconf = await async_get_instance(self.hass)
-        await self.api.start(zeroconf=zeroconf)
+        await self.api.start(zeroconf=zeroconf, on_session_ready=on_session_ready)
         _LOGGER.info("dsvdc4ha hub started")
 
     async def async_stop(self) -> None:

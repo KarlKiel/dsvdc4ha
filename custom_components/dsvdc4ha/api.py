@@ -76,12 +76,21 @@ class DsvdcApi:
         self._vdc: Vdc | None = None
         self._devices: dict[str, Device] = {}  # entry_id → Device
 
-    async def start(self, zeroconf: AsyncZeroconf | None = None) -> None:
+    async def start(
+        self,
+        zeroconf: AsyncZeroconf | None = None,
+        on_session_ready: Any = None,
+    ) -> None:
         """Create VdcHost + Vdc and start serving.
 
         Pass the HA shared zeroconf instance so the integration does not create
         a second Zeroconf instance on the network.  When None the host creates
         its own (acceptable in tests where VdcHost is mocked).
+
+        on_session_ready is an optional zero-argument callable invoked once the
+        hello handshake with the DSS completes and all VDCs have been announced.
+        It is installed before host.start() to avoid any race with an early DSS
+        connection.
         """
         if self._host is not None:
             raise RuntimeError("DsvdcApi.start() called while already running")
@@ -90,6 +99,13 @@ class DsvdcApi:
         host, vdc = await asyncio.to_thread(self._build_host_and_vdc)
         self._host = host
         self._vdc = vdc
+        if on_session_ready is not None:
+            _orig = host._on_session_ready
+            _cb = on_session_ready
+            async def _hooked(session) -> None:
+                await _orig(session)
+                _cb()
+            host._on_session_ready = _hooked
         if zeroconf is not None:
             await host.start(announce=False)
             await self._register_zeroconf(host, zeroconf)
