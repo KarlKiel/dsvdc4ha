@@ -246,7 +246,6 @@ _SENSOR_TYPE_LABELS: dict[int, str] = {
 }
 
 _SENSOR_USAGE_LABELS: dict[int, str] = {
-    0: "Generic",
     1: "Room",
     2: "Outdoor",
     3: "User Interaction",
@@ -382,6 +381,7 @@ _SENSOR_TYPE_OPTIONS = [
 _SENSOR_USAGE_OPTIONS = [
     selector.SelectOptionDict(value=str(u.value), label=_SENSOR_USAGE_LABELS[u.value])
     for u in SensorUsage
+    if u.value in _SENSOR_USAGE_LABELS
 ]
 
 _OUTPUT_FUNCTION_OPTIONS = [
@@ -1041,7 +1041,7 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "name": user_input["name"],
                 "group": int(user_input.get("group", 0)),
                 "sensorType": int(user_input["sensorType"]),
-                "sensorUsage": int(user_input.get("sensorUsage", 0)),
+                "sensorUsage": int(user_input.get("sensorUsage", 1)),
                 "min": float(user_input["min"]),
                 "max": float(user_input["max"]),
                 "resolution": float(user_input["resolution"]),
@@ -1060,7 +1060,7 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Required("sensorType", default="1"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=_SENSOR_TYPE_OPTIONS)
             ),
-            vol.Required("sensorUsage", default="0"): selector.SelectSelector(
+            vol.Required("sensorUsage", default="1"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=_SENSOR_USAGE_OPTIONS)
             ),
             vol.Required("min", default=0): selector.NumberSelector(

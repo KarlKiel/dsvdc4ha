@@ -409,7 +409,7 @@ class DsvdcApi:
             ds_index=data["dsIndex"],
             name=data["name"],
             sensor_type=SensorType(data["sensorType"]),
-            sensor_usage=SensorUsage(data.get("sensorUsage", 0)),
+            sensor_usage=SensorUsage(data.get("sensorUsage", 0) or 1),
             group=data.get("group", 0),
             min_value=float(data["min"]),
             max_value=float(data["max"]),
