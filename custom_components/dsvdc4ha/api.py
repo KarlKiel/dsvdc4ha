@@ -100,8 +100,27 @@ class DsvdcApi:
         self._vdc = vdc
         _LOGGER.debug("VdcHost started on port %d", self._port)
 
+    def _purge_corrupted_state_files(self) -> None:
+        """Delete state files that were saved with a Python YAML object tag.
+
+        Early versions passed an AwesomeVersion object as model_version, which
+        pydsvdcapi's YAML persistence serialised with a Python-object tag that
+        its safe loader cannot read back.  Detect and remove those files so
+        VdcHost starts clean rather than logging repeated load errors.
+        """
+        for path in (Path(self._state_path), Path(self._state_path + ".bak")):
+            if not path.exists():
+                continue
+            try:
+                if "awesomeversion" in path.read_text(errors="replace").lower():
+                    path.unlink()
+                    _LOGGER.info("Removed corrupted state file %s", path)
+            except OSError:
+                pass
+
     def _build_host_and_vdc(self) -> tuple[VdcHost, Vdc]:
         """Construct VdcHost and Vdc synchronously — called via asyncio.to_thread."""
+        self._purge_corrupted_state_files()
         host = VdcHost(
             port=self._port,
             name=VDC_HOST_NAME,
