@@ -8,6 +8,10 @@
           "port": "Port the adapter should use for the connection to the DSS"
         }
       },
+      "wait_for_dss": {
+        "title": "Waiting for DSS Connection",
+        "description": "The vDC host is now announced on the network. Waiting for a digitalStrom server to connect (timeout: 2 minutes)…"
+      },
       "state_files": {
         "title": "Existing State Files Found",
         "description": "The following state files from a previous installation were found:\n{files}\n\nThese files contain saved device configuration (output values, scenes, etc.). You can restore them or start fresh.",
@@ -137,7 +141,9 @@
       "unknown": "Unexpected error."
     },
     "abort": {
-      "already_configured": "Integration is already configured."
+      "already_configured": "Integration is already configured.",
+      "no_dss_found": "No digitalStrom server connected within 2 minutes. The vDC host has been stopped and the port released. Check that the DSS is on the same network and try again.",
+      "cannot_connect": "Could not start the vDC host on the selected port. The port may have become unavailable."
     }
   }
 }

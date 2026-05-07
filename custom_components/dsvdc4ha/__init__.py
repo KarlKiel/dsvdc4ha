@@ -18,11 +18,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry_type = entry.data.get("entry_type")
 
     if entry_type == ENTRY_TYPE_HUB:
-        coordinator = HubCoordinator(hass, port=entry.data["port"])
-        try:
-            await coordinator.async_start()
-        except Exception as exc:
-            raise ConfigEntryNotReady(f"Cannot start vDC host: {exc}") from exc
+        # Pick up the already-running coordinator started during config flow (if present).
+        # This avoids a second VdcHost start on the same port right after installation.
+        pending = hass.data[DOMAIN].pop("_pending_coordinator", None)
+        if pending is not None:
+            coordinator = pending
+        else:
+            coordinator = HubCoordinator(hass, port=entry.data["port"])
+            try:
+                await coordinator.async_start()
+            except Exception as exc:
+                raise ConfigEntryNotReady(f"Cannot start vDC host: {exc}") from exc
         hass.data[DOMAIN]["hub"] = coordinator
         return True
 

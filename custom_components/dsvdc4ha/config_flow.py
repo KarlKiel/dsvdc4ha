@@ -619,6 +619,9 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     def __init__(self) -> None:
         self._pending_port: int = 0
+        self._temp_coordinator: Any = None  # HubCoordinator while waiting for DSS
+        self._dss_connected: bool | None = None  # None=pending, True=ok, False=timeout
+        self._dss_wait_task: asyncio.Task | None = None
         self._device_name: str = ""
         self._vendor_name: str = ""
         self._display_id: str = ""
@@ -674,17 +677,10 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         _LOGGER.info("Deleted state file %s at user request", p)
                     except OSError:
                         _LOGGER.warning("Could not delete state file %s", p)
-            return self.async_create_entry(
-                title="dSVDC Hub",
-                data={CONF_ENTRY_TYPE: ENTRY_TYPE_HUB, CONF_PORT: self._pending_port},
-            )
+            return await self.async_step_wait_for_dss()
 
         if not existing:
-            # No state files — nothing to ask, create the entry directly.
-            return self.async_create_entry(
-                title="dSVDC Hub",
-                data={CONF_ENTRY_TYPE: ENTRY_TYPE_HUB, CONF_PORT: self._pending_port},
-            )
+            return await self.async_step_wait_for_dss()
 
         file_list = "\n".join(f"- `{p.name}`" for p in existing)
         schema = vol.Schema({
@@ -702,6 +698,62 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=schema,
             description_placeholders={"files": file_list},
         )
+
+    async def async_step_wait_for_dss(self, _user_input: dict | None = None):
+        """Start the VdcHost and wait up to 2 minutes for a DSS to connect."""
+        if self._dss_wait_task is not None and self._dss_wait_task.done():
+            return self.async_show_progress_done(next_step_id="finalize_hub")
+
+        if self._temp_coordinator is None:
+            from .coordinator import HubCoordinator
+            self._temp_coordinator = HubCoordinator(self.hass, port=self._pending_port)
+            try:
+                await self._temp_coordinator.async_start()
+            except Exception as exc:
+                _LOGGER.debug("VdcHost start failed during setup: %s", exc)
+                return self.async_abort(reason="cannot_connect")
+            self._dss_wait_task = self.hass.async_create_task(self._poll_for_dss())
+
+        return self.async_show_progress(
+            step_id="wait_for_dss",
+            progress_action="wait_for_dss",
+            progress_task=self._dss_wait_task,
+        )
+
+    async def async_step_finalize_hub(self, user_input: dict | None = None):
+        """Complete hub setup after DSS connection attempt."""
+        if self._dss_connected:
+            self.hass.data.setdefault(DOMAIN, {})["_pending_coordinator"] = self._temp_coordinator
+            self._temp_coordinator = None
+            return self.async_create_entry(
+                title="dSVDC Hub",
+                data={CONF_ENTRY_TYPE: ENTRY_TYPE_HUB, CONF_PORT: self._pending_port},
+            )
+        if self._temp_coordinator is not None:
+            await self._temp_coordinator.async_stop()
+            self._temp_coordinator = None
+        return self.async_abort(reason="no_dss_found")
+
+    async def _poll_for_dss(self) -> None:
+        """Background task: poll for an active DSS session for up to 2 minutes."""
+        try:
+            deadline = asyncio.get_event_loop().time() + 120
+            while asyncio.get_event_loop().time() < deadline:
+                api = self._temp_coordinator.api if self._temp_coordinator else None
+                if api and api.host and api.host.session is not None:
+                    self._dss_connected = True
+                    return
+                await asyncio.sleep(2)
+            self._dss_connected = False
+        except asyncio.CancelledError:
+            # Flow was abandoned — clean up the running VdcHost.
+            if self._temp_coordinator is not None:
+                try:
+                    await self._temp_coordinator.async_stop()
+                except Exception:
+                    pass
+                self._temp_coordinator = None
+            raise
 
     async def async_step_device_info(self, user_input: dict | None = None):
         """Collect basic device identity."""
