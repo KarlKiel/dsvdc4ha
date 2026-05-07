@@ -74,7 +74,9 @@ async def test_api_stop_deregisters_shared_zeroconf():
         await api.start(zeroconf=mock_zeroconf)
         await api.stop()
 
-        mock_zeroconf.async_unregister_service.assert_awaited_once()
+        # Called twice: once during _register_zeroconf (stale cleanup) and once
+        # during _deregister_zeroconf (stop).
+        assert mock_zeroconf.async_unregister_service.await_count == 2
         mock_zeroconf.async_close.assert_not_called()
         mock_host_instance.stop.assert_awaited_once()
 

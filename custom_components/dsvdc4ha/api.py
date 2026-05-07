@@ -209,6 +209,14 @@ class DsvdcApi:
         )
         host._service_info = service_info
         host._zeroconf = zeroconf
+        # Unregister any stale registration with the same name before registering.
+        # A previous failed or aborted setup may have left the service in the
+        # Zeroconf registry, causing NonUniqueNameException on re-registration.
+        try:
+            await zeroconf.async_unregister_service(service_info)
+            _LOGGER.debug("Removed stale Zeroconf registration for '%s'", service_name)
+        except Exception:
+            pass  # Not registered — expected on a clean first start
         await zeroconf.async_register_service(service_info)
         _LOGGER.debug("Registered Zeroconf service '%s'", service_name)
 
