@@ -717,6 +717,11 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 await self._temp_coordinator.async_start()
             except Exception:
                 _LOGGER.exception("VdcHost failed to start during hub setup (port %d)", self._pending_port)
+                try:
+                    await self._temp_coordinator.async_stop()
+                except Exception:
+                    pass
+                self._temp_coordinator = None
                 return self.async_abort(reason="cannot_connect")
             self._dss_wait_task = self.hass.async_create_task(self._wait_for_announce())
 
