@@ -712,7 +712,7 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except Exception as exc:
                 _LOGGER.debug("VdcHost start failed during setup: %s", exc)
                 return self.async_abort(reason="cannot_connect")
-            self._dss_wait_task = self.hass.async_create_task(self._poll_for_dss())
+            self._dss_wait_task = self.hass.async_create_task(self._wait_for_announce())
 
         return self.async_show_progress(
             step_id="wait_for_dss",
@@ -720,7 +720,7 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             progress_task=self._dss_wait_task,
         )
 
-    async def async_step_finalize_hub(self, user_input: dict | None = None):
+    async def async_step_finalize_hub(self, _user_input: dict | None = None):
         """Complete hub setup after DSS connection attempt."""
         if self._dss_connected:
             self.hass.data.setdefault(DOMAIN, {})["_pending_coordinator"] = self._temp_coordinator
@@ -734,17 +734,30 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._temp_coordinator = None
         return self.async_abort(reason="no_dss_found")
 
-    async def _poll_for_dss(self) -> None:
-        """Background task: poll for an active DSS session for up to 2 minutes."""
+    async def _wait_for_announce(self) -> None:
+        """Background task: wait for DSS helloRequest → helloResponse → VDC announce.
+
+        Hooks into VdcHost.announce_vdcs() so an asyncio.Event fires the instant
+        the hello exchange and VDC announcement completes — no timer-based polling.
+        """
         try:
-            deadline = asyncio.get_event_loop().time() + 120
-            while asyncio.get_event_loop().time() < deadline:
-                api = self._temp_coordinator.api if self._temp_coordinator else None
-                if api and api.host and api.host.session is not None:
-                    self._dss_connected = True
-                    return
-                await asyncio.sleep(2)
-            self._dss_connected = False
+            host = self._temp_coordinator.api.host
+            connected = asyncio.Event()
+            original_announce = host.announce_vdcs
+
+            async def _hooked_announce() -> int:
+                count = await original_announce()
+                connected.set()
+                return count
+
+            host.announce_vdcs = _hooked_announce
+            try:
+                await asyncio.wait_for(connected.wait(), timeout=120)
+                self._dss_connected = True
+            except asyncio.TimeoutError:
+                self._dss_connected = False
+            finally:
+                host.announce_vdcs = original_announce  # restore for reconnects
         except asyncio.CancelledError:
             # Flow was abandoned — clean up the running VdcHost.
             if self._temp_coordinator is not None:
