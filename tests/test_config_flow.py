@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from homeassistant.data_entry_flow import FlowResultType
-from custom_components.dsvdc4ha.const import DOMAIN, CONF_ENTRY_TYPE, CONF_PORT, ENTRY_TYPE_HUB
-from custom_components.dsvdc4ha.config_flow import DsvdcConfigFlow
+from custom_components.dsvdc4ha.const import DOMAIN, CONF_PORT
+from custom_components.dsvdc4ha.config_flow import DsvdcConfigFlow, VdsdSubentryFlowHandler
 
 
 @pytest.mark.asyncio
@@ -15,7 +15,6 @@ async def test_hub_flow_shows_progress_waiting_for_dss():
     flow.hass = MagicMock()
     flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
     flow.context = {"source": "user"}
-    flow._async_current_entries = MagicMock(return_value=[])
     mock_task = MagicMock(spec=asyncio.Task)
     mock_task.done.return_value = False
     flow.hass.async_create_task = lambda coro: (coro.close(), mock_task)[1]
@@ -45,7 +44,6 @@ async def test_hub_flow_port_in_use_shows_error():
     flow = DsvdcConfigFlow()
     flow.hass = MagicMock()
     flow.context = {"source": "user"}
-    flow._async_current_entries = MagicMock(return_value=[])
 
     with patch("custom_components.dsvdc4ha.config_flow._port_is_available", return_value=False):
         result = await flow.async_step_hub(user_input={CONF_PORT: 9090})
@@ -63,7 +61,6 @@ async def test_hub_flow_state_files_found_shows_form():
     flow.hass = MagicMock()
     flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
     flow.context = {"source": "user"}
-    flow._async_current_entries = MagicMock(return_value=[])
 
     with (
         patch("custom_components.dsvdc4ha.config_flow._port_is_available", return_value=True),
@@ -94,7 +91,6 @@ async def test_hub_flow_state_files_keep_advances_to_wait():
     flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
     flow.hass.async_create_task = lambda coro: (coro.close(), mock_task)[1]
     flow.context = {"source": "user"}
-    flow._async_current_entries = MagicMock(return_value=[])
     flow._pending_port = 9090
 
     with (
@@ -126,7 +122,6 @@ async def test_hub_flow_state_files_delete_removes_files():
     flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
     flow.hass.async_create_task = lambda coro: (coro.close(), mock_task)[1]
     flow.context = {"source": "user"}
-    flow._async_current_entries = MagicMock(return_value=[])
     flow._pending_port = 9090
 
     with (
@@ -179,33 +174,21 @@ async def test_finalize_hub_timeout_stops_coordinator_and_aborts():
     mock_coordinator.async_stop.assert_awaited_once()
 
 
-@pytest.mark.asyncio
-async def test_hub_flow_routes_to_device_when_hub_exists():
-    """Test that async_step_user routes to device_info when a hub entry exists."""
-    from custom_components.dsvdc4ha.config_flow import DsvdcConfigFlow
+# ---------------------------------------------------------------------------
+# VdsdSubentryFlowHandler tests
+# ---------------------------------------------------------------------------
 
-    flow = DsvdcConfigFlow()
+def _make_subentry_flow() -> VdsdSubentryFlowHandler:
+    flow = VdsdSubentryFlowHandler()
     flow.hass = MagicMock()
-    flow.context = {"source": "user"}
-
-    # Simulate an existing hub entry
-    mock_hub_entry = MagicMock()
-    mock_hub_entry.data = {CONF_ENTRY_TYPE: ENTRY_TYPE_HUB}
-    flow._async_current_entries = MagicMock(return_value=[mock_hub_entry])
-
-    result = await flow.async_step_user(user_input=None)
-    # Should land on device_info form (stub)
-    assert result["type"] == FlowResultType.FORM
-    assert result["step_id"] == "device_info"
+    flow.context = {"source": "user", "entry_id": "hub-entry-123"}
+    return flow
 
 
 @pytest.mark.asyncio
-async def test_device_flow_device_info_to_vdsd_creation():
-    """Test device_info step advances to vdsd_creation."""
-    flow = DsvdcConfigFlow()
-    flow.hass = MagicMock()
-    flow.context = {}
-    flow._async_current_entries = MagicMock(return_value=[MagicMock(data={"entry_type": "hub"})])
+async def test_device_subentry_flow_device_info_to_vdsd_creation():
+    """device_info step advances to vdsd_creation."""
+    flow = _make_subentry_flow()
 
     result = await flow.async_step_device_info()
     assert result["type"] == "form"
@@ -222,9 +205,7 @@ async def test_device_flow_device_info_to_vdsd_creation():
 @pytest.mark.asyncio
 async def test_vdsd_overview_shows_form_then_next():
     """Test vdsd_overview shows form and routes to model_features on next."""
-    flow = DsvdcConfigFlow()
-    flow.hass = MagicMock()
-    flow.context = {}
+    flow = _make_subentry_flow()
     flow._current_vdsd = {"displayId": "TestUnit", "optional": {}}
     flow._current_buttons = []
     flow._current_binary_inputs = []
@@ -242,20 +223,16 @@ async def test_vdsd_overview_shows_form_then_next():
 @pytest.mark.asyncio
 async def test_vdsd_overview_optional_settings_returns():
     """Test that optional_settings navigates away and back."""
-    flow = DsvdcConfigFlow()
-    flow.hass = MagicMock()
-    flow.context = {}
+    flow = _make_subentry_flow()
     flow._current_vdsd = {"displayId": "TestUnit", "optional": {}}
     flow._current_buttons = []
     flow._current_binary_inputs = []
     flow._current_sensors = []
     flow._current_output = None
 
-    # Go to optional settings from overview
     result = await flow.async_step_vdsd_overview({"action": "optional_settings"})
     assert result["step_id"] == "optional_settings"
 
-    # Submit optional settings — should return to vdsd_overview
     result2 = await flow.async_step_optional_settings({"hardwareVersion": "1.0"})
     assert result2["step_id"] == "vdsd_overview"
 
@@ -263,9 +240,7 @@ async def test_vdsd_overview_optional_settings_returns():
 @pytest.mark.asyncio
 async def test_button_step_appends_button():
     """Button step appends button data and returns to vdsd_overview."""
-    flow = DsvdcConfigFlow()
-    flow.hass = MagicMock()
-    flow.context = {}
+    flow = _make_subentry_flow()
     flow._current_vdsd = {"displayId": "Unit", "optional": {}}
     flow._current_buttons = []
     flow._current_binary_inputs = []
@@ -297,9 +272,7 @@ async def test_button_step_appends_button():
 
 @pytest.mark.asyncio
 async def test_binary_input_step_appends_and_returns():
-    flow = DsvdcConfigFlow()
-    flow.hass = MagicMock()
-    flow.context = {}
+    flow = _make_subentry_flow()
     flow._current_vdsd = {"displayId": "Unit", "optional": {}}
     flow._current_buttons = []
     flow._current_binary_inputs = []
@@ -327,9 +300,7 @@ async def test_binary_input_step_appends_and_returns():
 
 @pytest.mark.asyncio
 async def test_output_step_stores_output():
-    flow = DsvdcConfigFlow()
-    flow.hass = MagicMock()
-    flow.context = {}
+    flow = _make_subentry_flow()
     flow._current_vdsd = {"displayId": "Unit", "optional": {}}
     flow._current_buttons = []
     flow._current_binary_inputs = []
@@ -349,39 +320,29 @@ async def test_output_step_stores_output():
         "variableRamp": False,
         "mode": "0",
     })
-    # Function=1 (DIMMER) — not a manual channel function; no channels yet so auto-skips
-    # channel_mapping → vdsd_overview
     assert result2["step_id"] in ("channel", "channel_mapping", "vdsd_overview")
     assert flow._current_output is not None
     assert flow._current_output["name"] == "Dimmer"
 
 
 @pytest.mark.asyncio
-async def test_full_device_flow_no_output_creates_entry():
-    """Full device flow without output creates entry correctly."""
-    flow = DsvdcConfigFlow()
-    flow.hass = MagicMock()
-    flow.context = {}
-    flow._async_current_entries = MagicMock(return_value=[MagicMock(data={"entry_type": "hub"})])
+async def test_full_device_subentry_flow_creates_entry():
+    """Full device subentry flow without output creates subentry correctly."""
+    flow = _make_subentry_flow()
 
-    # device_info
     await flow.async_step_device_info(
         {"name": "Test Lamp", "vendorName": "Acme", "displayId": "LampV1"}
     )
-    # vdsd_creation
     await flow.async_step_vdsd_creation(
         {"displayId": "LampUnit", "primaryGroup": "1", "modelVersion": "v1"}
     )
-    # vdsd_overview → next (no components)
     await flow.async_step_vdsd_overview({"action": "next"})
-    # model_features → accept defaults
     await flow.async_step_model_features({"features": []})
-    # device_summary → CREATE
     result = await flow.async_step_device_summary({"action": "create", "confirm": True})
 
     assert result["type"] == "create_entry"
+    assert result["title"] == "Test Lamp"
     data = result["data"]
-    assert data["entry_type"] == "device"
     assert data["name"] == "Test Lamp"
     assert data["vendorName"] == "Acme"
     assert len(data["vdsds"]) == 1

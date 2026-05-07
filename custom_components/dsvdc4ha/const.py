@@ -3,9 +3,6 @@ from __future__ import annotations
 
 DOMAIN = "dsvdc4ha"
 
-ENTRY_TYPE_HUB = "hub"
-ENTRY_TYPE_DEVICE = "device"
-
 PLATFORMS = ["sensor", "binary_sensor"]
 
 VDC_HOST_NAME = "KarlKiel's Home Assistant vDC-host"
@@ -21,7 +18,6 @@ VDC_IMPLEMENTATION_ID = "x-KarlKiel-HomeAssistant-vDC"
 VDC_DEVICE_ICON_NAME = "KarlKielVDC.png"
 
 CONF_PORT = "port"
-CONF_ENTRY_TYPE = "entry_type"
 CONF_VDSDS = "vdsds"
 CONF_VENDOR_NAME = "vendorName"
 CONF_DISPLAY_ID = "displayId"

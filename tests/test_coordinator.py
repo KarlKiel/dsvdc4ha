@@ -82,8 +82,10 @@ async def test_async_setup_entry_hub_starts_coordinator(mock_api):
         ),
     ):
         entry = MagicMock(spec=ConfigEntry)
-        entry.data = {"entry_type": "hub", "port": 9090}
+        entry.data = {"port": 9090}
         entry.entry_id = "test-hub-id"
+        entry.subentries = {}
+        mock_hass.config_entries.async_forward_entry_setups = AsyncMock()
 
         from custom_components.dsvdc4ha import async_setup_entry
         result = await async_setup_entry(mock_hass, entry)
