@@ -109,7 +109,8 @@ async def test_api_announce_device_adds_to_vdc():
 
         api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
         await api.start()
-        await api.announce_device("entry-abc", [])
+        api.add_device("entry-abc", [])
+        await api.announce_device("entry-abc")
 
         mock_vdc.add_device.assert_called_once_with(mock_device)
         mock_device.announce.assert_awaited_once()
@@ -150,7 +151,8 @@ async def test_api_announce_device_builds_vdsd():
 
         api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
         await api.start()
-        await api.announce_device("entry-xyz", [vdsd_data])
+        api.add_device("entry-xyz", [vdsd_data])
+        await api.announce_device("entry-xyz")
 
         MockVdsd.assert_called_once()
         call_kwargs = MockVdsd.call_args.kwargs

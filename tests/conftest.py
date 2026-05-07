@@ -12,6 +12,7 @@ def mock_api():
     api = MagicMock()
     api.start = AsyncMock()
     api.stop = AsyncMock()
+    api.add_device = MagicMock()
     api.announce_device = AsyncMock()
     api.vanish_device = AsyncMock()
     api.report_button_click = AsyncMock()
