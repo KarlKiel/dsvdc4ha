@@ -8,25 +8,175 @@ from custom_components.dsvdc4ha.config_flow import DsvdcConfigFlow
 
 
 @pytest.mark.asyncio
-async def test_hub_flow_creates_entry():
-    """Test that the hub flow shows a form then creates an entry."""
-    from custom_components.dsvdc4ha.config_flow import DsvdcConfigFlow
+async def test_hub_flow_shows_progress_waiting_for_dss():
+    """Hub flow: port ok + no state files → SHOW_PROGRESS on wait_for_dss."""
+    import asyncio
+    flow = DsvdcConfigFlow()
+    flow.hass = MagicMock()
+    flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
+    flow.context = {"source": "user"}
+    flow._async_current_entries = MagicMock(return_value=[])
+    mock_task = MagicMock(spec=asyncio.Task)
+    mock_task.done.return_value = False
+    flow.hass.async_create_task = lambda coro: (coro.close(), mock_task)[1]
 
+    result = await flow.async_step_user(user_input=None)
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "hub"
+
+    mock_coordinator = AsyncMock()
+    mock_coordinator.api = MagicMock()
+    mock_coordinator.api.host = None
+
+    with (
+        patch("custom_components.dsvdc4ha.config_flow._port_is_available", return_value=True),
+        patch("custom_components.dsvdc4ha.config_flow._existing_state_files", return_value=[]),
+        patch("custom_components.dsvdc4ha.coordinator.HubCoordinator", return_value=mock_coordinator),
+    ):
+        result2 = await flow.async_step_hub(user_input={CONF_PORT: 9090})
+
+    assert result2["type"] == FlowResultType.SHOW_PROGRESS
+    assert result2.get("progress_action") == "wait_for_dss"
+
+
+@pytest.mark.asyncio
+async def test_hub_flow_port_in_use_shows_error():
+    """Hub flow: port unavailable → re-show form with port_in_use error."""
     flow = DsvdcConfigFlow()
     flow.hass = MagicMock()
     flow.context = {"source": "user"}
     flow._async_current_entries = MagicMock(return_value=[])
 
-    # Step 1: no hub entry exists → show hub form
-    result = await flow.async_step_user(user_input=None)
+    with patch("custom_components.dsvdc4ha.config_flow._port_is_available", return_value=False):
+        result = await flow.async_step_hub(user_input={CONF_PORT: 9090})
+
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "hub"
+    assert result["errors"].get(CONF_PORT) == "port_in_use"
 
-    # Step 2: submit port → create entry
-    result2 = await flow.async_step_hub(user_input={CONF_PORT: 9090})
-    assert result2["type"] == FlowResultType.CREATE_ENTRY
-    assert result2["data"][CONF_PORT] == 9090
-    assert result2["data"][CONF_ENTRY_TYPE] == ENTRY_TYPE_HUB
+
+@pytest.mark.asyncio
+async def test_hub_flow_state_files_found_shows_form():
+    """Hub flow: port available + state files exist → show state_files form."""
+    from pathlib import Path
+    flow = DsvdcConfigFlow()
+    flow.hass = MagicMock()
+    flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
+    flow.context = {"source": "user"}
+    flow._async_current_entries = MagicMock(return_value=[])
+
+    with (
+        patch("custom_components.dsvdc4ha.config_flow._port_is_available", return_value=True),
+        patch("custom_components.dsvdc4ha.config_flow._existing_state_files",
+              return_value=[Path("/tmp/dsvdc4ha/host_state")]),
+    ):
+        result = await flow.async_step_hub(user_input={CONF_PORT: 9090})
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "state_files"
+
+
+@pytest.mark.asyncio
+async def test_hub_flow_state_files_keep_advances_to_wait():
+    """state_files step: keep → files untouched, advances to wait_for_dss."""
+    import asyncio
+    from pathlib import Path
+    mock_path = MagicMock(spec=Path)
+    mock_path.name = "host_state"
+    mock_task = MagicMock(spec=asyncio.Task)
+    mock_task.done.return_value = False
+    mock_coordinator = AsyncMock()
+    mock_coordinator.api = MagicMock()
+    mock_coordinator.api.host = None
+
+    flow = DsvdcConfigFlow()
+    flow.hass = MagicMock()
+    flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
+    flow.hass.async_create_task = lambda coro: (coro.close(), mock_task)[1]
+    flow.context = {"source": "user"}
+    flow._async_current_entries = MagicMock(return_value=[])
+    flow._pending_port = 9090
+
+    with (
+        patch("custom_components.dsvdc4ha.config_flow._existing_state_files", return_value=[mock_path]),
+        patch("custom_components.dsvdc4ha.coordinator.HubCoordinator", return_value=mock_coordinator),
+    ):
+        result = await flow.async_step_state_files(user_input={"action": "keep"})
+
+    mock_path.unlink.assert_not_called()
+    assert result["type"] == FlowResultType.SHOW_PROGRESS
+    assert result.get("progress_action") == "wait_for_dss"
+
+
+@pytest.mark.asyncio
+async def test_hub_flow_state_files_delete_removes_files():
+    """state_files step: delete → files unlinked, advances to wait_for_dss."""
+    import asyncio
+    from pathlib import Path
+    mock_path = MagicMock(spec=Path)
+    mock_path.name = "host_state"
+    mock_task = MagicMock(spec=asyncio.Task)
+    mock_task.done.return_value = False
+    mock_coordinator = AsyncMock()
+    mock_coordinator.api = MagicMock()
+    mock_coordinator.api.host = None
+
+    flow = DsvdcConfigFlow()
+    flow.hass = MagicMock()
+    flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
+    flow.hass.async_create_task = lambda coro: (coro.close(), mock_task)[1]
+    flow.context = {"source": "user"}
+    flow._async_current_entries = MagicMock(return_value=[])
+    flow._pending_port = 9090
+
+    with (
+        patch("custom_components.dsvdc4ha.config_flow._existing_state_files", return_value=[mock_path]),
+        patch("custom_components.dsvdc4ha.coordinator.HubCoordinator", return_value=mock_coordinator),
+    ):
+        result = await flow.async_step_state_files(user_input={"action": "delete"})
+
+    mock_path.unlink.assert_called_once()
+    assert result["type"] == FlowResultType.SHOW_PROGRESS
+
+
+@pytest.mark.asyncio
+async def test_finalize_hub_connected_creates_entry():
+    """finalize_hub: DSS connected → hand off coordinator and create entry."""
+    mock_coordinator = AsyncMock()
+
+    flow = DsvdcConfigFlow()
+    flow.hass = MagicMock()
+    flow.hass.data = {DOMAIN: {}}
+    flow.context = {"source": "user"}
+    flow._pending_port = 9090
+    flow._dss_connected = True
+    flow._temp_coordinator = mock_coordinator
+
+    result = await flow.async_step_finalize_hub()
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_PORT] == 9090
+    assert flow.hass.data[DOMAIN].get("_pending_coordinator") is mock_coordinator
+    assert flow._temp_coordinator is None
+
+
+@pytest.mark.asyncio
+async def test_finalize_hub_timeout_stops_coordinator_and_aborts():
+    """finalize_hub: DSS timeout → stop coordinator and abort."""
+    mock_coordinator = AsyncMock()
+
+    flow = DsvdcConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {"source": "user"}
+    flow._pending_port = 9090
+    flow._dss_connected = False
+    flow._temp_coordinator = mock_coordinator
+
+    result = await flow.async_step_finalize_hub()
+
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "no_dss_found"
+    mock_coordinator.async_stop.assert_awaited_once()
 
 
 @pytest.mark.asyncio

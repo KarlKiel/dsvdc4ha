@@ -1,7 +1,10 @@
 """Config flow for dsvdc4ha."""
 from __future__ import annotations
 
+import asyncio
 import logging
+import socket
+from pathlib import Path
 from typing import Any
 
 import voluptuous as vol
@@ -575,6 +578,25 @@ def _compute_auto_features(
     return features
 
 
+def _port_is_available(port: int) -> bool:
+    """Return True if the TCP port can be bound on the local machine."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind(("", port))
+            return True
+        except OSError:
+            return False
+
+
+def _existing_state_files(state_path: str) -> list[Path]:
+    """Return a list of existing state files (primary + backup) for the given path."""
+    found = []
+    for p in (Path(state_path), Path(state_path + ".bak")):
+        if p.exists():
+            found.append(p)
+    return found
+
+
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
@@ -596,6 +618,10 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     def __init__(self) -> None:
+        self._pending_port: int = 0
+        self._temp_coordinator: Any = None  # HubCoordinator while waiting for DSS
+        self._dss_connected: bool | None = None  # None=pending, True=ok, False=timeout
+        self._dss_wait_task: asyncio.Task | None = None
         self._device_name: str = ""
         self._vendor_name: str = ""
         self._display_id: str = ""
@@ -622,14 +648,125 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return await self.async_step_hub()
 
     async def async_step_hub(self, user_input: dict | None = None):
-        """Handle the hub setup step — collect the port number."""
+        """Collect the port number and verify it is available before proceeding."""
         errors: dict[str, str] = {}
         if user_input is not None:
+            port = int(user_input[CONF_PORT])
+            available = await asyncio.get_event_loop().run_in_executor(
+                None, _port_is_available, port
+            )
+            if not available:
+                errors[CONF_PORT] = "port_in_use"
+            else:
+                self._pending_port = port
+                return await self.async_step_state_files()
+        return self.async_show_form(step_id="hub", data_schema=HUB_SCHEMA, errors=errors)
+
+    async def async_step_state_files(self, user_input: dict | None = None):
+        """Ask what to do with existing state files, if any exist."""
+        state_path = self.hass.config.path("dsvdc4ha", "host_state")
+        existing = await asyncio.get_event_loop().run_in_executor(
+            None, _existing_state_files, state_path
+        )
+
+        if user_input is not None:
+            if user_input.get("action") == "delete":
+                for p in existing:
+                    try:
+                        p.unlink()
+                        _LOGGER.info("Deleted state file %s at user request", p)
+                    except OSError:
+                        _LOGGER.warning("Could not delete state file %s", p)
+            return await self.async_step_wait_for_dss()
+
+        if not existing:
+            return await self.async_step_wait_for_dss()
+
+        file_list = "\n".join(f"- `{p.name}`" for p in existing)
+        schema = vol.Schema({
+            vol.Required("action", default="keep"): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[
+                        selector.SelectOptionDict(value="keep", label="Use existing state (restore saved device configuration)"),
+                        selector.SelectOptionDict(value="delete", label="Delete and start fresh"),
+                    ]
+                )
+            ),
+        })
+        return self.async_show_form(
+            step_id="state_files",
+            data_schema=schema,
+            description_placeholders={"files": file_list},
+        )
+
+    async def async_step_wait_for_dss(self, _user_input: dict | None = None):
+        """Start the VdcHost and wait up to 2 minutes for a DSS to connect."""
+        if self._dss_wait_task is not None and self._dss_wait_task.done():
+            return self.async_show_progress_done(next_step_id="finalize_hub")
+
+        if self._temp_coordinator is None:
+            from .coordinator import HubCoordinator
+            self._temp_coordinator = HubCoordinator(self.hass, port=self._pending_port)
+            try:
+                await self._temp_coordinator.async_start()
+            except Exception as exc:
+                _LOGGER.debug("VdcHost start failed during setup: %s", exc)
+                return self.async_abort(reason="cannot_connect")
+            self._dss_wait_task = self.hass.async_create_task(self._wait_for_announce())
+
+        return self.async_show_progress(
+            step_id="wait_for_dss",
+            progress_action="wait_for_dss",
+            progress_task=self._dss_wait_task,
+        )
+
+    async def async_step_finalize_hub(self, _user_input: dict | None = None):
+        """Complete hub setup after DSS connection attempt."""
+        if self._dss_connected:
+            self.hass.data.setdefault(DOMAIN, {})["_pending_coordinator"] = self._temp_coordinator
+            self._temp_coordinator = None
             return self.async_create_entry(
                 title="dSVDC Hub",
-                data={CONF_ENTRY_TYPE: ENTRY_TYPE_HUB, CONF_PORT: int(user_input[CONF_PORT])},
+                data={CONF_ENTRY_TYPE: ENTRY_TYPE_HUB, CONF_PORT: self._pending_port},
             )
-        return self.async_show_form(step_id="hub", data_schema=HUB_SCHEMA, errors=errors)
+        if self._temp_coordinator is not None:
+            await self._temp_coordinator.async_stop()
+            self._temp_coordinator = None
+        return self.async_abort(reason="no_dss_found")
+
+    async def _wait_for_announce(self) -> None:
+        """Background task: wait for DSS helloRequest → helloResponse → VDC announce.
+
+        Hooks into VdcHost.announce_vdcs() so an asyncio.Event fires the instant
+        the hello exchange and VDC announcement completes — no timer-based polling.
+        """
+        try:
+            host = self._temp_coordinator.api.host
+            connected = asyncio.Event()
+            original_announce = host.announce_vdcs
+
+            async def _hooked_announce() -> int:
+                count = await original_announce()
+                connected.set()
+                return count
+
+            host.announce_vdcs = _hooked_announce
+            try:
+                await asyncio.wait_for(connected.wait(), timeout=120)
+                self._dss_connected = True
+            except asyncio.TimeoutError:
+                self._dss_connected = False
+            finally:
+                host.announce_vdcs = original_announce  # restore for reconnects
+        except asyncio.CancelledError:
+            # Flow was abandoned — clean up the running VdcHost.
+            if self._temp_coordinator is not None:
+                try:
+                    await self._temp_coordinator.async_stop()
+                except Exception:
+                    pass
+                self._temp_coordinator = None
+            raise
 
     async def async_step_device_info(self, user_input: dict | None = None):
         """Collect basic device identity."""

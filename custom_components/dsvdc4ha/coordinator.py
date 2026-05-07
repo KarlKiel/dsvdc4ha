@@ -23,13 +23,13 @@ class HubCoordinator:
 
     async def async_start(self) -> None:
         integration = await async_get_integration(self.hass, DOMAIN)
-        version = integration.version or "0.0.0"
+        version = str(integration.version) if integration.version else "0.0.0"
         config_url = (
             f"{self.hass.config.internal_url}/config/integrations"
             if self.hass.config.internal_url
             else "http://homeassistant.local/config/integrations"
         )
-        state_path = self.hass.config.path(".storage", "dsvdc4ha_host_state")
+        state_path = self.hass.config.path("dsvdc4ha", "host_state")
         self.api = DsvdcApi(
             port=self._port,
             version=version,
