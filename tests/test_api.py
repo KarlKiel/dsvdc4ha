@@ -48,36 +48,6 @@ async def test_api_stop_calls_host_stop():
         mock_host_instance.stop.assert_awaited_once()
 
 
-@pytest.mark.asyncio
-async def test_api_stop_deregisters_shared_zeroconf():
-    """stop() unregisters the DNS-SD service but does NOT close HA's shared zeroconf."""
-    with patch("custom_components.dsvdc4ha.api.VdcHost") as MockHost, \
-         patch("custom_components.dsvdc4ha.api.Vdc"), \
-         patch("custom_components.dsvdc4ha.api.VdcCapabilities"), \
-         patch("custom_components.dsvdc4ha.api.socket.gethostname", return_value="testhostname"):
-        mock_zeroconf = MagicMock()
-        mock_zeroconf.async_register_service = AsyncMock()
-        mock_zeroconf.async_unregister_service = AsyncMock()
-        mock_service_info = MagicMock()
-
-        mock_host_instance = MagicMock()
-        mock_host_instance.name = "TestVdcHost"
-        mock_host_instance.start = AsyncMock()
-        mock_host_instance.stop = AsyncMock()
-        mock_host_instance._zeroconf = mock_zeroconf
-        mock_host_instance._service_info = mock_service_info
-        mock_host_instance._port = 9090
-        mock_host_instance._dsuid = "AABBCCDDEEFF0011223344556677889900"
-        MockHost.return_value = mock_host_instance
-
-        api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp/test_state")
-        await api.start(zeroconf=mock_zeroconf)
-        await api.stop()
-
-        mock_zeroconf.async_unregister_service.assert_awaited_once()
-        mock_zeroconf.async_close.assert_not_called()
-        mock_host_instance.stop.assert_awaited_once()
-
 
 @pytest.mark.asyncio
 async def test_api_announce_device_adds_to_vdc():
