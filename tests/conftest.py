@@ -24,13 +24,12 @@ def mock_api():
 
 @pytest.fixture
 def hub_config_entry_data():
-    return {"entry_type": "hub", "port": 9090}
+    return {"port": 9090}
 
 
 @pytest.fixture
-def device_config_entry_data():
+def subentry_data():
     return {
-        "entry_type": "device",
         "name": "Test Lamp",
         "vendorName": "Acme",
         "displayId": "LampV1",

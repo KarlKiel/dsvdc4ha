@@ -6,7 +6,7 @@ import logging
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, Event, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .base_entity import DsvdcBaseEntity
@@ -18,21 +18,22 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    entities: list[DsvdcBaseEntity] = []
-    for idx, vdsd_data in enumerate(entry.data.get("vdsds", [])):
-        for bi in vdsd_data.get("binary_inputs", []):
-            if bi.get("valueType") == "boolean":
-                entities.append(BinaryInputEntity(entry.entry_id, idx, vdsd_data, bi))
-    async_add_entities(entities)
+    for subentry in entry.subentries.values():
+        entities: list[DsvdcBaseEntity] = []
+        for idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):
+            for bi in vdsd_data.get("binary_inputs", []):
+                if bi.get("valueType") == "boolean":
+                    entities.append(BinaryInputEntity(subentry.subentry_id, idx, vdsd_data, bi))
+        async_add_entities(entities, config_subentry_id=subentry.subentry_id)
 
 
 class BinaryInputEntity(DsvdcBaseEntity, BinarySensorEntity):
     """Binary sensor mirroring a dS binary input value."""
 
-    def __init__(self, entry_id: str, vdsd_index: int, vdsd_data: dict, bi_data: dict) -> None:
-        super().__init__(entry_id, vdsd_index, vdsd_data, f"binary_input_{bi_data['dsIndex']}")
+    def __init__(self, subentry_id: str, vdsd_index: int, vdsd_data: dict, bi_data: dict) -> None:
+        super().__init__(subentry_id, vdsd_index, vdsd_data, f"binary_input_{bi_data['dsIndex']}")
         self._bi_data = bi_data
         self._attr_name = bi_data["name"]
         self._attr_is_on: bool | None = None

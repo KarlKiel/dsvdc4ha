@@ -14,17 +14,17 @@ class DsvdcBaseEntity(Entity):
 
     def __init__(
         self,
-        entry_id: str,
+        subentry_id: str,
         vdsd_index: int,
         vdsd_data: dict,
         unique_id_suffix: str,
     ) -> None:
-        self._entry_id = entry_id
+        self._subentry_id = subentry_id
         self._vdsd_index = vdsd_index
         self._vdsd_data = vdsd_data
-        self._attr_unique_id = f"{entry_id}_{vdsd_index}_{unique_id_suffix}"
+        self._attr_unique_id = f"{subentry_id}_{vdsd_index}_{unique_id_suffix}"
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{entry_id}_{vdsd_index}")},
+            identifiers={(DOMAIN, f"{subentry_id}_{vdsd_index}")},
             name=vdsd_data.get("displayId", vdsd_data.get("name", "vdSD")),
             manufacturer=vdsd_data.get("vendorName"),
             model=vdsd_data.get("model"),
