@@ -3,14 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import socket
 from pathlib import Path
 from typing import Any
-
-from zeroconf import ServiceInfo
-from zeroconf.asyncio import AsyncZeroconf
-
-_VDC_SERVICE_TYPE = "_ds-vdc._tcp.local."
 
 from pydsvdcapi.binary_input import BinaryInput
 from pydsvdcapi.button_input import ButtonInput
@@ -76,33 +70,17 @@ class DsvdcApi:
         self._vdc: Vdc | None = None
         self._devices: dict[str, Device] = {}  # entry_id → Device
 
-    async def start(self, zeroconf: AsyncZeroconf | None = None) -> None:
-        """Create VdcHost + Vdc and start serving.
-
-        Pass the HA shared zeroconf instance (from async_get_instance) so the
-        integration does not create a second Zeroconf instance on the network.
-        When zeroconf is None the host falls back to its own instance (tests).
-        """
+    async def start(self) -> None:
+        """Create VdcHost + Vdc and start serving."""
         if self._host is not None:
             raise RuntimeError("DsvdcApi.start() called while already running")
-        # Load icon bytes and construct VdcHost+Vdc in a thread — both involve
-        # synchronous file I/O (read_bytes, persistence.py open) that must not
-        # run on the HA event loop.
         if self._icon_path.exists():
             self._icon_bytes = await asyncio.to_thread(self._icon_path.read_bytes)
         host, vdc = await asyncio.to_thread(self._build_host_and_vdc)
-        if zeroconf is not None:
-            await host.start(announce=False)
-            # Assign _host immediately after host.start() so that stop() can
-            # always reach host.stop() even if _register_zeroconf() raises.
-            self._host = host
-            self._vdc = vdc
-            await self._register_zeroconf(host, zeroconf)
-        else:
-            await host.start(announce=True)
-            self._host = host
-            self._vdc = vdc
-        _LOGGER.debug("VdcHost started on port %d", self._port)
+        self._host = host
+        self._vdc = vdc
+        await host.start(announce=True)
+        _LOGGER.debug("VdcHost started on port %d", host._port)
 
     def _purge_corrupted_state_files(self) -> None:
         """Ensure state directory exists and remove any state files that fail YAML validation.
@@ -155,8 +133,19 @@ class DsvdcApi:
                     _LOGGER.info("Removed unusable state file %s", path)
                 except OSError:
                     _LOGGER.warning("Could not remove unusable state file %s", path)
+                continue
             except OSError:
-                pass
+                continue
+            # VdcHost overrides port with the saved value when the requested port
+            # equals DEFAULT_VDC_PORT (8444).  Keep the saved port in sync so the
+            # host always binds on the user's chosen port after a reinstall.
+            if parsed.get("port") != self._port:
+                parsed["port"] = self._port
+                try:
+                    path.write_text(yaml.safe_dump(parsed))
+                    _LOGGER.debug("Corrected port in state file %s to %d", path, self._port)
+                except OSError:
+                    pass
 
     def _build_host_and_vdc(self) -> tuple[VdcHost, Vdc]:
         """Construct VdcHost and Vdc synchronously — called via asyncio.to_thread."""
@@ -197,65 +186,13 @@ class DsvdcApi:
         host.add_vdc(vdc)
         return host, vdc
 
-    async def _register_zeroconf(self, host: VdcHost, zeroconf: AsyncZeroconf) -> None:
-        """Register the vDC-host DNS-SD service using the HA shared Zeroconf instance.
-
-        Replicates VdcHost.announce() but injects the provided zeroconf so that
-        host._zeroconf and host._service_info are set — required for pydsvdcapi's
-        stop()/deannounce() to clean up correctly.
-        """
-        hostname = socket.gethostname()
-        service_name = f"{host.name} on {hostname}"
-        service_info = ServiceInfo(
-            type_=_VDC_SERVICE_TYPE,
-            name=f"{service_name}.{_VDC_SERVICE_TYPE}",
-            port=host._port,
-            properties={"dSUID": str(host._dsuid)},
-            server=f"{hostname}.local.",
-        )
-        host._service_info = service_info
-        host._zeroconf = zeroconf
-        try:
-            await zeroconf.async_register_service(service_info)
-        except Exception as exc:
-            # A previous failed or aborted setup may have left a stale registration
-            # with the same name.  Update it in place rather than fighting to remove
-            # it first — async_update_service replaces the existing entry.
-            if type(exc).__name__ == "NonUniqueNameException":
-                _LOGGER.debug(
-                    "Zeroconf service '%s' already registered; updating", service_name
-                )
-                await zeroconf.async_update_service(service_info)
-            else:
-                raise
-        _LOGGER.debug("Registered Zeroconf service '%s'", service_name)
-
     async def stop(self) -> None:
         """Stop serving (does not vanish devices — call vanish_device first)."""
         if self._host:
-            await self._deregister_zeroconf(self._host)
             await self._host.stop()
             self._host = None
             self._vdc = None
             _LOGGER.debug("VdcHost stopped")
-
-    async def _deregister_zeroconf(self, host: VdcHost) -> None:
-        """Unregister the DNS-SD service from the shared Zeroconf instance.
-
-        VdcHost.unannounce() calls async_close() on whatever zeroconf it holds,
-        which would shut down HA's shared instance and leave the TCP server open
-        (port blocked) if the close raises.  We unregister the service ourselves
-        and clear the reference so unannounce() becomes a no-op.
-        """
-        if host._zeroconf is None:
-            return
-        if host._service_info is not None:
-            try:
-                await host._zeroconf.async_unregister_service(host._service_info)
-            except Exception:
-                _LOGGER.debug("Zeroconf unregister raised (ignored)", exc_info=True)
-        host._zeroconf = None
-        host._service_info = None
 
     @property
     def vdc(self) -> Vdc | None:
