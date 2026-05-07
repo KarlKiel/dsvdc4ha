@@ -589,11 +589,17 @@ def _port_is_available(port: int) -> bool:
 
 
 def _existing_state_files(state_path: str) -> list[Path]:
-    """Return a list of existing state files (primary + backup) for the given path."""
+    """Return a list of existing, parseable state files (primary + backup)."""
+    import yaml  # noqa: PLC0415
     found = []
     for p in (Path(state_path), Path(state_path + ".bak")):
-        if p.exists():
+        if not p.exists():
+            continue
+        try:
+            yaml.safe_load(p.read_text(errors="replace"))
             found.append(p)
+        except (yaml.YAMLError, OSError):
+            pass
     return found
 
 
@@ -709,8 +715,8 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._temp_coordinator = HubCoordinator(self.hass, port=self._pending_port)
             try:
                 await self._temp_coordinator.async_start()
-            except Exception as exc:
-                _LOGGER.debug("VdcHost start failed during setup: %s", exc)
+            except Exception:
+                _LOGGER.exception("VdcHost failed to start during hub setup (port %d)", self._pending_port)
                 return self.async_abort(reason="cannot_connect")
             self._dss_wait_task = self.hass.async_create_task(self._wait_for_announce())
 
