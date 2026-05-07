@@ -52,10 +52,17 @@ async def test_api_stop_calls_host_stop():
 @pytest.mark.asyncio
 async def test_api_stop_deregisters_shared_zeroconf():
     """stop() unregisters the DNS-SD service but does NOT close HA's shared zeroconf."""
+    mock_sock = MagicMock()
+    mock_sock.__enter__ = MagicMock(return_value=mock_sock)
+    mock_sock.__exit__ = MagicMock(return_value=False)
+    mock_sock.getsockname.return_value = ("192.168.1.100", 0)
+
     with patch("custom_components.dsvdc4ha.api.VdcHost") as MockHost, \
          patch("custom_components.dsvdc4ha.api.Vdc"), \
          patch("custom_components.dsvdc4ha.api.VdcCapabilities"), \
-         patch("custom_components.dsvdc4ha.api.socket.gethostname", return_value="testhostname"):
+         patch("custom_components.dsvdc4ha.api.socket.gethostname", return_value="testhostname"), \
+         patch("custom_components.dsvdc4ha.api.socket.socket", return_value=mock_sock), \
+         patch("custom_components.dsvdc4ha.api.socket.inet_aton", return_value=b"\xc0\xa8\x01\x64"):
         mock_zeroconf = MagicMock()
         mock_zeroconf.async_register_service = AsyncMock()
         mock_zeroconf.async_unregister_service = AsyncMock()

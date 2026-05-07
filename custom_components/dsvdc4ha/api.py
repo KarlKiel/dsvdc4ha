@@ -213,12 +213,29 @@ class DsvdcApi:
         """
         hostname = socket.gethostname()
         service_name = f"{host.name} on {hostname}"
+
+        # A fresh AsyncZeroconf() auto-discovers local IPs and populates the
+        # A record automatically.  HA's shared instance does not — supply the
+        # address explicitly so the DSS can reach us.  Route toward the mDNS
+        # multicast address to discover which interface would be used; no data
+        # is actually sent.
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as _s:
+                _s.connect(("224.0.0.251", 5353))
+                _local_ip = _s.getsockname()[0]
+            addresses = [socket.inet_aton(_local_ip)]
+            _LOGGER.debug("Using local IP %s for mDNS A record", _local_ip)
+        except OSError:
+            addresses = None
+            _LOGGER.warning("Could not determine local IP for mDNS A record; DSS may not find the vDC host")
+
         service_info = ServiceInfo(
             type_=_VDC_SERVICE_TYPE,
             name=f"{service_name}.{_VDC_SERVICE_TYPE}",
             port=host._port,
             properties={"dSUID": str(host._dsuid)},
             server=f"{hostname}.local.",
+            addresses=addresses,
         )
         host._service_info = service_info
         host._zeroconf = zeroconf
@@ -227,12 +244,17 @@ class DsvdcApi:
         except Exception as exc:
             if type(exc).__name__ == "NonUniqueNameException":
                 # Stale registration from a previous failed/aborted setup —
-                # update in place rather than trying to remove it first.
+                # unregister and re-register cleanly so the new address/port
+                # is picked up (update_service does not reliably re-announce).
                 _LOGGER.debug(
-                    "Zeroconf service '%s' already registered; updating in place",
+                    "Zeroconf service '%s' already registered; re-registering",
                     service_name,
                 )
-                await zeroconf.async_update_service(service_info)
+                try:
+                    await zeroconf.async_unregister_service(service_info)
+                except Exception:
+                    pass
+                await zeroconf.async_register_service(service_info)
             else:
                 raise
         _LOGGER.debug(
