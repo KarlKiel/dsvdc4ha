@@ -162,10 +162,29 @@ class DsvdcApi:
     async def stop(self) -> None:
         """Stop serving (does not vanish devices — call vanish_device first)."""
         if self._host:
+            await self._deregister_zeroconf(self._host)
             await self._host.stop()
             self._host = None
             self._vdc = None
             _LOGGER.debug("VdcHost stopped")
+
+    async def _deregister_zeroconf(self, host: VdcHost) -> None:
+        """Unregister the DNS-SD service from the shared Zeroconf instance.
+
+        VdcHost.unannounce() calls async_close() on whatever zeroconf it holds,
+        which would shut down HA's shared instance and leave the TCP server open
+        (port blocked) if the close raises.  We unregister the service ourselves
+        and clear the reference so unannounce() becomes a no-op.
+        """
+        if host._zeroconf is None:
+            return
+        if host._service_info is not None:
+            try:
+                await host._zeroconf.async_unregister_service(host._service_info)
+            except Exception:
+                _LOGGER.debug("Zeroconf unregister raised (ignored)", exc_info=True)
+        host._zeroconf = None
+        host._service_info = None
 
     @property
     def vdc(self) -> Vdc | None:
