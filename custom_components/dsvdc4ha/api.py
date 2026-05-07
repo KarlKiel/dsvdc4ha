@@ -19,6 +19,7 @@ from pydsvdcapi.enums import (
     BinaryInputGroup,
     BinaryInputType,
     BinaryInputUsage,
+    ButtonElementID,
     ButtonFunction,
     ButtonGroup,
     ButtonMode,
