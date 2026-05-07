@@ -31,14 +31,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Set up sensor / binary_sensor platforms — they iterate entry.subentries
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Announce all device subentries and wire up HA→dS listeners
-    from .listeners import setup_input_listeners, setup_output_listeners
+    # Register, seed initial values, then announce each device subentry.
+    # Order matters: add_device first (builds the object graph), then wire up
+    # HA→dS listeners, then seed current HA state so pydsvdcapi's
+    # _wait_for_initial_values() is satisfied before announce() is awaited.
+    from .listeners import setup_input_listeners, setup_output_listeners, seed_initial_values
     for subentry in entry.subentries.values():
         vdsds = subentry.data.get("vdsds", [])
-        await coordinator.api.announce_device(subentry.subentry_id, vdsds)
+        coordinator.api.add_device(subentry.subentry_id, vdsds)
         unsubs = setup_input_listeners(hass, coordinator.api, subentry.subentry_id, vdsds)
         unsubs += setup_output_listeners(hass, coordinator.api, subentry.subentry_id, vdsds)
         hass.data[DOMAIN][subentry.subentry_id] = {"unsubs": unsubs}
+        await seed_initial_values(hass, coordinator.api, subentry.subentry_id, vdsds)
+        await coordinator.api.announce_device(subentry.subentry_id)
 
     # Reload when subentries change (device added / removed)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
