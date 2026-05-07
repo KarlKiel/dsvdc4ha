@@ -101,31 +101,39 @@ class DsvdcApi:
         _LOGGER.debug("VdcHost started on port %d", self._port)
 
     def _purge_corrupted_state_files(self) -> None:
-        """Ensure state directory exists and remove any files corrupted by AwesomeVersion YAML tags.
+        """Ensure state directory exists and remove any state files that fail YAML validation.
 
-        Early versions passed an AwesomeVersion object as model_version, which
-        pydsvdcapi's YAML persistence serialised with a Python-object tag that
-        its safe loader cannot read back.  Detect and remove those files so
+        pydsvdcapi uses yaml.safe_load to read state files.  Any file that
+        safe_load rejects (e.g. Python-object tags from old AwesomeVersion
+        serialisation, truncated writes, other YAML corruption) is deleted so
         VdcHost starts clean rather than logging repeated load errors.
 
         Also migrates any legacy file from .storage/dsvdc4ha_host_state to the
         new per-integration directory so existing device state is preserved.
         """
+        import yaml  # noqa: PLC0415 — lazy; yaml is always available in HA
+
         state_path = Path(self._state_path)
         state_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Migrate legacy file from .storage if present and not corrupted.
+        # Migrate legacy file from .storage if present and parseable.
         legacy = state_path.parent.parent / ".storage" / "dsvdc4ha_host_state"
-        for src, dst in ((legacy, state_path), (Path(str(legacy) + ".bak"), Path(str(state_path) + ".bak"))):
+        for src, dst in (
+            (legacy, state_path),
+            (Path(str(legacy) + ".bak"), Path(str(state_path) + ".bak")),
+        ):
             if src.exists() and not dst.exists():
                 try:
                     content = src.read_text(errors="replace")
-                    if "awesomeversion" not in content.lower():
-                        src.rename(dst)
-                        _LOGGER.info("Migrated state file %s → %s", src, dst)
-                    else:
+                    yaml.safe_load(content)  # raises yaml.YAMLError if unparseable
+                    src.rename(dst)
+                    _LOGGER.info("Migrated state file %s → %s", src, dst)
+                except yaml.YAMLError:
+                    try:
                         src.unlink()
-                        _LOGGER.info("Removed legacy corrupted state file %s", src)
+                        _LOGGER.info("Removed unparseable legacy state file %s", src)
+                    except OSError:
+                        pass
                 except OSError:
                     pass
 
@@ -133,9 +141,14 @@ class DsvdcApi:
             if not path.exists():
                 continue
             try:
-                if "awesomeversion" in path.read_text(errors="replace").lower():
+                content = path.read_text(errors="replace")
+                yaml.safe_load(content)
+            except yaml.YAMLError:
+                try:
                     path.unlink()
-                    _LOGGER.info("Removed corrupted state file %s", path)
+                    _LOGGER.info("Removed unparseable state file %s", path)
+                except OSError:
+                    _LOGGER.warning("Could not remove unparseable state file %s", path)
             except OSError:
                 pass
 
