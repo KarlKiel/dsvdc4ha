@@ -318,9 +318,14 @@ class DsvdcApi:
         return DsUid.from_name_in_space(entry_id, DsUidNamespace.VDC)
 
     async def announce_device(self, entry_id: str, vdsds_data: list[dict[str, Any]]) -> None:
-        """Create a Device + its Vdsds and announce to dS."""
+        """Register a Device + its Vdsds and announce to dS if a session is active.
+
+        The device is always added to the VDC so that pydsvdcapi's
+        _on_session_ready auto-announcement picks it up when the DSS connects
+        (or reconnects) — including the case where HA restarts before the DSS
+        has had a chance to connect.
+        """
         assert self._vdc is not None and self._host is not None
-        assert self._host.session is not None, "VdcHost has no active session"
         dsuid = self._build_device_dsuid(entry_id)
         device = Device(vdc=self._vdc, dsuid=dsuid)
         for idx, vdsd_data in enumerate(vdsds_data):
@@ -328,7 +333,8 @@ class DsvdcApi:
             device.add_vdsd(vdsd)
         self._vdc.add_device(device)
         self._devices[entry_id] = device
-        await device.announce(self._host.session)
+        if self._host.session is not None:
+            await device.announce(self._host.session)
 
     def _build_vdsd(self, device: Device, idx: int, data: dict[str, Any]) -> Vdsd:
         vdsd = Vdsd(
