@@ -233,6 +233,16 @@ class DsvdcApi:
         if output_data := data.get("output"):
             self._add_output(vdsd, output_data)
         vdsd.derive_model_features()
+        # Apply the user's explicit feature selection saved during config flow.
+        # derive_model_features() above seeds the set; we then add optional
+        # features the user enabled and remove auto-derived ones they deselected.
+        if user_features := data.get("model_features"):
+            user_set = set(user_features)
+            auto_set = set(vdsd.model_features)
+            for f in auto_set - user_set:
+                vdsd.remove_model_feature(f)
+            for f in user_set - auto_set:
+                vdsd.add_model_feature(f)
         return vdsd
 
     def _add_button(self, vdsd: Vdsd, data: dict[str, Any]) -> None:
