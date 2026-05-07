@@ -21,6 +21,7 @@ from .api import (
     ButtonType,
     ColorClass,
     ColorGroup,
+    FUNCTION_CHANNELS,
     OutputChannelType,
     OutputFunction,
     OutputMode,
@@ -1105,6 +1106,19 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._current_channels = []
             if fn in _MANUAL_CHANNEL_FUNCTIONS:
                 return await self.async_step_channel()
+            # Auto-populate standard channels from pydsvdcapi for this function
+            # (e.g. BRIGHTNESS for DIMMER, BRIGHTNESS+COLOR_TEMPERATURE for
+            # DIMMER_COLOR_TEMP, etc.) so the user can bind HA entities to them
+            # in the channel_mapping step.
+            for i, ct in enumerate(FUNCTION_CHANNELS.get(OutputFunction(fn), [])):
+                self._current_channels.append({
+                    "dsIndex": i,
+                    "channelType": int(ct),
+                    "name": _CHANNEL_TYPE_LABELS.get(int(ct), f"Channel {i}"),
+                    "min": 0.0,
+                    "max": 100.0,
+                    "resolution": 0.4,
+                })
             return await self.async_step_channel_mapping()
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
