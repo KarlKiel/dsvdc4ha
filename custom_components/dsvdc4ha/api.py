@@ -240,17 +240,22 @@ class DsvdcApi:
         host._service_info = service_info
         host._zeroconf = zeroconf
 
-        # Pre-unregister any stale entry with this name (e.g. left over from a
-        # previous failed setup attempt in the same HA session).  Zeroconf
-        # looks up registrations by name, so we can pass the new ServiceInfo
-        # object — it has the right name.  Swallow errors: not registered is fine.
+        # Pre-unregister any stale local entry with this name.  Swallow errors:
+        # if it was never registered here (or was already cleaned up) that is fine.
         try:
             await zeroconf.async_unregister_service(service_info)
             _LOGGER.debug("Removed stale Zeroconf service '%s'", service_name)
         except Exception:
             pass
 
-        await zeroconf.async_register_service(service_info)
+        # allow_name_change=True: if the name is still claimed on the network
+        # (e.g. by a cached mDNS record from a previous run, an Avahi daemon,
+        # or the still-running previous coordinator), Zeroconf will append a
+        # counter suffix to make the name unique.  The DSS discovers vDC hosts
+        # by service type (_ds-vdc._tcp), not by the exact name, so the name
+        # does not matter for functionality.  Zeroconf updates service_info.name
+        # in-place if changed, so _deregister_zeroconf will still use the right name.
+        await zeroconf.async_register_service(service_info, allow_name_change=True)
         _LOGGER.debug(
             "Registered Zeroconf service '%s' on port %d", service_name, host._port
         )
