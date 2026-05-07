@@ -101,14 +101,35 @@ class DsvdcApi:
         _LOGGER.debug("VdcHost started on port %d", self._port)
 
     def _purge_corrupted_state_files(self) -> None:
-        """Delete state files that were saved with a Python YAML object tag.
+        """Ensure state directory exists and remove any files corrupted by AwesomeVersion YAML tags.
 
         Early versions passed an AwesomeVersion object as model_version, which
         pydsvdcapi's YAML persistence serialised with a Python-object tag that
         its safe loader cannot read back.  Detect and remove those files so
         VdcHost starts clean rather than logging repeated load errors.
+
+        Also migrates any legacy file from .storage/dsvdc4ha_host_state to the
+        new per-integration directory so existing device state is preserved.
         """
-        for path in (Path(self._state_path), Path(self._state_path + ".bak")):
+        state_path = Path(self._state_path)
+        state_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Migrate legacy file from .storage if present and not corrupted.
+        legacy = state_path.parent.parent / ".storage" / "dsvdc4ha_host_state"
+        for src, dst in ((legacy, state_path), (Path(str(legacy) + ".bak"), Path(str(state_path) + ".bak"))):
+            if src.exists() and not dst.exists():
+                try:
+                    content = src.read_text(errors="replace")
+                    if "awesomeversion" not in content.lower():
+                        src.rename(dst)
+                        _LOGGER.info("Migrated state file %s → %s", src, dst)
+                    else:
+                        src.unlink()
+                        _LOGGER.info("Removed legacy corrupted state file %s", src)
+                except OSError:
+                    pass
+
+        for path in (state_path, Path(str(state_path) + ".bak")):
             if not path.exists():
                 continue
             try:

@@ -29,7 +29,7 @@ class HubCoordinator:
             if self.hass.config.internal_url
             else "http://homeassistant.local/config/integrations"
         )
-        state_path = self.hass.config.path(".storage", "dsvdc4ha_host_state")
+        state_path = self.hass.config.path("dsvdc4ha", "host_state")
         self.api = DsvdcApi(
             port=self._port,
             version=version,
