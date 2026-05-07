@@ -93,11 +93,15 @@ class DsvdcApi:
         host, vdc = await asyncio.to_thread(self._build_host_and_vdc)
         if zeroconf is not None:
             await host.start(announce=False)
+            # Assign _host immediately after host.start() so that stop() can
+            # always reach host.stop() even if _register_zeroconf() raises.
+            self._host = host
+            self._vdc = vdc
             await self._register_zeroconf(host, zeroconf)
         else:
             await host.start(announce=True)
-        self._host = host
-        self._vdc = vdc
+            self._host = host
+            self._vdc = vdc
         _LOGGER.debug("VdcHost started on port %d", self._port)
 
     def _purge_corrupted_state_files(self) -> None:
@@ -142,13 +146,15 @@ class DsvdcApi:
                 continue
             try:
                 content = path.read_text(errors="replace")
-                yaml.safe_load(content)
+                parsed = yaml.safe_load(content)
+                if not isinstance(parsed, dict) or not parsed:
+                    raise yaml.YAMLError("empty or non-dict state file")
             except yaml.YAMLError:
                 try:
                     path.unlink()
-                    _LOGGER.info("Removed unparseable state file %s", path)
+                    _LOGGER.info("Removed unusable state file %s", path)
                 except OSError:
-                    _LOGGER.warning("Could not remove unparseable state file %s", path)
+                    _LOGGER.warning("Could not remove unusable state file %s", path)
             except OSError:
                 pass
 
@@ -209,15 +215,19 @@ class DsvdcApi:
         )
         host._service_info = service_info
         host._zeroconf = zeroconf
-        # Unregister any stale registration with the same name before registering.
-        # A previous failed or aborted setup may have left the service in the
-        # Zeroconf registry, causing NonUniqueNameException on re-registration.
         try:
-            await zeroconf.async_unregister_service(service_info)
-            _LOGGER.debug("Removed stale Zeroconf registration for '%s'", service_name)
-        except Exception:
-            pass  # Not registered — expected on a clean first start
-        await zeroconf.async_register_service(service_info)
+            await zeroconf.async_register_service(service_info)
+        except Exception as exc:
+            # A previous failed or aborted setup may have left a stale registration
+            # with the same name.  Update it in place rather than fighting to remove
+            # it first — async_update_service replaces the existing entry.
+            if type(exc).__name__ == "NonUniqueNameException":
+                _LOGGER.debug(
+                    "Zeroconf service '%s' already registered; updating", service_name
+                )
+                await zeroconf.async_update_service(service_info)
+            else:
+                raise
         _LOGGER.debug("Registered Zeroconf service '%s'", service_name)
 
     async def stop(self) -> None:
