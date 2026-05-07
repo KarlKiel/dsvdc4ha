@@ -8,6 +8,13 @@
           "port": "Port the adapter should use for the connection to the DSS"
         }
       },
+      "state_files": {
+        "title": "Existing State Files Found",
+        "description": "The following state files from a previous installation were found:\n{files}\n\nThese files contain saved device configuration (output values, scenes, etc.). You can restore them or start fresh.",
+        "data": {
+          "action": "What would you like to do with the existing state files?"
+        }
+      },
       "device_info": {
         "title": "Add Physical Device",
         "description": "To create your device, consider splitting it into several logical vdSDs:\n- Are parts physically separable? → use individual vdSDs.\n- Does the (sub-)device contain several sensors? → keep as one vdSD.\n- Does the (sub-)device contain different kinds of capabilities (Button, Binary Input, Sensors, Output)? → keep as one vdSD.\n- Do functional units belong to different dS classes (colors)? → separate vdSDs.\n- Can functional units end up in different zones? → separate vdSDs.\n- Does the device contain several different outputs (not channels!)? → one vdSD per output required.\n- Are there multiple buttons/binary inputs that shall be configurable via DSS configurator? → separate vdSDs (max. one (Multi)button and one binary input per vdSD).",

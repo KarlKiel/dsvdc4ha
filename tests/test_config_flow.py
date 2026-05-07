@@ -9,24 +9,108 @@ from custom_components.dsvdc4ha.config_flow import DsvdcConfigFlow
 
 @pytest.mark.asyncio
 async def test_hub_flow_creates_entry():
-    """Test that the hub flow shows a form then creates an entry."""
-    from custom_components.dsvdc4ha.config_flow import DsvdcConfigFlow
+    """Hub flow: port available + no state files → straight to CREATE_ENTRY."""
+    flow = DsvdcConfigFlow()
+    flow.hass = MagicMock()
+    flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
+    flow.context = {"source": "user"}
+    flow._async_current_entries = MagicMock(return_value=[])
 
+    result = await flow.async_step_user(user_input=None)
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "hub"
+
+    with (
+        patch("custom_components.dsvdc4ha.config_flow._port_is_available", return_value=True),
+        patch("custom_components.dsvdc4ha.config_flow._existing_state_files", return_value=[]),
+    ):
+        result2 = await flow.async_step_hub(user_input={CONF_PORT: 9090})
+
+    assert result2["type"] == FlowResultType.CREATE_ENTRY
+    assert result2["data"][CONF_PORT] == 9090
+    assert result2["data"][CONF_ENTRY_TYPE] == ENTRY_TYPE_HUB
+
+
+@pytest.mark.asyncio
+async def test_hub_flow_port_in_use_shows_error():
+    """Hub flow: port unavailable → re-show form with port_in_use error."""
     flow = DsvdcConfigFlow()
     flow.hass = MagicMock()
     flow.context = {"source": "user"}
     flow._async_current_entries = MagicMock(return_value=[])
 
-    # Step 1: no hub entry exists → show hub form
-    result = await flow.async_step_user(user_input=None)
+    with patch("custom_components.dsvdc4ha.config_flow._port_is_available", return_value=False):
+        result = await flow.async_step_hub(user_input={CONF_PORT: 9090})
+
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "hub"
+    assert result["errors"].get(CONF_PORT) == "port_in_use"
 
-    # Step 2: submit port → create entry
-    result2 = await flow.async_step_hub(user_input={CONF_PORT: 9090})
-    assert result2["type"] == FlowResultType.CREATE_ENTRY
-    assert result2["data"][CONF_PORT] == 9090
-    assert result2["data"][CONF_ENTRY_TYPE] == ENTRY_TYPE_HUB
+
+@pytest.mark.asyncio
+async def test_hub_flow_state_files_found_shows_form():
+    """Hub flow: port available + state files exist → show state_files form."""
+    from pathlib import Path
+    flow = DsvdcConfigFlow()
+    flow.hass = MagicMock()
+    flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
+    flow.context = {"source": "user"}
+    flow._async_current_entries = MagicMock(return_value=[])
+
+    with (
+        patch("custom_components.dsvdc4ha.config_flow._port_is_available", return_value=True),
+        patch("custom_components.dsvdc4ha.config_flow._existing_state_files",
+              return_value=[Path("/tmp/dsvdc4ha/host_state")]),
+    ):
+        result = await flow.async_step_hub(user_input={CONF_PORT: 9090})
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "state_files"
+
+
+@pytest.mark.asyncio
+async def test_hub_flow_state_files_keep_creates_entry():
+    """state_files step: keep → CREATE_ENTRY without deleting files."""
+    from pathlib import Path
+    mock_path = MagicMock(spec=Path)
+    mock_path.name = "host_state"
+
+    flow = DsvdcConfigFlow()
+    flow.hass = MagicMock()
+    flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
+    flow.context = {"source": "user"}
+    flow._async_current_entries = MagicMock(return_value=[])
+    flow._pending_port = 9090
+
+    with patch("custom_components.dsvdc4ha.config_flow._existing_state_files",
+               return_value=[mock_path]):
+        result = await flow.async_step_state_files(user_input={"action": "keep"})
+
+    mock_path.unlink.assert_not_called()
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_PORT] == 9090
+
+
+@pytest.mark.asyncio
+async def test_hub_flow_state_files_delete_removes_files():
+    """state_files step: delete → files unlinked then CREATE_ENTRY."""
+    from pathlib import Path
+    mock_path = MagicMock(spec=Path)
+    mock_path.name = "host_state"
+
+    flow = DsvdcConfigFlow()
+    flow.hass = MagicMock()
+    flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
+    flow.context = {"source": "user"}
+    flow._async_current_entries = MagicMock(return_value=[])
+    flow._pending_port = 9090
+
+    with patch("custom_components.dsvdc4ha.config_flow._existing_state_files",
+               return_value=[mock_path]):
+        result = await flow.async_step_state_files(user_input={"action": "delete"})
+
+    mock_path.unlink.assert_called_once()
+    assert result["type"] == FlowResultType.CREATE_ENTRY
 
 
 @pytest.mark.asyncio
