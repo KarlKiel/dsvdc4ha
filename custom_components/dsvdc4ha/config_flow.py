@@ -380,6 +380,7 @@ _SENSOR_TYPE_OPTIONS = [
 _SENSOR_USAGE_OPTIONS = [
     selector.SelectOptionDict(value=str(u.value), label=_SENSOR_USAGE_LABELS[u.value])
     for u in SensorUsage
+    if u.value in _SENSOR_USAGE_LABELS
 ]
 
 _OUTPUT_FUNCTION_OPTIONS = [
