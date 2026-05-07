@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 
+from homeassistant.components.zeroconf import async_get_instance
 from homeassistant.core import HomeAssistant
 from homeassistant.loader import async_get_integration
 
@@ -35,7 +36,8 @@ class HubCoordinator:
             config_url=config_url,
             state_path=state_path,
         )
-        await self.api.start()
+        zeroconf = await async_get_instance(self.hass)
+        await self.api.start(zeroconf=zeroconf)
         _LOGGER.info("dsvdc4ha hub started")
 
     async def async_stop(self) -> None:
