@@ -23,10 +23,12 @@ The integration acts as a **translation layer**, not a device driver. Real devic
 ## 2. Architecture
 
 ```
-DSS ◄──── pydsvdcapi ────► api.py ◄──── coordinator.py  (hub lifecycle)
+DSS ◄──── pydsvdcapi ────► api.py ◄──── coordinator.py      (hub lifecycle)
                                   │
-                                  ├──── sensor.py         (input + output channel mirrors)
-                                  └──── binary_sensor.py  (boolean binary inputs)
+                                  ├──── listeners.py          (HA→dS state forwarding)
+                                  │       └── button_translator.py  (click-type detection)
+                                  ├──── sensor.py             (input + output channel mirrors)
+                                  └──── binary_sensor.py      (boolean binary inputs)
 ```
 
 ### Layers
@@ -35,6 +37,8 @@ DSS ◄──── pydsvdcapi ────► api.py ◄──── coordinato
 |---|---|---|
 | Library wrapper | `api.py` | All pydsvdcapi calls. Coordinator and entities never import pydsvdcapi directly. |
 | Hub lifecycle | `coordinator.py` | Manages VDC-HOST + VDC connection: setup, announcement, teardown. |
+| State forwarding | `listeners.py` | Registers HA state-change listeners for all button, binary-input, sensor, and output-channel entities; forwards values to dS via `api.py`. |
+| Click-type detection | `button_translator.py` | Translates HA entity press events (binary sensor on/off, event entity event_type, button entity timestamps) into dS click types. |
 | Config flow | `config_flow.py` | Hub flow (port) and device sub-flow (multi-step). |
 | Entity base | `base_entity.py` | Shared HA entity base class for all integration entities. |
 | Platforms | `sensor.py`, `binary_sensor.py` | Entity creation and state management per platform. |
@@ -68,6 +72,8 @@ dsvdc4ha/                                  # repository root
         ├── config_flow.py                 # hub flow + device sub-flow
         ├── api.py                         # pydsvdcapi wrapper
         ├── coordinator.py                 # HubCoordinator
+        ├── listeners.py                   # HA→dS state listeners (buttons, sensors, outputs)
+        ├── button_translator.py           # ButtonEventTranslator: HA press → dS click type
         ├── base_entity.py                 # DsvdcBaseEntity
         ├── sensor.py                      # sensor platform
         ├── binary_sensor.py               # binary_sensor platform
@@ -277,7 +283,115 @@ Scale conversion and value mapping are handled in the write action (templates or
 
 ---
 
-## 8. HACS Compliance
+## 8. Button Click-Type Detection
+
+### 8.1 Overview
+
+dS buttons communicate with the DSS via *click types* — numeric codes that encode how a pushbutton was physically operated (single tip, double tip, hold start, hold repeat, hold end, single click, etc.). The full specification is in *digitalSTROM Basic Concepts* §10.
+
+When the bound HA entity is a raw numeric source (e.g. a sensor whose state is already a click-type integer) the existing `callbackType = "clickTypes"` passthrough is sufficient. For real physical buttons exposed as `binary_sensor`, `event`, or `button` entities, the integration must derive the correct click type from the entity's press activity. This is handled by `ButtonEventTranslator` in `button_translator.py`.
+
+### 8.2 dS pushbutton timing (Table 8 from spec)
+
+| Pushbutton event | Press duration H | Inter-press gap L |
+|---|---|---|
+| Single Click | H < 140 ms | — |
+| Double Click | H < 140 ms | L < 140 ms | H < 140 ms |
+| Triple Click | H < 140 ms | L < 140 ms | (×2) |
+| Single Tip | 140 ms ≤ H < 500 ms | — |
+| Double Tip | 140 ms ≤ H < 500 ms | L < 800 ms | 140 ms ≤ H < 500 ms |
+| Triple / Quadruple Tip | (same pattern, up to 4×) | L < 800 ms each |
+| Hold Start | H ≥ 500 ms (fires while still held) | — |
+| Hold Repeat | ~every 1 s while held | — |
+| Hold End | on release after Hold Start | — |
+
+Click type values: 0–3 = Tip 1×–4×, 4 = Hold Start, 5 = Hold Repeat, 6 = Hold End, 7–9 = Click 1×–3×.
+
+Note: The Short-Long and Short-Short-Long patterns are reserved for dS device internals; the translator suppresses any accumulated short presses when a subsequent hold is detected.
+
+### 8.3 Source entity modes
+
+The `ButtonEventTranslator` selects its detection mode automatically from the entity's domain.
+
+#### `binary_sensor` — Full timing state machine
+
+The most accurate mode. Measures actual H (pressed) and L (gap) durations.
+
+**State machine:**
+
+```
+IDLE ──[on]──► PRESSING
+  Records press_start = now
+  Starts hold_task (asyncio, fires after 500 ms)
+
+PRESSING ──[off before 500 ms]──► hold_task cancelled
+  H < 140 ms  →  click; accumulate, start 140 ms gap timer
+  H < 500 ms  →  tip;   accumulate, start 800 ms gap timer
+
+PRESSING ──[still on after 500 ms]──► hold_task fires
+  Discards any pending click/tip accumulation
+  Emits HOLD_START (click type 4)
+  Loops, emitting HOLD_REPEAT (5) every 1 s
+
+on [off] while hold active ──► Emits HOLD_END (6)  →  IDLE
+```
+
+**Gap timer expiry:** emits the accumulated Tip or Click count as the matching click type.
+
+| Count | Tip click type | Click click type |
+|---|---|---|
+| 1 | 0 (TIP_1X) | 7 (CLICK_1X) |
+| 2 | 1 (TIP_2X) | 8 (CLICK_2X) |
+| 3 | 2 (TIP_3X) | 9 (CLICK_3X) |
+| 4 | 3 (TIP_4X) | — (max 3×) |
+
+#### `event` — Direct event_type mapping
+
+For ZHA, Z2M, Hue, Z-Wave JS, and any platform that exposes an HA `event` domain entity. The entity's state is the event_type string; the translator maps it to a click type using a configurable dictionary (defaults cover the most common naming conventions).
+
+Default mappings:
+
+| HA event_type | Click type |
+|---|---|
+| `press`, `single`, `single_press`, `short_press`, `1_times` | 0 (TIP_1X) |
+| `double_press`, `2_times` | 1 (TIP_2X) |
+| `triple_press`, `3_times` | 2 (TIP_3X) |
+| `quadruple_press`, `4_times` | 3 (TIP_4X) |
+| `long_press`, `hold`, `held`, `initial_press`, `hold_start` | 4 (HOLD_START) |
+| `repeat`, `hold_repeat` | 5 (HOLD_REPEAT) |
+| `long_release`, `release`, `hold_end`, `end` | 6 (HOLD_END) |
+
+**Hold state tracking:** If the device sends repeated `hold` events during a press the first one maps to HOLD_START and subsequent ones to HOLD_REPEAT. If the device never sends a release event, HOLD_END is auto-fired after one hold-repeat interval (~1 s).
+
+#### `button` / generic — Timestamp-diff heuristic
+
+For HA `button`, `input_button`, and similar entities whose state is an ISO 8601 timestamp of when the button was pressed.
+
+**Hold detection:** Many physical-button integrations fire the state-changed event on *release*, storing the *press start* time as the entity state. Comparing `last_changed` (≈ event arrival / release) with the state timestamp (press start) gives an estimate of the physical press duration:
+
+```
+duration = last_changed − datetime.fromisoformat(state)
+duration ≥ 500 ms  →  HOLD_START + HOLD_END pair reported
+duration < 500 ms  →  treated as a Tip; accumulated with 800 ms window
+```
+
+If the entity state is not a parseable timestamp, the translator falls back to event_type string mapping (covers `last_action`-style sensor entities).
+
+### 8.4 Configuration
+
+In the device wizard, the button step offers three `callbackType` options:
+
+| Option | Behaviour |
+|---|---|
+| **Click types (passthrough)** | Entity state is the click type integer; forwarded directly. |
+| **Scene / action IDs (passthrough)** | Entity state is a scene number; forwarded as an action ID. |
+| **Auto-detect** | Uses `ButtonEventTranslator`; source mode selected from entity domain. |
+
+Custom event_type mappings are not exposed in the UI in v1 — the built-in defaults cover all common platforms. They can be extended programmatically by passing `event_type_map` to `ButtonEventTranslator`.
+
+---
+
+## 9. HACS Compliance
 
 ### `hacs.json`
 ```json
@@ -312,7 +426,7 @@ No hard minimum set for v1. Will be documented in `manifest.json` under `homeass
 
 ---
 
-## 9. Testing Approach
+## 10. Testing Approach
 
 Tests live in `tests/` at the repo root (standard HA integration test convention). The test suite runs alongside implementation as a parallel track.
 
@@ -325,7 +439,7 @@ Tests live in `tests/` at the repo root (standard HA integration test convention
 
 ---
 
-## 10. Deferred Features
+## 11. Deferred Features
 
 The following are explicitly out of scope for v1:
 
@@ -336,7 +450,7 @@ The following are explicitly out of scope for v1:
 
 ---
 
-## 11. Design Decisions Log
+## 12. Design Decisions Log
 
 | Decision | Choice | Reason |
 |---|---|---|
@@ -349,3 +463,6 @@ The following are explicitly out of scope for v1:
 | Hub coordinator type | Custom `HubCoordinator`, not `DataUpdateCoordinator` | Integration is push/callback-based, not polling |
 | Icon | `vdc.png` default | File upload not supported in HA config flow |
 | Tests | Parallel track with implementation | Quality gate; required for eventual HA integration quality tier compliance |
+| Button click-type detection | `ButtonEventTranslator` with three source modes (binary_sensor / event / button) | HA entities expose button activity in fundamentally different ways; a single passthrough is insufficient for real physical buttons. Mode is selected automatically from entity domain. |
+| Hold detection for button entities | Timestamp-diff heuristic (`last_changed − state`) | HA `button` entities store the press-start time as their state; many integrations fire the state-changed event on release, making the difference a proxy for hold duration without any extra configuration. |
+| Hold on event entities without explicit release | Auto-fire HOLD_END after one repeat interval | Not all device integrations send a `long_release` event; dS state machines require a paired HOLD_END or they stay in hold state indefinitely. |
