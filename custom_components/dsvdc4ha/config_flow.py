@@ -984,8 +984,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             vol.Optional("callsPresent", default=True): selector.BooleanSelector(),
             vol.Required("callbackType", default="clickTypes"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="clickTypes", label="Click types"),
-                    selector.SelectOptionDict(value="actionIds", label="Scene / action IDs"),
+                    selector.SelectOptionDict(value="clickTypes", label="Click types (passthrough: entity state = click type number)"),
+                    selector.SelectOptionDict(value="actionIds", label="Scene / action IDs (passthrough: entity state = scene number)"),
+                    selector.SelectOptionDict(value="detect_clicks", label="Auto-detect (binary sensor / event / button entity)"),
                 ])
             ),
             vol.Optional("callback_entity"): selector.EntitySelector(),

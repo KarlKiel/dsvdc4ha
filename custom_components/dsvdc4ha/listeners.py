@@ -42,6 +42,18 @@ def setup_input_listeners(
                 continue
             cb_type = btn_data.get("callbackType", "clickTypes")
 
+            if cb_type == "detect_clicks":
+                # Auto-detect click type from entity behavior using the timing
+                # state machine in ButtonEventTranslator.
+                from .button_translator import ButtonEventTranslator
+
+                async def _click_cb(ct: int, _btn=btn) -> None:
+                    await api.report_button_click(_btn, ct)
+
+                translator = ButtonEventTranslator(hass, entity_id, _click_cb)
+                unsubs.append(translator.setup())
+                continue
+
             @callback
             def _on_button_state(event: Event, _btn=btn, _cb_type=cb_type) -> None:
                 new_state = event.data.get("new_state")
