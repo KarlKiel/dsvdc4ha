@@ -78,8 +78,8 @@
             "supportsLocalKeyMode": "Button can act as a local button",
             "setsLocalPriority": "Button implements local prioritization behavior",
             "callsPresent": "Button press sets absence state to present",
-            "callbackType": "Does the device deliver click types or scene IDs directly?",
-            "callback_entity": "Entity providing click type IDs / action IDs of button presses"
+            "callbackType": "How should button presses be forwarded to dS?",
+            "callback_entity": "Entity providing button press events"
           }
         },
         "binary_input": {
