@@ -670,3 +670,84 @@ async def test_full_ha_device_flow_creates_entry():
     assert result["title"] == "My Lamp"
     assert len(result["data"]["vdsds"]) == 1
     assert result["data"]["vdsds"][0]["displayId"] == "LampModel"
+
+
+# ---------------------------------------------------------------------------
+# Auto-binding: apply_expr/push_expr propagation and routing tests
+# ---------------------------------------------------------------------------
+
+def _make_switch_flow():
+    """Create a VdsdSubentryFlowHandler pre-configured with a switch entity mapping."""
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = None
+    flow.context = {}
+    flow._entry = MagicMock()
+    flow._entry.entry_id = "test_entry"
+    flow._entity_id = "switch.kitchen"
+    flow._entity_mapping = get_entity_mapping("switch", None)
+    flow._device_name = "Kitchen Switch"
+    flow._vendor_name = "TestVendor"
+    flow._display_id = "switch"
+    return flow
+
+
+@pytest.mark.asyncio
+async def test_channels_get_apply_expr_from_mapping():
+    """Channels built in _build_entity_vdsd_and_continue include apply_expr/push_expr from entity_mapping."""
+    flow = _make_switch_flow()
+
+    # Patch model_features step to short-circuit
+    with patch.object(flow, "async_step_model_features", new=AsyncMock(
+        return_value={"type": "form", "step_id": "model_features"}
+    )):
+        result = await flow.async_step_entity_user_input(
+            user_input={"entity_id": "switch.kitchen"}
+        )
+
+    assert result["step_id"] == "model_features", f"Expected model_features, got {result['step_id']}"
+    # Switch has one channel (type 19), which has apply_expr
+    assert flow._current_channels
+    for ch in flow._current_channels:
+        assert "apply_expr" in ch, f"Channel missing apply_expr: {ch}"
+        assert "push_expr" in ch, f"Channel missing push_expr: {ch}"
+
+
+@pytest.mark.asyncio
+async def test_channel_mapping_step_skipped_for_auto_bound_entity():
+    """entity_channel_mapping step is skipped when all channels have apply_expr."""
+    flow = _make_switch_flow()
+
+    with patch.object(flow, "async_step_model_features", new=AsyncMock(
+        return_value={"type": "form", "step_id": "model_features"}
+    )):
+        result = await flow.async_step_entity_user_input(
+            user_input={"entity_id": "switch.kitchen"}
+        )
+
+    # Should jump directly to model_features, not entity_channel_mapping
+    assert result["step_id"] == "model_features"
+
+
+@pytest.mark.asyncio
+async def test_channel_mapping_step_shown_when_no_apply_expr():
+    """entity_channel_mapping step is shown when a channel lacks apply_expr."""
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = None
+    flow.context = {}
+
+    # Manually inject channels without apply_expr
+    flow._current_channels = [
+        {"dsIndex": 0, "channelType": 19, "read_entity": "switch.x", "write_action": None}
+    ]
+    flow._current_output = {"channels": flow._current_channels}
+    flow._current_vdsd = {"output": flow._current_output}
+    flow._current_buttons = []
+    flow._current_binary_inputs = []
+    flow._current_sensors = []
+
+    result = await flow.async_step_entity_channel_mapping(user_input=None)
+    assert result["step_id"] == "entity_channel_mapping"

@@ -1038,7 +1038,11 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
             # Optional tilt channel (cover/window)
             if o.get("optional_tilt") and user_input.get("has_tilt"):
-                channels_def = channels_def + [{"channel_type": 10}]  # SHADE_OPENING_ANGLE_INDOOR
+                channels_def = channels_def + [{
+                    "channel_type": 10,
+                    "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
+                    "push_expr": "attrs.get('current_tilt_position',0)",
+                }]
 
             # Mode derived from function when function was a user choice
             if "function_choices" in o:
@@ -1054,8 +1058,10 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                     "min": 0.0,
                     "max": 100.0,
                     "resolution": 0.4,
-                    "read_entity": entity_id,  # pre-populate with selected entity
+                    "read_entity": entity_id,
                     "write_action": None,
+                    **({"apply_expr": ch["apply_expr"]} if ch.get("apply_expr") else {}),
+                    **({"push_expr": ch["push_expr"]} if ch.get("push_expr") else {}),
                 }
                 for i, ch in enumerate(channels_def)
             ]
@@ -1081,7 +1087,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         self._current_channels = vdsd["output"]["channels"] if vdsd["output"] else []
 
         if vdsd["output"] and self._current_channels:
-            return await self.async_step_entity_channel_mapping()
+            all_auto = all(ch.get("apply_expr") for ch in self._current_channels)
+            if not all_auto:
+                return await self.async_step_entity_channel_mapping()
         return await self.async_step_model_features()
 
     async def async_step_entity_channel_mapping(self, user_input: dict | None = None):
