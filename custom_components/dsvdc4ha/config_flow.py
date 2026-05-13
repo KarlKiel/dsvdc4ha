@@ -9,6 +9,8 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.config_entries import ConfigSubentryFlow, SubentryFlowResult
+from homeassistant.core import callback
 from homeassistant.helpers import selector as selector_module
 
 from .api import (
@@ -32,11 +34,8 @@ from .api import (
 )
 
 from .const import (
-    CONF_ENTRY_TYPE,
     CONF_PORT,
     DOMAIN,
-    ENTRY_TYPE_DEVICE,
-    ENTRY_TYPE_HUB,
 )
 from .entity_mapping import (
     SUPPORTED_DOMAINS,
@@ -251,7 +250,6 @@ _SENSOR_TYPE_LABELS: dict[int, str] = {
 }
 
 _SENSOR_USAGE_LABELS: dict[int, str] = {
-    0: "Generic",
     1: "Room",
     2: "Outdoor",
     3: "User Interaction",
@@ -387,6 +385,7 @@ _SENSOR_TYPE_OPTIONS = [
 _SENSOR_USAGE_OPTIONS = [
     selector.SelectOptionDict(value=str(u.value), label=_SENSOR_USAGE_LABELS[u.value])
     for u in SensorUsage
+    if u.value in _SENSOR_USAGE_LABELS
 ]
 
 _OUTPUT_FUNCTION_OPTIONS = [
@@ -624,15 +623,19 @@ DEVICE_INFO_SCHEMA = vol.Schema({
 })
 
 
+# ---------------------------------------------------------------------------
+# Hub config flow
+# ---------------------------------------------------------------------------
+
 class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Config flow for dsvdc4ha."""
+    """Config flow for the dSVDC hub."""
 
     VERSION = 1
 
     def __init__(self) -> None:
         self._pending_port: int = 0
-        self._temp_coordinator: Any = None  # HubCoordinator while waiting for DSS
-        self._dss_connected: bool | None = None  # None=pending, True=ok, False=timeout
+        self._temp_coordinator: Any = None
+        self._dss_connected: bool | None = None
         self._dss_wait_task: asyncio.Task | None = None
         self._device_name: str = ""
         self._vendor_name: str = ""
@@ -661,6 +664,9 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if hub_entries:
             return await self.async_step_creation_mode()
         return await self.async_step_hub()
+
+    async def async_step_user(self, user_input: dict | None = None):
+        return await self.async_step_hub(user_input)
 
     async def async_step_hub(self, user_input: dict | None = None):
         """Collect the port number and verify it is available before proceeding."""
@@ -748,7 +754,7 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._temp_coordinator = None
             return self.async_create_entry(
                 title="dSVDC Hub",
-                data={CONF_ENTRY_TYPE: ENTRY_TYPE_HUB, CONF_PORT: self._pending_port},
+                data={CONF_PORT: self._pending_port},
             )
         if self._temp_coordinator is not None:
             await self._temp_coordinator.async_stop()
@@ -756,18 +762,13 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_abort(reason="no_dss_found")
 
     async def _wait_for_dss(self, connected: asyncio.Event) -> None:
-        """Background task: wait up to 2 min for the DSS hello handshake to complete.
-
-        The event is set by the on_session_ready hook installed in api.start(),
-        which fires inside _on_session_ready after all VDCs are announced.
-        """
+        """Background task: wait up to 2 min for the DSS hello handshake to complete."""
         try:
             await asyncio.wait_for(connected.wait(), timeout=120)
             self._dss_connected = True
         except asyncio.TimeoutError:
             self._dss_connected = False
         except asyncio.CancelledError:
-            # Flow was abandoned — clean up the running VdcHost.
             if self._temp_coordinator is not None:
                 try:
                     await self._temp_coordinator.async_stop()
@@ -1105,6 +1106,40 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             },
         )
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls, config_entry: config_entries.ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        """Return supported subentry types (device wizard)."""
+        return {"device": VdsdSubentryFlowHandler}
+
+
+# ---------------------------------------------------------------------------
+# Device subentry flow
+# ---------------------------------------------------------------------------
+
+class VdsdSubentryFlowHandler(ConfigSubentryFlow):
+    """Multi-step wizard for adding a virtualDC device as a config subentry."""
+
+    def __init__(self) -> None:
+        self._device_name: str = ""
+        self._vendor_name: str = ""
+        self._display_id: str = ""
+        self._vdsds: list[dict[str, Any]] = []
+        self._current_vdsd: dict[str, Any] = {}
+        self._current_buttons: list[dict[str, Any]] = []
+        self._current_binary_inputs: list[dict[str, Any]] = []
+        self._current_sensors: list[dict[str, Any]] = []
+        self._current_output: dict[str, Any] | None = None
+        self._current_channels: list[dict[str, Any]] = []
+        self._current_button_element_idx: int = 0
+        self._current_button_elements_total: int = 1
+        self._current_button_type: int = 1
+        self._optional_return_step: str = ""
+
+    async def async_step_user(self, user_input: dict | None = None):
+        return await self.async_step_device_info(user_input)
 
     async def async_step_device_info(self, user_input: dict | None = None):
         """Collect basic device identity."""
@@ -1223,12 +1258,7 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(step_id="optional_settings", data_schema=schema)
 
     async def async_step_model_features(self, user_input: dict | None = None):
-        """Select model features, then finalise and save the current vdSD.
-
-        Auto-derived features (based on the current device configuration) are
-        pre-selected. The user can deselect any of them and may also add
-        optional 'not tested' features from the bottom of the list.
-        """
+        """Select model features, then finalise and save the current vdSD."""
         if user_input is not None:
             self._current_vdsd["model_features"] = user_input.get("features", [])
             self._current_vdsd["buttons"] = self._current_buttons
@@ -1238,7 +1268,6 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._vdsds.append(dict(self._current_vdsd))
             return await self.async_step_device_summary()
 
-        # Compute which features derive_model_features() would auto-assign.
         auto_features = _compute_auto_features(
             primary_group=int(self._current_vdsd.get("primaryGroup", 1)),
             buttons=self._current_buttons,
@@ -1248,7 +1277,6 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             has_identify=bool(self._current_vdsd.get("identify_action")),
         )
 
-        # Build option list: auto-derivable features first, optional ones after.
         options: list[selector.SelectOptionDict] = []
         for key, label in _AUTO_FEATURE_LABELS.items():
             options.append(selector.SelectOptionDict(value=key, label=label))
@@ -1317,8 +1345,9 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Optional("callsPresent", default=True): selector.BooleanSelector(),
             vol.Required("callbackType", default="clickTypes"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="clickTypes", label="Click types"),
-                    selector.SelectOptionDict(value="actionIds", label="Scene / action IDs"),
+                    selector.SelectOptionDict(value="clickTypes", label="Click types (passthrough: entity state = click type number)"),
+                    selector.SelectOptionDict(value="actionIds", label="Scene / action IDs (passthrough: entity state = scene number)"),
+                    selector.SelectOptionDict(value="detect_clicks", label="Auto-detect (binary sensor / event / button entity)"),
                 ])
             ),
             vol.Optional("callback_entity"): selector.EntitySelector(),
@@ -1379,7 +1408,7 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "name": user_input["name"],
                 "group": int(user_input.get("group", 0)),
                 "sensorType": int(user_input["sensorType"]),
-                "sensorUsage": int(user_input.get("sensorUsage", 0)),
+                "sensorUsage": int(user_input.get("sensorUsage", 1)),
                 "min": float(user_input["min"]),
                 "max": float(user_input["max"]),
                 "resolution": float(user_input["resolution"]),
@@ -1398,7 +1427,7 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Required("sensorType", default="1"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=_SENSOR_TYPE_OPTIONS)
             ),
-            vol.Required("sensorUsage", default="0"): selector.SelectSelector(
+            vol.Required("sensorUsage", default="1"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=_SENSOR_USAGE_OPTIONS)
             ),
             vol.Required("min", default=0): selector.NumberSelector(
@@ -1444,10 +1473,6 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._current_channels = []
             if fn in _MANUAL_CHANNEL_FUNCTIONS:
                 return await self.async_step_channel()
-            # Auto-populate standard channels from pydsvdcapi for this function
-            # (e.g. BRIGHTNESS for DIMMER, BRIGHTNESS+COLOR_TEMPERATURE for
-            # DIMMER_COLOR_TEMP, etc.) so the user can bind HA entities to them
-            # in the channel_mapping step.
             for i, ct in enumerate(FUNCTION_CHANNELS.get(OutputFunction(fn), [])):
                 self._current_channels.append({
                     "dsIndex": i,
@@ -1564,7 +1589,7 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_device_summary(self, user_input: dict | None = None):
-        """Show device summary; allow adding another vdSD or creating the entry."""
+        """Show device summary; allow adding another vdSD or creating the subentry."""
         if user_input is not None and user_input.get("confirm"):
             action = user_input.get("action", "create")
             if action == "add_vdsd":
@@ -1572,7 +1597,6 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(
                 title=self._device_name,
                 data={
-                    "entry_type": ENTRY_TYPE_DEVICE,
                     "name": self._device_name,
                     "vendorName": self._vendor_name,
                     "displayId": self._display_id,

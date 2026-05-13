@@ -12,6 +12,7 @@ def mock_api():
     api = MagicMock()
     api.start = AsyncMock()
     api.stop = AsyncMock()
+    api.add_device = MagicMock()
     api.announce_device = AsyncMock()
     api.vanish_device = AsyncMock()
     api.report_button_click = AsyncMock()
@@ -24,13 +25,12 @@ def mock_api():
 
 @pytest.fixture
 def hub_config_entry_data():
-    return {"entry_type": "hub", "port": 9090}
+    return {"port": 9090}
 
 
 @pytest.fixture
-def device_config_entry_data():
+def subentry_data():
     return {
-        "entry_type": "device",
         "name": "Test Lamp",
         "vendorName": "Acme",
         "displayId": "LampV1",

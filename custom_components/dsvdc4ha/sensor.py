@@ -6,7 +6,7 @@ import logging
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, Event, callback
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .base_entity import DsvdcBaseEntity
@@ -18,25 +18,26 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    entities: list[DsvdcBaseEntity] = []
-    for idx, vdsd_data in enumerate(entry.data.get("vdsds", [])):
-        for btn in vdsd_data.get("buttons", []):
-            entities.append(ButtonSensorEntity(entry.entry_id, idx, vdsd_data, btn))
-        for si in vdsd_data.get("sensors", []):
-            entities.append(SensorInputEntity(entry.entry_id, idx, vdsd_data, si))
-        if output := vdsd_data.get("output"):
-            for ch in output.get("channels", []):
-                entities.append(OutputChannelEntity(entry.entry_id, idx, vdsd_data, output, ch))
-    async_add_entities(entities)
+    for subentry in entry.subentries.values():
+        entities: list[DsvdcBaseEntity] = []
+        for idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):
+            for btn in vdsd_data.get("buttons", []):
+                entities.append(ButtonSensorEntity(subentry.subentry_id, idx, vdsd_data, btn))
+            for si in vdsd_data.get("sensors", []):
+                entities.append(SensorInputEntity(subentry.subentry_id, idx, vdsd_data, si))
+            if output := vdsd_data.get("output"):
+                for ch in output.get("channels", []):
+                    entities.append(OutputChannelEntity(subentry.subentry_id, idx, vdsd_data, output, ch))
+        async_add_entities(entities, config_subentry_id=subentry.subentry_id)
 
 
 class ButtonSensorEntity(DsvdcBaseEntity, SensorEntity):
     """Sensor showing the last click type or action ID forwarded to dS."""
 
-    def __init__(self, entry_id: str, vdsd_index: int, vdsd_data: dict, btn_data: dict) -> None:
-        super().__init__(entry_id, vdsd_index, vdsd_data, f"button_{btn_data['dsIndex']}")
+    def __init__(self, subentry_id: str, vdsd_index: int, vdsd_data: dict, btn_data: dict) -> None:
+        super().__init__(subentry_id, vdsd_index, vdsd_data, f"button_{btn_data['dsIndex']}")
         self._btn_data = btn_data
         self._attr_name = btn_data["name"]
         self._attr_native_value: str | None = None
@@ -92,8 +93,8 @@ class ButtonSensorEntity(DsvdcBaseEntity, SensorEntity):
 class SensorInputEntity(DsvdcBaseEntity, SensorEntity):
     """Sensor mirroring a dS sensor input value."""
 
-    def __init__(self, entry_id: str, vdsd_index: int, vdsd_data: dict, si_data: dict) -> None:
-        super().__init__(entry_id, vdsd_index, vdsd_data, f"sensor_{si_data['dsIndex']}")
+    def __init__(self, subentry_id: str, vdsd_index: int, vdsd_data: dict, si_data: dict) -> None:
+        super().__init__(subentry_id, vdsd_index, vdsd_data, f"sensor_{si_data['dsIndex']}")
         self._si_data = si_data
         self._attr_name = si_data["name"]
         self._attr_native_value: float | None = None
@@ -142,13 +143,13 @@ class OutputChannelEntity(DsvdcBaseEntity, SensorEntity):
 
     def __init__(
         self,
-        entry_id: str,
+        subentry_id: str,
         vdsd_index: int,
         vdsd_data: dict,
         output_data: dict,
         ch_data: dict,
     ) -> None:
-        super().__init__(entry_id, vdsd_index, vdsd_data, f"channel_{ch_data['dsIndex']}")
+        super().__init__(subentry_id, vdsd_index, vdsd_data, f"channel_{ch_data['dsIndex']}")
         self._ch_data = ch_data
         self._attr_name = ch_data.get("name", f"Channel {ch_data['dsIndex']}")
         self._attr_native_value: float | None = None

@@ -42,6 +42,18 @@ def setup_input_listeners(
                 continue
             cb_type = btn_data.get("callbackType", "clickTypes")
 
+            if cb_type == "detect_clicks":
+                # Auto-detect click type from entity behavior using the timing
+                # state machine in ButtonEventTranslator.
+                from .button_translator import ButtonEventTranslator
+
+                async def _click_cb(ct: int, _btn=btn) -> None:
+                    await api.report_button_click(_btn, ct)
+
+                translator = ButtonEventTranslator(hass, entity_id, _click_cb)
+                unsubs.append(translator.setup())
+                continue
+
             @callback
             def _on_button_state(event: Event, _btn=btn, _cb_type=cb_type) -> None:
                 new_state = event.data.get("new_state")
@@ -109,6 +121,59 @@ def setup_input_listeners(
             unsubs.append(async_track_state_change_event(hass, entity_id, _on_binary_state))
 
     return unsubs
+
+
+async def seed_initial_values(
+    hass: HomeAssistant,
+    api: "DsvdcApi",
+    entry_id: str,
+    vdsds_data: list[dict],
+) -> None:
+    """Seed initial values into pydsvdcapi components before device announcement.
+
+    pydsvdcapi's _wait_for_initial_values() blocks announce() until every
+    SensorInput and OutputChannel has reported at least one value.  We push
+    the current HA state (or a safe default) with session=None so the flag is
+    set before announce() is awaited, avoiding the 61-second timeout.
+    """
+    device = api.get_device(entry_id)
+    if not device:
+        return
+    for idx, vdsd_data in enumerate(vdsds_data):
+        vdsd = device.get_vdsd(idx)
+        if not vdsd:
+            continue
+        for si_data in vdsd_data.get("sensors", []):
+            si = vdsd.get_sensor_input(si_data["dsIndex"])
+            if not si:
+                continue
+            value: float | None = None
+            if entity_id := si_data.get("callback_entity"):
+                state = hass.states.get(entity_id)
+                if state and state.state not in ("unknown", "unavailable"):
+                    try:
+                        value = float(state.state)
+                    except ValueError:
+                        pass
+            if value is None:
+                value = si.min_value
+            await si.update_value(value=value, session=None)
+        output_data = vdsd_data.get("output")
+        if not output_data or not vdsd.output:
+            continue
+        for ch_data in output_data.get("channels", []):
+            ch = vdsd.output.get_channel(ch_data["dsIndex"])
+            if not ch:
+                continue
+            ch_value: float = 0.0
+            if entity_id := ch_data.get("read_entity"):
+                state = hass.states.get(entity_id)
+                if state and state.state not in ("unknown", "unavailable"):
+                    try:
+                        ch_value = float(state.state)
+                    except ValueError:
+                        pass
+            await ch.update_value(ch_value)
 
 
 def setup_output_listeners(
