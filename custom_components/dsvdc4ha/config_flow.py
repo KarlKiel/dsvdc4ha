@@ -11,6 +11,8 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigSubentryFlow
 from homeassistant.core import callback
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector as selector_module
 
 from .api import (
@@ -39,7 +41,14 @@ from .const import (
     DOMAIN,
     ENTRY_TYPE_HUB,
 )
+from .device_grouper import (
+    EntityInfo as _EntityInfo,
+    VdsdPlan,
+    compute_vdsd_plan,
+    resolve_vdsd_plan,  # used in async_step_device_plan_summary (Task 5)
+)
 from .entity_mapping import (
+    CHANNEL_TYPE_LABELS as _CHANNEL_TYPE_LABELS,
     SUPPORTED_DOMAINS,
     get_entity_mapping,
     needs_user_input,
@@ -284,36 +293,6 @@ _OUTPUT_USAGE_LABELS: dict[int, str] = {
     1: "Room",
     2: "Outdoors",
     3: "User",
-}
-
-_CHANNEL_TYPE_LABELS: dict[int, str] = {
-    0: "Default (none / catch-all)",
-    1: "Brightness",
-    2: "Hue",
-    3: "Saturation",
-    4: "Color Temperature (mired, 100–1000)",
-    5: "CIE X",
-    6: "CIE Y",
-    7: "Shade Position — Outside (0–100 %)",
-    8: "Shade Position — Indoor (0–100 %)",
-    9: "Shade Opening Angle — Outside",
-    10: "Shade Opening Angle — Indoor",
-    11: "Transparency",
-    12: "Air Flow Intensity",
-    13: "Air Flow Direction",
-    14: "Air Flap Position",
-    15: "Air Louver Position",
-    16: "Heating Power",
-    17: "Cooling Capacity",
-    18: "Audio Volume",
-    19: "Power State",
-    20: "Air Louver (Auto)",
-    21: "Air Flow (Auto)",
-    22: "Water Temperature",
-    23: "Water Flow Rate",
-    24: "Power Level",
-    25: "Video Station",
-    26: "Video Input Source",
 }
 
 # ---------------------------------------------------------------------------
@@ -789,6 +768,13 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         # Entity-flow state
         self._entity_id: str = ""
         self._entity_mapping: dict[str, Any] | None = None
+        # "from_ha_device" path state
+        self._ha_device_id: str = ""
+        self._vdsd_plans: list[VdsdPlan] = []
+        self._unsupported_entities: list[_EntityInfo] = []
+        self._pending_choice_entities: list[tuple[_EntityInfo, int]] = []
+        self._pending_choice_idx: int = 0
+        self._pending_vdsd_idx: int = 0
 
     async def async_step_user(self, user_input: dict | None = None):
         return await self.async_step_creation_mode(user_input)
@@ -801,12 +787,16 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             mode = user_input.get("mode", "from_scratch")
             if mode == "from_entity":
                 return await self.async_step_entity_picker()
+            if mode == "from_ha_device":
+                return await self.async_step_device_picker()
             return await self.async_step_device_info()
         schema = vol.Schema({
             vol.Required("mode", default="from_entity"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=[
                     selector.SelectOptionDict(value="from_entity", label="Create from entity"),
                     selector.SelectOptionDict(value="from_scratch", label="Create from scratch"),
+                    selector.SelectOptionDict(value="from_ha_device",
+                                              label="Create multi-vdSD device from HA device"),
                 ])
             ),
         })
@@ -836,7 +826,6 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                     manufacturer: str = ""
                     model: str = ""
                     try:
-                        from homeassistant.helpers import entity_registry as er, device_registry as dr
                         ent_reg = er.async_get(self.hass)
                         dev_reg = dr.async_get(self.hass)
                         entry = ent_reg.async_get(entity_id)
@@ -1124,6 +1113,267 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "channels": ", ".join(
                     ch.get("name", f"Channel {ch['dsIndex']}") for ch in self._current_channels
                 )
+            },
+        )
+
+    # ── "From HA device" creation path ────────────────────────────────────────
+
+    async def async_step_device_picker(self, user_input: dict | None = None):
+        """Select a HA device; derive and group all its entities into VdsdPlans."""
+        if user_input is not None:
+            device_id: str = user_input["device_id"]
+            dev_reg = dr.async_get(self.hass)
+            ent_reg = er.async_get(self.hass)
+
+            device = dev_reg.async_get(device_id)
+            self._ha_device_id = device_id
+            self._device_name = (
+                (device.name_by_user or device.name) if device else device_id
+            )
+            self._vendor_name = (device.manufacturer or "") if device else ""
+            self._display_id = (device.model or "") if device else ""
+
+            entities: list[_EntityInfo] = []
+            for entry in ent_reg.entities.get_entries_for_device_id(device_id):
+                if entry.disabled_by is not None:
+                    continue
+                state = self.hass.states.get(entry.entity_id)
+                domain = entry.entity_id.split(".")[0]
+                device_class: str | None = (
+                    state.attributes.get("device_class")
+                    if state
+                    else (entry.device_class or entry.original_device_class)
+                )
+                mapping = get_entity_mapping(domain, device_class)
+                cat = entry.entity_category
+                cat_str = cat.value if cat is not None else None
+                entity_info = _EntityInfo(
+                    entity_id=entry.entity_id,
+                    friendly_name=(state.name if state else entry.entity_id),
+                    domain=domain,
+                    device_class=device_class,
+                    mapping=mapping,
+                    needs_choices=needs_user_input(mapping) if mapping else False,
+                    entity_category=cat_str,
+                )
+                entities.append(entity_info)
+
+            self._vdsd_plans, self._unsupported_entities = compute_vdsd_plan(
+                entities, self._device_name
+            )
+            # Build choice queue: (entity_info, plan_idx) for every entity needing input
+            self._pending_choice_entities = []
+            for plan_idx, plan in enumerate(self._vdsd_plans):
+                for candidate in [
+                    plan.output_entity,
+                    plan.binary_input_entity,
+                    plan.button_entity,
+                    *plan.sensor_entities,
+                ]:
+                    if candidate is not None and candidate.needs_choices:
+                        self._pending_choice_entities.append((candidate, plan_idx))
+            self._pending_choice_idx = 0
+            self._pending_vdsd_idx = 0
+
+            if self._pending_choice_entities:
+                return await self.async_step_device_entity_user_input()
+            return await self.async_step_device_plan_summary()
+
+        schema = vol.Schema({
+            vol.Required("device_id"): selector.DeviceSelector(),
+        })
+        return self.async_show_form(step_id="device_picker", data_schema=schema)
+
+    async def async_step_device_entity_user_input(self, user_input: dict | None = None):
+        """Collect per-entity choices (one entity at a time) for the HA-device path."""
+        entity_info, plan_idx = self._pending_choice_entities[self._pending_choice_idx]
+        mapping = entity_info.mapping or {}
+
+        if user_input is not None:
+            self._vdsd_plans[plan_idx].user_choices[entity_info.entity_id] = dict(user_input)
+            self._pending_choice_idx += 1
+            if self._pending_choice_idx < len(self._pending_choice_entities):
+                return await self.async_step_device_entity_user_input()
+            return await self.async_step_device_plan_summary()
+
+        # Build same schema as async_step_entity_user_input
+        schema_dict: dict = {}
+        bi = mapping.get("binary_input", {})
+        sen = mapping.get("sensor", {})
+        btn = mapping.get("button", {})
+        out = mapping.get("output", {})
+
+        if bi.get("sensor_function_choices"):
+            schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in bi["sensor_function_choices"]
+                ]))
+            )
+        if btn.get("group_choices"):
+            schema_dict[vol.Required("group", default=str(btn["group"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in btn["group_choices"]
+                ]))
+            )
+        stc = sen.get("sensor_type_choices")
+        if stc == "any":
+            schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=_SENSOR_TYPE_OPTIONS))
+            )
+        elif stc:
+            schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in stc
+                ]))
+            )
+        state = self.hass.states.get(entity_info.entity_id)
+        # Prefer live state attributes so repeat-visits pre-fill current values
+        attrs = state.attributes if state else {}
+        if sen.get("min_max_user"):
+            schema_dict[vol.Required("min", default=attrs.get("min", sen.get("min", 0)))] = (
+                selector.NumberSelector(selector.NumberSelectorConfig(mode="box"))
+            )
+            schema_dict[vol.Required("max", default=attrs.get("max", sen.get("max", 100)))] = (
+                selector.NumberSelector(selector.NumberSelectorConfig(mode="box"))
+            )
+            schema_dict[vol.Required("resolution", default=attrs.get("step", sen.get("resolution", 0.4)))] = (
+                selector.NumberSelector(selector.NumberSelectorConfig(min=0, step=0.01, mode="box"))
+            )
+        if out.get("output_usage_choices"):
+            schema_dict[vol.Required("output_usage", default=str(out["output_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in out["output_usage_choices"]
+                ]))
+            )
+        if out.get("function_choices"):
+            schema_dict[vol.Required("function", default=str(out["function"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in out["function_choices"]
+                ]))
+            )
+        if out.get("optional_tilt"):
+            schema_dict[vol.Optional("has_tilt", default=False)] = selector.BooleanSelector()
+
+        current = self._pending_choice_idx + 1
+        total = len(self._pending_choice_entities)
+        return self.async_show_form(
+            step_id="device_entity_user_input",
+            data_schema=vol.Schema(schema_dict),
+            description_placeholders={
+                "current": str(current),
+                "total": str(total),
+                "entity_name": entity_info.friendly_name,
+                "domain": entity_info.domain,
+            },
+        )
+
+    async def async_step_device_plan_summary(self, user_input: dict | None = None):
+        """Show auto-generated vdSD plan; user proceeds or cancels."""
+        if user_input is not None:
+            if user_input.get("action") == "cancel":
+                return await self.async_step_creation_mode()
+            # Resolve all plans now (user_choices are all set)
+            entity_states: dict[str, dict] = {}
+            for plan in self._vdsd_plans:
+                for e in [plan.output_entity, plan.binary_input_entity,
+                          plan.button_entity, *plan.sensor_entities]:
+                    if e is not None:
+                        state = self.hass.states.get(e.entity_id)
+                        entity_states[e.entity_id] = dict(state.attributes) if state else {}
+            for plan in self._vdsd_plans:
+                plan.resolved_vdsd = resolve_vdsd_plan(
+                    plan, self._device_name, self._vendor_name,
+                    self._display_id, entity_states,
+                )
+            self._pending_vdsd_idx = 0
+            return await self.async_step_device_model_features()
+
+        # Build summary text for description_placeholders
+        lines: list[str] = []
+        for i, plan in enumerate(self._vdsd_plans, 1):
+            parts: list[str] = []
+            if plan.output_entity:
+                parts.append(f"output: {plan.output_entity.entity_id}")
+            if plan.binary_input_entity:
+                parts.append(f"binary input: {plan.binary_input_entity.entity_id}")
+            if plan.button_entity:
+                parts.append(f"button: {plan.button_entity.entity_id}")
+            if plan.sensor_entities:
+                parts.append(f"{len(plan.sensor_entities)} sensor(s)")
+            lines.append(f"{i}. {plan.name} ({', '.join(parts)})")
+        summary = "\n".join(lines) or "(no vdSDs)"
+
+        unsupported_lines: list[str] = [
+            f"• {e.entity_id}" for e in self._unsupported_entities
+        ]
+        unsupported = (
+            "\n".join(unsupported_lines)
+            if unsupported_lines
+            else "(none — all entities mapped)"
+        )
+
+        schema = vol.Schema({
+            vol.Required("action", default="proceed"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value="proceed", label="Proceed"),
+                    selector.SelectOptionDict(value="cancel", label="Cancel"),
+                ])
+            ),
+        })
+        return self.async_show_form(
+            step_id="device_plan_summary",
+            data_schema=schema,
+            description_placeholders={"summary": summary, "unsupported": unsupported},
+        )
+
+    async def async_step_device_model_features(self, user_input: dict | None = None):
+        """Per-vdSD model features selection for the HA-device path."""
+        plan = self._vdsd_plans[self._pending_vdsd_idx]
+        vdsd: dict = plan.resolved_vdsd or {}
+
+        if user_input is not None:
+            plan.model_features = user_input.get("features", [])
+            if plan.resolved_vdsd is not None:
+                plan.resolved_vdsd["model_features"] = plan.model_features
+            self._pending_vdsd_idx += 1
+            if self._pending_vdsd_idx < len(self._vdsd_plans):
+                return await self.async_step_device_model_features()
+            # All plans done — assemble _vdsds and go to device_summary
+            self._vdsds = [p.resolved_vdsd for p in self._vdsd_plans if p.resolved_vdsd]
+            return await self.async_step_device_summary()
+
+        auto_features = _compute_auto_features(
+            primary_group=int(vdsd.get("primaryGroup", 1)),
+            buttons=vdsd.get("buttons", []),
+            binary_inputs=vdsd.get("binary_inputs", []),
+            sensors=vdsd.get("sensors", []),
+            output=vdsd.get("output"),
+            has_identify=bool(vdsd.get("identify_action")),
+        )
+        options: list[selector.SelectOptionDict] = []
+        for key, label in _AUTO_FEATURE_LABELS.items():
+            options.append(selector.SelectOptionDict(value=key, label=label))
+        for key, label in _OPTIONAL_FEATURE_LABELS.items():
+            options.append(selector.SelectOptionDict(value=key, label=label))
+        schema = vol.Schema({
+            vol.Optional("features", default=sorted(auto_features)): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=options, multiple=True)
+            ),
+        })
+        current = self._pending_vdsd_idx + 1
+        total = len(self._vdsd_plans)
+        return self.async_show_form(
+            step_id="device_model_features",
+            data_schema=schema,
+            description_placeholders={
+                "current": str(current),
+                "total": str(total),
+                "vdsd_name": plan.name,
             },
         )
 
