@@ -623,7 +623,7 @@ async def test_device_model_features_cycles_and_routes_to_device_summary():
     assert result["step_id"] == "device_model_features"
 
     # First plan: submit
-    result2 = await flow.async_step_device_model_features({"features": ["dontcare"]})
+    result2 = await flow.async_step_device_model_features({"features": ["blink"]})
     assert result2["step_id"] == "device_model_features"  # second plan
     assert flow._pending_vdsd_idx == 1
 
@@ -663,7 +663,7 @@ async def test_full_ha_device_flow_creates_entry():
     flow._vdsd_plans = [plan]
     flow._pending_vdsd_idx = 0
 
-    await flow.async_step_device_model_features({"features": ["dontcare"]})
+    await flow.async_step_device_model_features({"features": ["blink"]})
     result = await flow.async_step_device_summary({"action": "create", "confirm": True})
 
     assert result["type"] == "create_entry"

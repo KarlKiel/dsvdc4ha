@@ -1334,11 +1334,12 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
     async def async_step_device_model_features(self, user_input: dict | None = None):
         """Per-vdSD model features selection for the HA-device path."""
         plan = self._vdsd_plans[self._pending_vdsd_idx]
-        vdsd = plan.resolved_vdsd or {}
+        vdsd: dict = plan.resolved_vdsd or {}
 
         if user_input is not None:
             plan.model_features = user_input.get("features", [])
-            vdsd["model_features"] = plan.model_features
+            if plan.resolved_vdsd is not None:
+                plan.resolved_vdsd["model_features"] = plan.model_features
             self._pending_vdsd_idx += 1
             if self._pending_vdsd_idx < len(self._vdsd_plans):
                 return await self.async_step_device_model_features()
