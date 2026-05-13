@@ -1332,8 +1332,49 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         )
 
     async def async_step_device_model_features(self, user_input: dict | None = None):
-        """Stub: collect model features for auto-generated device vdSDs (Task 6)."""
-        return self.async_show_form(step_id="device_model_features", data_schema=vol.Schema({}))
+        """Per-vdSD model features selection for the HA-device path."""
+        plan = self._vdsd_plans[self._pending_vdsd_idx]
+        vdsd = plan.resolved_vdsd or {}
+
+        if user_input is not None:
+            plan.model_features = user_input.get("features", [])
+            vdsd["model_features"] = plan.model_features
+            self._pending_vdsd_idx += 1
+            if self._pending_vdsd_idx < len(self._vdsd_plans):
+                return await self.async_step_device_model_features()
+            # All plans done — assemble _vdsds and go to device_summary
+            self._vdsds = [p.resolved_vdsd for p in self._vdsd_plans if p.resolved_vdsd]
+            return await self.async_step_device_summary()
+
+        auto_features = _compute_auto_features(
+            primary_group=int(vdsd.get("primaryGroup", 1)),
+            buttons=vdsd.get("buttons", []),
+            binary_inputs=vdsd.get("binary_inputs", []),
+            sensors=vdsd.get("sensors", []),
+            output=vdsd.get("output"),
+            has_identify=bool(vdsd.get("identify_action")),
+        )
+        options: list[selector.SelectOptionDict] = []
+        for key, label in _AUTO_FEATURE_LABELS.items():
+            options.append(selector.SelectOptionDict(value=key, label=label))
+        for key, label in _OPTIONAL_FEATURE_LABELS.items():
+            options.append(selector.SelectOptionDict(value=key, label=label))
+        schema = vol.Schema({
+            vol.Optional("features", default=sorted(auto_features)): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=options, multiple=True)
+            ),
+        })
+        current = self._pending_vdsd_idx + 1
+        total = len(self._vdsd_plans)
+        return self.async_show_form(
+            step_id="device_model_features",
+            data_schema=schema,
+            description_placeholders={
+                "current": str(current),
+                "total": str(total),
+                "vdsd_name": plan.name,
+            },
+        )
 
     # ── "From scratch" creation path ──────────────────────────────────────────
 

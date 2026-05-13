@@ -597,3 +597,76 @@ async def test_device_plan_summary_cancel_routes_to_creation_mode():
     flow._unsupported_entities = []
     result = await flow.async_step_device_plan_summary({"action": "cancel"})
     assert result["step_id"] == "creation_mode"
+
+
+@pytest.mark.asyncio
+async def test_device_model_features_cycles_and_routes_to_device_summary():
+    flow = _make_subentry_flow()
+    plan1 = _make_vdsd_plan("light.a")
+    plan1.resolved_vdsd = {
+        "primaryGroup": 1, "displayId": "M", "name": "Device — Light",
+        "buttons": [], "binary_inputs": [], "sensors": [],
+        "output": {"function": 3, "channels": []},
+        "identify_action": None,
+    }
+    plan2 = _make_vdsd_plan("light.b")
+    plan2.resolved_vdsd = dict(plan1.resolved_vdsd)
+    plan2.resolved_vdsd["name"] = "Device — Light 2"
+
+    flow._vdsd_plans = [plan1, plan2]
+    flow._pending_vdsd_idx = 0
+    flow._device_name = "Device"
+
+    # First plan: show form
+    result = await flow.async_step_device_model_features()
+    assert result["type"] == "form"
+    assert result["step_id"] == "device_model_features"
+
+    # First plan: submit
+    result2 = await flow.async_step_device_model_features({"features": ["dontcare"]})
+    assert result2["step_id"] == "device_model_features"  # second plan
+    assert flow._pending_vdsd_idx == 1
+
+    # Second plan: submit -> routes to device_summary
+    result3 = await flow.async_step_device_model_features({"features": []})
+    assert result3["step_id"] == "device_summary"
+
+
+@pytest.mark.asyncio
+async def test_full_ha_device_flow_creates_entry():
+    """End-to-end: light.lamp on a device -> one vdSD subentry."""
+    flow = _make_subentry_flow()
+    flow._device_name = "My Lamp"
+    flow._vendor_name = "Acme"
+    flow._display_id = "LampModel"
+
+    plan = _make_vdsd_plan("light.lamp")
+    plan.resolved_vdsd = {
+        "displayId": "LampModel",
+        "primaryGroup": 1,
+        "model": "LampModel",
+        "vendorName": "Acme",
+        "modelVersion": "1.0",
+        "modelUID": "AcmeLampModel",
+        "name": "My Lamp — Light",
+        "active": True,
+        "identify_action": None,
+        "firmwareUpdate_action": None,
+        "optional": {},
+        "buttons": [],
+        "binary_inputs": [],
+        "sensors": [],
+        "output": {"function": 3, "channels": [], "groups": [1],
+                   "defaultGroup": 1, "activeGroup": 1, "variableRamp": True,
+                   "mode": 2, "onThreshold": 50, "outputUsage": 1, "name": "Output"},
+    }
+    flow._vdsd_plans = [plan]
+    flow._pending_vdsd_idx = 0
+
+    await flow.async_step_device_model_features({"features": ["dontcare"]})
+    result = await flow.async_step_device_summary({"action": "create", "confirm": True})
+
+    assert result["type"] == "create_entry"
+    assert result["title"] == "My Lamp"
+    assert len(result["data"]["vdsds"]) == 1
+    assert result["data"]["vdsds"][0]["displayId"] == "LampModel"
