@@ -148,6 +148,7 @@ _OUTPUT_ON_THRESHOLD = 50
 
 def resolve_vdsd_plan(
     plan: VdsdPlan,
+    device_name: str,
     vendor_name: str,
     display_id: str,
     entity_states: dict[str, dict[str, Any]],

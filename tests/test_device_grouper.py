@@ -223,7 +223,7 @@ def test_resolve_basic_output():
         primary_group=1, name="Lamp — Light",
         output_entity=_entity("light.lamp", "light", _LIGHT_MAPPING),
     )
-    result = resolve_vdsd_plan(plan, "Acme", "LampModel", {})
+    result = resolve_vdsd_plan(plan, "Lamp", "Acme", "LampModel", {})
     assert result["primaryGroup"] == 1
     assert result["name"] == "Lamp — Light"
     assert result["vendorName"] == "Acme"
@@ -252,7 +252,7 @@ def test_resolve_output_usage_choices_applied():
         output_entity=_entity("cover.blind", "cover", blind_mapping),
         user_choices={"cover.blind": {"output_usage": "2"}},
     )
-    result = resolve_vdsd_plan(plan, "Vendor", "BlindModel", {})
+    result = resolve_vdsd_plan(plan, "Blind", "Vendor", "BlindModel", {})
     assert result["output"]["channels"][0]["channelType"] == 7  # outdoor channel
 
 
@@ -272,7 +272,7 @@ def test_resolve_min_max_user_reads_entity_states():
         sensor_entities=[_entity("number.val", "number", number_mapping)],
     )
     entity_states = {"number.val": {"min": 10.0, "max": 50.0, "step": 0.5}}
-    result = resolve_vdsd_plan(plan, "Vendor", "Model", entity_states)
+    result = resolve_vdsd_plan(plan, "Device", "Vendor", "Model", entity_states)
     sensor = result["sensors"][0]
     assert sensor["min"] == 10.0
     assert sensor["max"] == 50.0
@@ -285,7 +285,7 @@ def test_resolve_binary_input_included():
         binary_input_entity=_entity("binary_sensor.window", "binary_sensor",
                                     _BINARY_MAPPING),
     )
-    result = resolve_vdsd_plan(plan, "V", "M", {})
+    result = resolve_vdsd_plan(plan, "Device", "V", "M", {})
     assert len(result["binary_inputs"]) == 1
     assert result["binary_inputs"][0]["callback_entity"] == "binary_sensor.window"
 
@@ -295,6 +295,6 @@ def test_resolve_button_included():
         primary_group=8, name="Device — Joker",
         button_entity=_entity("event.btn", "event", _BUTTON_MAPPING),
     )
-    result = resolve_vdsd_plan(plan, "V", "M", {})
+    result = resolve_vdsd_plan(plan, "Device", "V", "M", {})
     assert len(result["buttons"]) == 1
     assert result["buttons"][0]["callback_entity"] == "event.btn"
