@@ -298,3 +298,81 @@ def test_resolve_button_included():
     result = resolve_vdsd_plan(plan, "Device", "V", "M", {})
     assert len(result["buttons"]) == 1
     assert result["buttons"][0]["callback_entity"] == "event.btn"
+
+
+def test_resolve_vdsd_plan_copies_apply_expr_and_push_expr():
+    """resolve_vdsd_plan copies apply_expr/push_expr from channel defs into channel data."""
+    mapping = {
+        "primary_group": 1,
+        "output": {
+            "function": 1, "output_usage": 1, "groups": [1], "default_group": 1,
+            "variable_ramp": True, "mode": 2,
+            "channels": [{
+                "channel_type": 1,
+                "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'brightness':round(value*2.55)}}",
+                "push_expr": "round(attrs.get('brightness',0)/2.55,1)",
+            }],
+        },
+    }
+    e = _entity("light.lamp", "light", mapping)
+    plan = VdsdPlan(primary_group=1, name="Test — Light", output_entity=e)
+
+    vdsd = resolve_vdsd_plan(plan, "Test", "Vendor", "Model", {})
+
+    channels = vdsd["output"]["channels"]
+    assert len(channels) == 1
+    assert channels[0]["apply_expr"] == "{'domain':'light','service':'turn_on','service_data':{'brightness':round(value*2.55)}}"
+    assert channels[0]["push_expr"] == "round(attrs.get('brightness',0)/2.55,1)"
+
+
+def test_resolve_vdsd_plan_optional_tilt_has_binding():
+    """Optional tilt channel added via has_tilt includes apply_expr/push_expr."""
+    mapping = {
+        "primary_group": 3,
+        "output": {
+            "function": 2, "output_usage": 1, "groups": [3], "default_group": 3,
+            "variable_ramp": True, "mode": 2, "optional_tilt": True,
+            "channels": [{
+                "channel_type": 8,
+                "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
+                "push_expr": "attrs.get('current_position',0)",
+            }],
+        },
+    }
+    e = _entity("cover.window", "cover", mapping)
+    plan = VdsdPlan(
+        primary_group=3, name="Test — Climate",
+        output_entity=e,
+        user_choices={"cover.window": {"has_tilt": True}},
+    )
+
+    vdsd = resolve_vdsd_plan(plan, "Test", "Vendor", "Model", {})
+
+    channels = vdsd["output"]["channels"]
+    assert len(channels) == 2
+    tilt_ch = channels[1]
+    assert tilt_ch["channelType"] == 10
+    assert "apply_expr" in tilt_ch
+    assert tilt_ch["apply_expr"] == "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}"
+    assert "push_expr" in tilt_ch
+    assert tilt_ch["push_expr"] == "attrs.get('current_tilt_position',0)"
+
+
+def test_resolve_vdsd_plan_channel_without_binding_stays_clean():
+    """Channels without apply_expr/push_expr don't get those keys added."""
+    mapping = {
+        "primary_group": 1,
+        "output": {
+            "function": 1, "output_usage": 1, "groups": [1], "default_group": 1,
+            "variable_ramp": True, "mode": 2,
+            "channels": [{"channel_type": 1}],  # no binding
+        },
+    }
+    e = _entity("light.lamp", "light", mapping)
+    plan = VdsdPlan(primary_group=1, name="Test", output_entity=e)
+
+    vdsd = resolve_vdsd_plan(plan, "Test", "Vendor", "Model", {})
+
+    channels = vdsd["output"]["channels"]
+    assert "apply_expr" not in channels[0]
+    assert "push_expr" not in channels[0]

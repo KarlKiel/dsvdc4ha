@@ -261,7 +261,11 @@ def resolve_vdsd_plan(
         else:
             channels_def = list(o.get("channels", []))
         if o.get("optional_tilt") and choices.get("has_tilt"):
-            channels_def = channels_def + [{"channel_type": 10}]
+            channels_def = channels_def + [{
+                "channel_type": 10,
+                "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
+                "push_expr": "attrs.get('current_tilt_position',0)",
+            }]
         mode = (1 if fn == 0 else 2) if "function_choices" in o else o["mode"]
         channels = [
             {
@@ -273,6 +277,8 @@ def resolve_vdsd_plan(
                 "resolution": 0.4,
                 "read_entity": e.entity_id,
                 "write_action": None,
+                **({"apply_expr": ch["apply_expr"]} if ch.get("apply_expr") else {}),
+                **({"push_expr": ch["push_expr"]} if ch.get("push_expr") else {}),
             }
             for i, ch in enumerate(channels_def)
         ]
