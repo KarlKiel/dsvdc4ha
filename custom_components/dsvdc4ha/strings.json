@@ -45,6 +45,39 @@
             "mode": "Creation method"
           }
         },
+        "device_picker": {
+          "title": "Select HA Device",
+          "description": "Select the Home Assistant device to derive virtual dS devices from. All supported entities on this device will be automatically mapped to vdSDs.",
+          "data": {
+            "device_id": "Home Assistant device"
+          }
+        },
+        "device_entity_user_input": {
+          "title": "Entity Options ({current} of {total})",
+          "description": "Entity: {entity_name} ({domain}). Some settings for this entity type require your input.",
+          "data": {
+            "sensor_function": "Binary input function",
+            "group": "Button / input group",
+            "sensor_type": "Sensor type",
+            "min": "Minimum value",
+            "max": "Maximum value",
+            "resolution": "Resolution (LSB)",
+            "output_usage": "Output usage (indoor / outdoor)",
+            "function": "Output function",
+            "has_tilt": "Device supports tilt / blade angle control"
+          }
+        },
+        "device_plan_summary": {
+          "title": "Device Plan Summary",
+          "description": "The following vdSDs will be created:\n{summary}\n\nEntities without a dS mapping (manual creation required if needed):\n{unsupported}",
+          "data": {
+            "action": "Action"
+          }
+        },
+        "device_model_features": {
+          "title": "Model Features — {vdsd_name} ({current} of {total})",
+          "description": "The following model features will be added to this vdSD. Auto-derived features are pre-selected; adjust as needed."
+        },
         "entity_picker": {
           "title": "Select Entity",
           "description": "Choose the Home Assistant entity you want to expose to digitalStrom. Only entities with a supported type are shown.",
