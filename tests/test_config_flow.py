@@ -449,6 +449,20 @@ async def test_creation_mode_from_ha_device_routes_to_device_picker():
 
 
 @pytest.mark.asyncio
+async def test_creation_mode_option_labels_and_order():
+    """creation_mode form has correct labels in the correct order."""
+    flow = _make_subentry_flow()
+    result = await flow.async_step_creation_mode(user_input=None)
+    assert result["type"] == FlowResultType.FORM
+    options = result["data_schema"].schema["mode"].config["options"]
+    assert options[0]["value"] == "from_entity"
+    assert "recommended" in options[0]["label"].lower()
+    assert options[1]["value"] == "from_ha_device"
+    assert options[2]["value"] == "from_scratch"
+    assert "BETA" in options[2]["label"]
+
+
+@pytest.mark.asyncio
 async def test_device_picker_no_choices_routes_to_plan_summary():
     flow = _make_subentry_flow()
     plan = _make_vdsd_plan()

@@ -793,10 +793,12 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         schema = vol.Schema({
             vol.Required("mode", default="from_entity"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="from_entity", label="Create from entity"),
-                    selector.SelectOptionDict(value="from_scratch", label="Create from scratch"),
+                    selector.SelectOptionDict(value="from_entity",
+                                              label="Create device based on HA entities (recommended)"),
                     selector.SelectOptionDict(value="from_ha_device",
-                                              label="Create multi-vdSD device from HA device"),
+                                              label="Create device based on HA device"),
+                    selector.SelectOptionDict(value="from_scratch",
+                                              label="Create device from scratch (BETA)"),
                 ])
             ),
         })
