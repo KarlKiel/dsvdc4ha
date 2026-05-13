@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .entity_mapping import CHANNEL_TYPE_LABELS
+
 
 _GROUP_LABELS: dict[int, str] = {
     1: "Light",
@@ -139,3 +141,147 @@ def compute_vdsd_plan(
 
     _assign_names(plans, device_name)
     return plans, unsupported
+
+
+def resolve_vdsd_plan(
+    plan: VdsdPlan,
+    device_name: str,
+    vendor_name: str,
+    display_id: str,
+    entity_states: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Build the vdSD config dict from a VdsdPlan with resolved user_choices.
+
+    entity_states maps entity_id -> state attributes dict (for min_max_user lookups).
+    """
+    vdsd: dict[str, Any] = {
+        "displayId": display_id,
+        "primaryGroup": plan.primary_group,
+        "model": display_id,
+        "vendorName": vendor_name,
+        "modelVersion": "1.0",
+        "modelUID": (vendor_name + display_id).replace(" ", ""),
+        "name": plan.name,
+        "active": True,
+        "identify_action": None,
+        "firmwareUpdate_action": None,
+        "optional": {},
+        "buttons": [],
+        "binary_inputs": [],
+        "sensors": [],
+        "output": None,
+    }
+
+    if plan.binary_input_entity:
+        e = plan.binary_input_entity
+        choices = plan.user_choices.get(e.entity_id, {})
+        bi = e.mapping["binary_input"]
+        sf = int(choices.get("sensor_function", bi["sensor_function"]))
+        vdsd["binary_inputs"] = [{
+            "dsIndex": 0,
+            "name": e.friendly_name,
+            "group": bi["group"],
+            "sensorFunction": sf,
+            "hardwiredFunction": sf,
+            "updateInterval": bi["update_interval"],
+            "inputType": bi["input_type"],
+            "inputUsage": bi["input_usage"],
+            "valueType": "boolean",
+            "callback_entity": e.entity_id,
+        }]
+
+    if plan.button_entity:
+        e = plan.button_entity
+        choices = plan.user_choices.get(e.entity_id, {})
+        b = e.mapping["button"]
+        group = int(choices.get("group", b["group"]))
+        if "group_choices" in b and "group" in choices:
+            function = 15 if group == 8 else 5
+        else:
+            function = b["function"]
+        vdsd["buttons"] = [{
+            "dsIndex": 0,
+            "name": e.friendly_name,
+            "buttonType": b["button_type"],
+            "buttonElementID": 0,
+            "group": group,
+            "function": function,
+            "mode": b["mode"],
+            "channel": 0,
+            "supportsLocalKeyMode": b.get("supports_local_key_mode", False),
+            "setsLocalPriority": False,
+            "callsPresent": b.get("calls_present", False),
+            "buttonID": 0,
+            "callbackType": "detect_clicks",
+            "callback_entity": e.entity_id,
+        }]
+
+    for idx, e in enumerate(plan.sensor_entities):
+        choices = plan.user_choices.get(e.entity_id, {})
+        s = e.mapping["sensor"]
+        st = int(choices.get("sensor_type", s["sensor_type"]))
+        attrs = entity_states.get(e.entity_id, {})
+        if s.get("min_max_user"):
+            sen_min = float(choices.get("min", attrs.get("min", s.get("min", 0.0))))
+            sen_max = float(choices.get("max", attrs.get("max", s.get("max", 100.0))))
+            sen_res = float(choices.get("resolution", attrs.get("step", s.get("resolution", 0.4))))
+        else:
+            sen_min = float(s.get("min", 0.0))
+            sen_max = float(s.get("max", 100.0))
+            sen_res = float(s.get("resolution", 0.4))
+        vdsd["sensors"].append({
+            "dsIndex": idx,
+            "name": e.friendly_name,
+            "group": s["group"],
+            "sensorType": st,
+            "sensorUsage": s["sensor_usage"],
+            "min": sen_min,
+            "max": sen_max,
+            "resolution": sen_res,
+            "updateInterval": s["update_interval"],
+            "aliveSignInterval": s["alive_sign_interval"],
+            "minPushInterval": s["min_push_interval"],
+            "changesOnlyInterval": s["changes_only_interval"],
+            "callback_entity": e.entity_id,
+        })
+
+    if plan.output_entity:
+        e = plan.output_entity
+        choices = plan.user_choices.get(e.entity_id, {})
+        o = e.mapping["output"]
+        fn = int(choices.get("function", o["function"]))
+        usage = int(choices.get("output_usage", o["output_usage"]))
+        if "channels_by_usage" in o:
+            channels_def = o["channels_by_usage"].get(usage, o.get("channels", []))
+        else:
+            channels_def = list(o.get("channels", []))
+        if o.get("optional_tilt") and choices.get("has_tilt"):
+            channels_def = channels_def + [{"channel_type": 10}]
+        mode = (1 if fn == 0 else 2) if "function_choices" in o else o["mode"]
+        channels = [
+            {
+                "dsIndex": i,
+                "channelType": ch["channel_type"],
+                "name": CHANNEL_TYPE_LABELS.get(ch["channel_type"], f"Channel {i}"),
+                "min": 0.0,
+                "max": 100.0,
+                "resolution": 0.4,
+                "read_entity": e.entity_id,
+                "write_action": None,
+            }
+            for i, ch in enumerate(channels_def)
+        ]
+        vdsd["output"] = {
+            "name": "Output",
+            "groups": o["groups"],
+            "defaultGroup": o["default_group"],
+            "activeGroup": o["default_group"],
+            "function": fn,
+            "outputUsage": usage,
+            "variableRamp": o["variable_ramp"],
+            "mode": mode,
+            "onThreshold": 50,
+            "channels": channels,
+        }
+
+    return vdsd

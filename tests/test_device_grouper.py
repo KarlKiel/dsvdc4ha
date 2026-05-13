@@ -215,3 +215,88 @@ def test_dual_component_entity_contributes_both_output_and_binary_input():
     assert plans[0].output_entity.entity_id == "lock.front"
     assert plans[0].binary_input_entity.entity_id == "lock.front"
     assert unsupported == []
+
+
+from custom_components.dsvdc4ha.device_grouper import resolve_vdsd_plan
+
+
+def test_resolve_basic_output():
+    plan = VdsdPlan(
+        primary_group=1, name="Lamp — Light",
+        output_entity=_entity("light.lamp", "light", _LIGHT_MAPPING),
+    )
+    result = resolve_vdsd_plan(plan, "Lamp", "Acme", "LampModel", {})
+    assert result["primaryGroup"] == 1
+    assert result["name"] == "Lamp — Light"
+    assert result["vendorName"] == "Acme"
+    assert result["displayId"] == "LampModel"
+    assert result["output"] is not None
+    assert len(result["output"]["channels"]) == 1
+    assert result["output"]["channels"][0]["read_entity"] == "light.lamp"
+    assert result["output"]["channels"][0]["write_action"] is None
+
+
+def test_resolve_output_usage_choices_applied():
+    blind_mapping = {
+        "primary_group": 2,
+        "output": {
+            "function": 2, "output_usage": 1, "groups": [2], "default_group": 2,
+            "variable_ramp": False, "mode": 2,
+            "output_usage_choices": [(1, "Indoor (1)"), (2, "Outdoor (2)")],
+            "channels_by_usage": {
+                1: [{"channel_type": 8}],
+                2: [{"channel_type": 7}],
+            },
+        },
+    }
+    plan = VdsdPlan(
+        primary_group=2, name="Blind — Shadow",
+        output_entity=_entity("cover.blind", "cover", blind_mapping),
+        user_choices={"cover.blind": {"output_usage": "2"}},
+    )
+    result = resolve_vdsd_plan(plan, "Blind", "Vendor", "BlindModel", {})
+    assert result["output"]["channels"][0]["channelType"] == 7  # outdoor channel
+
+
+def test_resolve_min_max_user_reads_entity_states():
+    number_mapping = {
+        "primary_group": 8,
+        "sensor": {
+            "sensor_type": 1, "group": 0, "sensor_usage": 1,
+            "min": 0.0, "max": 100.0, "resolution": 1.0,
+            "update_interval": 0, "alive_sign_interval": 0,
+            "min_push_interval": 2.0, "changes_only_interval": 0,
+            "min_max_user": True,
+        },
+    }
+    plan = VdsdPlan(
+        primary_group=8, name="Device — Joker",
+        sensor_entities=[_entity("number.val", "number", number_mapping)],
+    )
+    entity_states = {"number.val": {"min": 10.0, "max": 50.0, "step": 0.5}}
+    result = resolve_vdsd_plan(plan, "Device", "Vendor", "Model", entity_states)
+    sensor = result["sensors"][0]
+    assert sensor["min"] == 10.0
+    assert sensor["max"] == 50.0
+    assert sensor["resolution"] == 0.5
+
+
+def test_resolve_binary_input_included():
+    plan = VdsdPlan(
+        primary_group=8, name="Device — Joker",
+        binary_input_entity=_entity("binary_sensor.window", "binary_sensor",
+                                    _BINARY_MAPPING),
+    )
+    result = resolve_vdsd_plan(plan, "Device", "V", "M", {})
+    assert len(result["binary_inputs"]) == 1
+    assert result["binary_inputs"][0]["callback_entity"] == "binary_sensor.window"
+
+
+def test_resolve_button_included():
+    plan = VdsdPlan(
+        primary_group=8, name="Device — Joker",
+        button_entity=_entity("event.btn", "event", _BUTTON_MAPPING),
+    )
+    result = resolve_vdsd_plan(plan, "Device", "V", "M", {})
+    assert len(result["buttons"]) == 1
+    assert result["buttons"][0]["callback_entity"] == "event.btn"
