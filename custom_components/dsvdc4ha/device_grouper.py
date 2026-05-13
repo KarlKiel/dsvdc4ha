@@ -148,7 +148,7 @@ _OUTPUT_ON_THRESHOLD = 50
 
 def resolve_vdsd_plan(
     plan: VdsdPlan,
-    device_name: str,
+    device_name: str,  # noqa: ARG001 — part of public API; name is embedded in plan.name
     vendor_name: str,
     display_id: str,
     entity_states: dict[str, dict[str, Any]],
@@ -156,6 +156,8 @@ def resolve_vdsd_plan(
     """Build the vdSD config dict from a VdsdPlan with resolved user_choices.
 
     entity_states maps entity_id -> state attributes dict (for min_max_user lookups).
+    device_name is accepted for API symmetry with the call site in config_flow but is
+    not used here — the name was already embedded in plan.name by compute_vdsd_plan.
     """
     vdsd: dict[str, Any] = {
         "displayId": display_id,
