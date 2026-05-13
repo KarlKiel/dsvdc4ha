@@ -45,7 +45,7 @@ from .device_grouper import (
     EntityInfo as _EntityInfo,
     VdsdPlan,
     compute_vdsd_plan,
-    resolve_vdsd_plan,
+    resolve_vdsd_plan,  # used in async_step_device_plan_summary (Task 5)
 )
 from .entity_mapping import (
     CHANNEL_TYPE_LABELS as _CHANNEL_TYPE_LABELS,
@@ -1135,10 +1135,14 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
             entities: list[_EntityInfo] = []
             for entry in ent_reg.entities.get_entries_for_device_id(device_id):
+                if entry.disabled_by is not None:
+                    continue
                 state = self.hass.states.get(entry.entity_id)
                 domain = entry.entity_id.split(".")[0]
                 device_class: str | None = (
-                    state.attributes.get("device_class") if state else None
+                    state.attributes.get("device_class")
+                    if state
+                    else (entry.device_class or entry.original_device_class)
                 )
                 mapping = get_entity_mapping(domain, device_class)
                 cat = entry.entity_category
