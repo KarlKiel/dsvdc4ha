@@ -1570,7 +1570,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             )
 
         vdsd_summary = [
-            f"{v.get('name', v.get('displayId', '?'))} (group {v['primaryGroup']})"
+            f"{v.get('name', v.get('displayId', '?'))} (group {v.get('primaryGroup', '?')})"
             for v in self._vdsds
         ]
         schema = vol.Schema({
