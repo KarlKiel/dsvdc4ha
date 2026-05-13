@@ -37,6 +37,11 @@ from .const import (
     CONF_PORT,
     DOMAIN,
 )
+from .entity_mapping import (
+    SUPPORTED_DOMAINS,
+    get_entity_mapping,
+    needs_user_input,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -632,6 +637,33 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._temp_coordinator: Any = None
         self._dss_connected: bool | None = None
         self._dss_wait_task: asyncio.Task | None = None
+        self._device_name: str = ""
+        self._vendor_name: str = ""
+        self._display_id: str = ""
+        self._vdsds: list[dict[str, Any]] = []
+        self._current_vdsd: dict[str, Any] = {}
+        self._current_buttons: list[dict[str, Any]] = []
+        self._current_binary_inputs: list[dict[str, Any]] = []
+        self._current_sensors: list[dict[str, Any]] = []
+        self._current_output: dict[str, Any] | None = None
+        self._current_channels: list[dict[str, Any]] = []
+        self._current_button_element_idx: int = 0
+        self._current_button_elements_total: int = 1
+        self._current_button_type: int = 1
+        self._optional_return_step: str = ""
+        # Entity-based creation state
+        self._entity_id: str = ""
+        self._entity_mapping: dict[str, Any] | None = None
+
+    async def async_step_user(self, user_input: dict | None = None):
+        """Route to hub flow or device creation mode selector based on existing entries."""
+        hub_entries = [
+            e for e in self._async_current_entries()
+            if e.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_HUB
+        ]
+        if hub_entries:
+            return await self.async_step_creation_mode()
+        return await self.async_step_hub()
 
     async def async_step_user(self, user_input: dict | None = None):
         return await self.async_step_hub(user_input)
@@ -745,6 +777,335 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._temp_coordinator = None
             raise
 
+    async def async_step_creation_mode(self, user_input: dict | None = None):
+        """Choose between creating a vdSD from an existing HA entity or from scratch."""
+        if user_input is not None:
+            mode = user_input.get("mode", "from_scratch")
+            if mode == "from_entity":
+                return await self.async_step_entity_picker()
+            return await self.async_step_device_info()
+        schema = vol.Schema({
+            vol.Required("mode", default="from_entity"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value="from_entity", label="Create from entity"),
+                    selector.SelectOptionDict(value="from_scratch", label="Create from scratch"),
+                ])
+            ),
+        })
+        return self.async_show_form(step_id="creation_mode", data_schema=schema)
+
+    async def async_step_entity_picker(self, user_input: dict | None = None):
+        """Select the HA entity to derive a vdSD from."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            entity_id: str = user_input["entity_id"]
+            state = self.hass.states.get(entity_id)
+            if state is None:
+                errors["entity_id"] = "entity_not_found"
+            else:
+                domain = entity_id.split(".")[0]
+                device_class: str | None = state.attributes.get("device_class")
+                mapping = get_entity_mapping(domain, device_class)
+                if mapping is None:
+                    errors["entity_id"] = "entity_not_supported"
+                else:
+                    self._entity_id = entity_id
+                    self._entity_mapping = mapping
+                    # Auto-populate device fields from HA device / entity info
+                    friendly_name: str = state.name or entity_id
+                    manufacturer: str = ""
+                    model: str = ""
+                    try:
+                        from homeassistant.helpers import entity_registry as er, device_registry as dr
+                        ent_reg = er.async_get(self.hass)
+                        dev_reg = dr.async_get(self.hass)
+                        entry = ent_reg.async_get(entity_id)
+                        if entry and entry.device_id:
+                            device = dev_reg.async_get(entry.device_id)
+                            if device:
+                                friendly_name = device.name_by_user or device.name or friendly_name
+                                manufacturer = device.manufacturer or ""
+                                model = device.model or ""
+                    except Exception:
+                        pass
+                    self._device_name = friendly_name
+                    self._vendor_name = manufacturer
+                    self._display_id = model or domain.title()
+                    if needs_user_input(mapping):
+                        return await self.async_step_entity_user_input()
+                    return await self._build_entity_vdsd_and_continue({})
+
+        schema = vol.Schema({
+            vol.Required("entity_id"): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=SUPPORTED_DOMAINS)
+            ),
+        })
+        return self.async_show_form(
+            step_id="entity_picker",
+            data_schema=schema,
+            errors=errors,
+        )
+
+    async def async_step_entity_user_input(self, user_input: dict | None = None):
+        """Collect the extra choices required by this entity's mapping."""
+        mapping = self._entity_mapping
+        if mapping is None:
+            return await self.async_step_creation_mode()
+
+        if user_input is not None:
+            return await self._build_entity_vdsd_and_continue(user_input)
+
+        schema_dict: dict = {}
+        bi = mapping.get("binary_input", {})
+        sen = mapping.get("sensor", {})
+        btn = mapping.get("button", {})
+        out = mapping.get("output", {})
+
+        if bi.get("sensor_function_choices"):
+            schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in bi["sensor_function_choices"]
+                ]))
+            )
+
+        if btn.get("group_choices"):
+            schema_dict[vol.Required("group", default=str(btn["group"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in btn["group_choices"]
+                ]))
+            )
+
+        stc = sen.get("sensor_type_choices")
+        if stc == "any":
+            schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=_SENSOR_TYPE_OPTIONS))
+            )
+        elif stc:
+            schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in stc
+                ]))
+            )
+
+        if sen.get("min_max_user"):
+            schema_dict[vol.Required("min", default=sen["min"])] = selector.NumberSelector(
+                selector.NumberSelectorConfig(mode="box")
+            )
+            schema_dict[vol.Required("max", default=sen["max"])] = selector.NumberSelector(
+                selector.NumberSelectorConfig(mode="box")
+            )
+            schema_dict[vol.Required("resolution", default=sen["resolution"])] = selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, step=0.01, mode="box")
+            )
+
+        if out.get("output_usage_choices"):
+            schema_dict[vol.Required("output_usage", default=str(out["output_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in out["output_usage_choices"]
+                ]))
+            )
+
+        if out.get("function_choices"):
+            schema_dict[vol.Required("function", default=str(out["function"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in out["function_choices"]
+                ]))
+            )
+
+        if out.get("optional_tilt"):
+            schema_dict[vol.Optional("has_tilt", default=False)] = selector.BooleanSelector()
+
+        return self.async_show_form(
+            step_id="entity_user_input",
+            data_schema=vol.Schema(schema_dict),
+        )
+
+    async def _build_entity_vdsd_and_continue(self, user_input: dict) -> Any:
+        """Build the vdSD data dict from the mapping + user choices, then continue."""
+        mapping = self._entity_mapping
+        assert mapping is not None
+        entity_id = self._entity_id
+        state = self.hass.states.get(entity_id)
+        friendly_name: str = (state.name if state else None) or entity_id
+
+        pg = mapping["primary_group"]
+        vdsd: dict[str, Any] = {
+            "displayId": friendly_name,
+            "primaryGroup": pg,
+            "model": friendly_name,
+            "vendorName": self._vendor_name,
+            "modelVersion": "1.0",
+            "modelUID": (self._vendor_name + friendly_name).replace(" ", ""),
+            "name": self._device_name,
+            "active": True,
+            "identify_action": None,
+            "firmwareUpdate_action": None,
+            "optional": {},
+            "buttons": [],
+            "binary_inputs": [],
+            "sensors": [],
+            "output": None,
+        }
+
+        # Binary input -------------------------------------------------------
+        if "binary_input" in mapping:
+            bi = mapping["binary_input"]
+            sf = int(user_input.get("sensor_function", bi["sensor_function"]))
+            vdsd["binary_inputs"] = [{
+                "dsIndex": 0,
+                "name": friendly_name,
+                "group": bi["group"],
+                "sensorFunction": sf,
+                "hardwiredFunction": sf,
+                "updateInterval": bi["update_interval"],
+                "inputType": bi["input_type"],
+                "inputUsage": bi["input_usage"],
+                "valueType": "boolean",
+                "callback_entity": entity_id,
+            }]
+
+        # Sensor -------------------------------------------------------------
+        if "sensor" in mapping:
+            s = mapping["sensor"]
+            st = int(user_input.get("sensor_type", s["sensor_type"]))
+            vdsd["sensors"] = [{
+                "dsIndex": 0,
+                "name": friendly_name,
+                "group": s["group"],
+                "sensorType": st,
+                "sensorUsage": s["sensor_usage"],
+                "min": float(user_input.get("min", s["min"])),
+                "max": float(user_input.get("max", s["max"])),
+                "resolution": float(user_input.get("resolution", s["resolution"])),
+                "updateInterval": s["update_interval"],
+                "aliveSignInterval": s["alive_sign_interval"],
+                "minPushInterval": s["min_push_interval"],
+                "changesOnlyInterval": s["changes_only_interval"],
+                "callback_entity": entity_id,
+            }]
+
+        # Button -------------------------------------------------------------
+        if "button" in mapping:
+            b = mapping["button"]
+            group = int(user_input.get("group", b["group"]))
+            # Auto-derive function from group when user picked one
+            if "group_choices" in b and "group" in user_input:
+                function = 15 if group == 8 else 5  # APP for Joker, Room for others
+            else:
+                function = b["function"]
+            vdsd["buttons"] = [{
+                "dsIndex": 0,
+                "name": friendly_name,
+                "buttonType": b["button_type"],
+                "buttonElementID": 0,
+                "group": group,
+                "function": function,
+                "mode": b["mode"],
+                "channel": 0,
+                "supportsLocalKeyMode": b.get("supports_local_key_mode", False),
+                "setsLocalPriority": False,
+                "callsPresent": b.get("calls_present", False),
+                "buttonID": 0,
+                "callbackType": "detect_clicks",
+                "callback_entity": entity_id,
+            }]
+
+        # Output -------------------------------------------------------------
+        if "output" in mapping:
+            o = mapping["output"]
+            fn = int(user_input.get("function", o["function"]))
+            usage = int(user_input.get("output_usage", o["output_usage"]))
+
+            # Resolve channels (may depend on outputUsage for blind)
+            if "channels_by_usage" in o:
+                channels_def = o["channels_by_usage"].get(usage, o["channels"])
+            else:
+                channels_def = list(o["channels"])
+
+            # Optional tilt channel (cover/window)
+            if o.get("optional_tilt") and user_input.get("has_tilt"):
+                channels_def = channels_def + [{"channel_type": 10}]  # SHADE_OPENING_ANGLE_INDOOR
+
+            # Mode derived from function when function was a user choice
+            if "function_choices" in o:
+                mode = 1 if fn == 0 else 2  # BINARY for ON_OFF, GRADUAL otherwise
+            else:
+                mode = o["mode"]
+
+            channels = [
+                {
+                    "dsIndex": i,
+                    "channelType": ch["channel_type"],
+                    "name": _CHANNEL_TYPE_LABELS.get(ch["channel_type"], f"Channel {i}"),
+                    "min": 0.0,
+                    "max": 100.0,
+                    "resolution": 0.4,
+                    "read_entity": entity_id,  # pre-populate with selected entity
+                    "write_action": None,
+                }
+                for i, ch in enumerate(channels_def)
+            ]
+            vdsd["output"] = {
+                "name": "Output",
+                "groups": o["groups"],
+                "defaultGroup": o["default_group"],
+                "activeGroup": o["default_group"],
+                "function": fn,
+                "outputUsage": usage,
+                "variableRamp": o["variable_ramp"],
+                "mode": mode,
+                "onThreshold": 50,
+                "channels": channels,
+            }
+
+        # Store result and forward to channel mapping or model_features
+        self._current_vdsd = vdsd
+        self._current_buttons = vdsd["buttons"]
+        self._current_binary_inputs = vdsd["binary_inputs"]
+        self._current_sensors = vdsd["sensors"]
+        self._current_output = vdsd["output"]
+        self._current_channels = vdsd["output"]["channels"] if vdsd["output"] else []
+
+        if vdsd["output"] and self._current_channels:
+            return await self.async_step_entity_channel_mapping()
+        return await self.async_step_model_features()
+
+    async def async_step_entity_channel_mapping(self, user_input: dict | None = None):
+        """Let the user bind HA entities / actions to each output channel."""
+        if user_input is not None:
+            for ch in self._current_channels:
+                read = user_input.get(f"read_{ch['dsIndex']}")
+                write = user_input.get(f"write_{ch['dsIndex']}")
+                if read is not None:
+                    ch["read_entity"] = read
+                if write is not None:
+                    ch["write_action"] = write
+            if self._current_output:
+                self._current_output["channels"] = self._current_channels
+            return await self.async_step_model_features()
+
+        schema_dict: dict = {}
+        for ch in self._current_channels:
+            idx = ch["dsIndex"]
+            schema_dict[vol.Optional(f"read_{idx}", default=ch.get("read_entity"))] = (
+                selector.EntitySelector()
+            )
+            schema_dict[vol.Optional(f"write_{idx}")] = selector.ActionSelector()
+
+        return self.async_show_form(
+            step_id="entity_channel_mapping",
+            data_schema=vol.Schema(schema_dict),
+            description_placeholders={
+                "channels": ", ".join(
+                    ch.get("name", f"Channel {ch['dsIndex']}") for ch in self._current_channels
+                )
+            },
+        )
     @classmethod
     @callback
     def async_get_supported_subentry_types(

@@ -2819,6 +2819,62 @@ git commit -m "feat: complete dsvdc4ha v0.1.0 — full hub + device integration"
 
 ---
 
+## Phase 9 — Create from Entity Flow
+
+### Task 20: Entity mapping + "Create from entity" config flow path
+
+**Files:**
+- Create: `custom_components/dsvdc4ha/entity_mapping.py`
+- Modify: `custom_components/dsvdc4ha/config_flow.py`
+- Modify: `custom_components/dsvdc4ha/strings.json`
+- Modify: `custom_components/dsvdc4ha/translations/en.json`
+- Modify: `tests/test_config_flow.py`
+
+**Goal:** Add a second device creation path that auto-derives the full dS vdSD configuration from a selected HA entity, reducing required user input to only fields with genuine choices.
+
+- [x] **Step 1: Create `entity_mapping.py`**
+
+Static mapping table (`ENTITY_MAPPING: list[dict]`) with 90 entries covering 13 HA domains. Each entry contains the complete dS config for one `(domain, device_class)` pair, plus optional choice flags:
+
+```python
+SUPPORTED_DOMAINS: list[str]  # sorted list of domains with at least one mapping
+ENTITY_MAPPING: list[dict]    # 90 entries
+
+def get_entity_mapping(domain: str, device_class: str | None) -> dict | None: ...
+def needs_user_input(mapping: dict) -> bool: ...
+```
+
+- [x] **Step 2: Add `creation_mode` step to `config_flow.py`**
+
+`async_step_user` routes to `creation_mode` when a hub entry exists. `creation_mode` branches to `entity_picker` or `device_info`.
+
+- [x] **Step 3: Add `entity_picker` step**
+
+`EntitySelector` filtered to `SUPPORTED_DOMAINS`. On submit, reads domain + device_class from HA state, calls `get_entity_mapping`, pre-fills device name/vendor/displayId from HA device registry.
+
+- [x] **Step 4: Add `entity_user_input` step**
+
+Shown only when `needs_user_input(mapping)` is True. Dynamically builds schema from whichever choice flags are present (sensor_function, group, sensor_type, output_usage, function, min/max, tilt).
+
+- [x] **Step 5: Add `_build_entity_vdsd_and_continue` helper**
+
+Builds complete vdSD dict from mapping + user choices. Resolves `channels_by_usage` for blind covers. Derives button function from group (`JOKER → APP=15, else ROOM=5`). Pre-populates `read_entity` with the selected entity.
+
+- [x] **Step 6: Add `entity_channel_mapping` step**
+
+Shows read_entity + write_action per channel (pre-filled from entity). Routes to `model_features`.
+
+- [x] **Step 7: Add strings to `strings.json` + `translations/en.json`**
+
+New steps: `creation_mode`, `entity_picker`, `entity_user_input`, `entity_channel_mapping`.
+New errors: `entity_not_found`, `entity_not_supported`.
+
+- [x] **Step 8: Update `test_config_flow.py`**
+
+Update `test_hub_flow_routes_to_device_when_hub_exists` to assert `step_id == "creation_mode"` (was `"device_info"`).
+
+---
+
 ## Self-Review Checklist
 
 **Spec coverage:**
@@ -2837,6 +2893,7 @@ git commit -m "feat: complete dsvdc4ha v0.1.0 — full hub + device integration"
 - [x] pydsvdcapi isolated in api.py → Task 3-5
 - [x] Tests parallel track → Tasks 1-19
 - [x] HACS files — hacs.json, manifest.json → Task 1
+- [x] "Create from entity" flow with entity mapping → Task 20
 
 **No placeholders found.**
 

@@ -181,6 +181,17 @@ async def test_finalize_hub_timeout_stops_coordinator_and_aborts():
 def _make_subentry_flow() -> VdsdSubentryFlowHandler:
     flow = VdsdSubentryFlowHandler()
     flow.hass = MagicMock()
+    flow.context = {"source": "user"}
+
+    # Simulate an existing hub entry
+    mock_hub_entry = MagicMock()
+    mock_hub_entry.data = {CONF_ENTRY_TYPE: ENTRY_TYPE_HUB}
+    flow._async_current_entries = MagicMock(return_value=[mock_hub_entry])
+
+    result = await flow.async_step_user(user_input=None)
+    # Should land on creation_mode (choose from entity vs from scratch)
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "creation_mode"
     flow.context = {"source": "user", "entry_id": "hub-entry-123"}
     return flow
 
