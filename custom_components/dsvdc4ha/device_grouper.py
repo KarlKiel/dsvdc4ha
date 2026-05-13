@@ -4,7 +4,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .entity_mapping import get_entity_mapping, needs_user_input
 
 _GROUP_LABELS: dict[int, str] = {
     1: "Light",
@@ -77,16 +76,22 @@ def compute_vdsd_plan(
         m = entity.mapping
         if not m:
             unsupported.append(entity)
-        elif "output" in m:
-            outputs.append(entity)
-        elif "binary_input" in m:
-            binary_inputs.append(entity)
-        elif "button" in m:
-            buttons.append(entity)
-        elif "sensor" in m:
-            sensors.append(entity)
         else:
-            unsupported.append(entity)
+            classified = False
+            if "output" in m:
+                outputs.append(entity)
+                classified = True
+            if "binary_input" in m:
+                binary_inputs.append(entity)
+                classified = True
+            if "button" in m:
+                buttons.append(entity)
+                classified = True
+            if "sensor" in m:
+                sensors.append(entity)
+                classified = True
+            if not classified:
+                unsupported.append(entity)
 
     def _priority(e: EntityInfo) -> tuple[int, int, str]:
         cat = e.entity_category

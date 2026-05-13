@@ -198,3 +198,20 @@ def test_plan_naming_duplicate_groups_get_suffix():
     names = [p.name for p in plans]
     assert "My Device — Light 1" in names
     assert "My Device — Light 2" in names
+
+
+def test_dual_component_entity_contributes_both_output_and_binary_input():
+    """Lock entity with both output and binary_input keys should set both fields."""
+    lock_mapping = {
+        "primary_group": 8,
+        "output": {"function": 0, "output_usage": 1, "groups": [8], "default_group": 8,
+                   "variable_ramp": False, "mode": 1, "channels": [{"channel_type": 19}]},
+        "binary_input": {"sensor_function": 0, "group": 8, "input_usage": 0,
+                         "input_type": 1, "update_interval": 1.0},
+    }
+    entities = [_entity("lock.front", "lock", lock_mapping)]
+    plans, unsupported = compute_vdsd_plan(entities, "Lock")
+    assert len(plans) == 1
+    assert plans[0].output_entity.entity_id == "lock.front"
+    assert plans[0].binary_input_entity.entity_id == "lock.front"
+    assert unsupported == []
