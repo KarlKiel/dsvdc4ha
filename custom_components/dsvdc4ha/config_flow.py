@@ -9,7 +9,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigSubentryFlow, SubentryFlowResult
+from homeassistant.config_entries import ConfigSubentryFlow
 from homeassistant.core import callback
 from homeassistant.helpers import selector as selector_module
 
@@ -34,8 +34,10 @@ from .api import (
 )
 
 from .const import (
+    CONF_ENTRY_TYPE,
     CONF_PORT,
     DOMAIN,
+    ENTRY_TYPE_HUB,
 )
 from .entity_mapping import (
     SUPPORTED_DOMAINS,
@@ -624,7 +626,7 @@ DEVICE_INFO_SCHEMA = vol.Schema({
 
 
 # ---------------------------------------------------------------------------
-# Hub config flow
+# Hub config flow — handles only hub setup
 # ---------------------------------------------------------------------------
 
 class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -637,35 +639,15 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._temp_coordinator: Any = None
         self._dss_connected: bool | None = None
         self._dss_wait_task: asyncio.Task | None = None
-        self._device_name: str = ""
-        self._vendor_name: str = ""
-        self._display_id: str = ""
-        self._vdsds: list[dict[str, Any]] = []
-        self._current_vdsd: dict[str, Any] = {}
-        self._current_buttons: list[dict[str, Any]] = []
-        self._current_binary_inputs: list[dict[str, Any]] = []
-        self._current_sensors: list[dict[str, Any]] = []
-        self._current_output: dict[str, Any] | None = None
-        self._current_channels: list[dict[str, Any]] = []
-        self._current_button_element_idx: int = 0
-        self._current_button_elements_total: int = 1
-        self._current_button_type: int = 1
-        self._optional_return_step: str = ""
-        # Entity-based creation state
-        self._entity_id: str = ""
-        self._entity_mapping: dict[str, Any] | None = None
 
     async def async_step_user(self, user_input: dict | None = None):
-        """Route to hub flow or device creation mode selector based on existing entries."""
-        hub_entries = [
+        """Route to hub setup; abort if a hub entry already exists."""
+        existing = [
             e for e in self._async_current_entries()
             if e.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_HUB
         ]
-        if hub_entries:
-            return await self.async_step_creation_mode()
-        return await self.async_step_hub()
-
-    async def async_step_user(self, user_input: dict | None = None):
+        if existing:
+            return self.async_abort(reason="already_configured")
         return await self.async_step_hub(user_input)
 
     async def async_step_hub(self, user_input: dict | None = None):
@@ -673,9 +655,7 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         if user_input is not None:
             port = int(user_input[CONF_PORT])
-            available = await asyncio.get_event_loop().run_in_executor(
-                None, _port_is_available, port
-            )
+            available = await self.hass.async_add_executor_job(_port_is_available, port)
             if not available:
                 errors[CONF_PORT] = "port_in_use"
             else:
@@ -686,9 +666,7 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_state_files(self, user_input: dict | None = None):
         """Ask what to do with existing state files, if any exist."""
         state_path = self.hass.config.path("dsvdc4ha", "host_state")
-        existing = await asyncio.get_event_loop().run_in_executor(
-            None, _existing_state_files, state_path
-        )
+        existing = await self.hass.async_add_executor_job(_existing_state_files, state_path)
 
         if user_input is not None:
             if user_input.get("action") == "delete":
@@ -754,7 +732,7 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self._temp_coordinator = None
             return self.async_create_entry(
                 title="dSVDC Hub",
-                data={CONF_PORT: self._pending_port},
+                data={CONF_ENTRY_TYPE: ENTRY_TYPE_HUB, CONF_PORT: self._pending_port},
             )
         if self._temp_coordinator is not None:
             await self._temp_coordinator.async_stop()
@@ -777,6 +755,46 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 self._temp_coordinator = None
             raise
 
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls, config_entry: config_entries.ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        """Return supported subentry types (device wizard)."""
+        return {"device": VdsdSubentryFlowHandler}
+
+
+# ---------------------------------------------------------------------------
+# Device subentry flow — handles both "from entity" and "from scratch" paths
+# ---------------------------------------------------------------------------
+
+class VdsdSubentryFlowHandler(ConfigSubentryFlow):
+    """Multi-step wizard for adding a virtualDC device as a config subentry."""
+
+    def __init__(self) -> None:
+        self._device_name: str = ""
+        self._vendor_name: str = ""
+        self._display_id: str = ""
+        self._vdsds: list[dict[str, Any]] = []
+        self._current_vdsd: dict[str, Any] = {}
+        self._current_buttons: list[dict[str, Any]] = []
+        self._current_binary_inputs: list[dict[str, Any]] = []
+        self._current_sensors: list[dict[str, Any]] = []
+        self._current_output: dict[str, Any] | None = None
+        self._current_channels: list[dict[str, Any]] = []
+        self._current_button_element_idx: int = 0
+        self._current_button_elements_total: int = 1
+        self._current_button_type: int = 1
+        self._optional_return_step: str = ""
+        # Entity-flow state
+        self._entity_id: str = ""
+        self._entity_mapping: dict[str, Any] | None = None
+
+    async def async_step_user(self, user_input: dict | None = None):
+        return await self.async_step_creation_mode(user_input)
+
+    # ── Creation mode ─────────────────────────────────────────────────────────
+
     async def async_step_creation_mode(self, user_input: dict | None = None):
         """Choose between creating a vdSD from an existing HA entity or from scratch."""
         if user_input is not None:
@@ -793,6 +811,8 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             ),
         })
         return self.async_show_form(step_id="creation_mode", data_schema=schema)
+
+    # ── Entity-based creation path ─────────────────────────────────────────────
 
     async def async_step_entity_picker(self, user_input: dict | None = None):
         """Select the HA entity to derive a vdSD from."""
@@ -935,13 +955,13 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         pg = mapping["primary_group"]
         vdsd: dict[str, Any] = {
-            "displayId": friendly_name,
+            "displayId": self._display_id,      # model/type name (e.g. "Occhio Lunanova")
             "primaryGroup": pg,
-            "model": friendly_name,
+            "model": self._display_id,
             "vendorName": self._vendor_name,
             "modelVersion": "1.0",
-            "modelUID": (self._vendor_name + friendly_name).replace(" ", ""),
-            "name": self._device_name,
+            "modelUID": (self._vendor_name + self._display_id).replace(" ", ""),
+            "name": self._device_name,          # human-readable name goes here
             "active": True,
             "identify_action": None,
             "firmwareUpdate_action": None,
@@ -1106,40 +1126,8 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 )
             },
         )
-    @classmethod
-    @callback
-    def async_get_supported_subentry_types(
-        cls, config_entry: config_entries.ConfigEntry
-    ) -> dict[str, type[ConfigSubentryFlow]]:
-        """Return supported subentry types (device wizard)."""
-        return {"device": VdsdSubentryFlowHandler}
 
-
-# ---------------------------------------------------------------------------
-# Device subentry flow
-# ---------------------------------------------------------------------------
-
-class VdsdSubentryFlowHandler(ConfigSubentryFlow):
-    """Multi-step wizard for adding a virtualDC device as a config subentry."""
-
-    def __init__(self) -> None:
-        self._device_name: str = ""
-        self._vendor_name: str = ""
-        self._display_id: str = ""
-        self._vdsds: list[dict[str, Any]] = []
-        self._current_vdsd: dict[str, Any] = {}
-        self._current_buttons: list[dict[str, Any]] = []
-        self._current_binary_inputs: list[dict[str, Any]] = []
-        self._current_sensors: list[dict[str, Any]] = []
-        self._current_output: dict[str, Any] | None = None
-        self._current_channels: list[dict[str, Any]] = []
-        self._current_button_element_idx: int = 0
-        self._current_button_elements_total: int = 1
-        self._current_button_type: int = 1
-        self._optional_return_step: str = ""
-
-    async def async_step_user(self, user_input: dict | None = None):
-        return await self.async_step_device_info(user_input)
+    # ── "From scratch" creation path ──────────────────────────────────────────
 
     async def async_step_device_info(self, user_input: dict | None = None):
         """Collect basic device identity."""
@@ -1458,8 +1446,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
     async def async_step_output(self, user_input: dict | None = None):
         """Collect output configuration."""
         if user_input is not None:
+            action = user_input.pop("action", "next") if isinstance(user_input, dict) else "next"
             fn = int(user_input["function"])
-            self._current_output = {
+            output = {
                 "name": user_input["name"],
                 "groups": [int(g) for g in user_input["groups"]],
                 "defaultGroup": int(user_input["defaultGroup"]),
@@ -1470,7 +1459,12 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "mode": int(user_input.get("mode", 127)),
                 "onThreshold": 50,
             }
+            self._current_output = output
             self._current_channels = []
+
+            if action == "output_optional":
+                return await self.async_step_output_optional()
+
             if fn in _MANUAL_CHANNEL_FUNCTIONS:
                 return await self.async_step_channel()
             for i, ct in enumerate(FUNCTION_CHANNELS.get(OutputFunction(fn), [])):
@@ -1501,6 +1495,12 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             vol.Required("mode", default="127"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=_OUTPUT_MODE_OPTIONS)
             ),
+            vol.Required("action", default="next"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value="next", label="Continue"),
+                    selector.SelectOptionDict(value="output_optional", label="Optional output settings…"),
+                ])
+            ),
         })
         return self.async_show_form(step_id="output", data_schema=schema)
 
@@ -1511,7 +1511,19 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 for k, v in user_input.items():
                     if v is not None and v != "":
                         self._current_output[k] = v
-            return await self.async_step_output()
+            fn = self._current_output.get("function", 0) if self._current_output else 0
+            if fn in _MANUAL_CHANNEL_FUNCTIONS:
+                return await self.async_step_channel()
+            for i, ct in enumerate(FUNCTION_CHANNELS.get(OutputFunction(fn), [])):
+                self._current_channels.append({
+                    "dsIndex": i,
+                    "channelType": int(ct),
+                    "name": _CHANNEL_TYPE_LABELS.get(int(ct), f"Channel {i}"),
+                    "min": 0.0,
+                    "max": 100.0,
+                    "resolution": 0.4,
+                })
+            return await self.async_step_channel_mapping()
         schema = vol.Schema({
             vol.Optional("onThreshold", default=50): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, max=100, mode="box")
