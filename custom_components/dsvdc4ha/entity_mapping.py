@@ -274,7 +274,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 2, "default_group": 2, "output_usage": 2,
             "variable_ramp": True, "mode": 2, "groups": [2],
-            "channels": [{"channel_type": 7}],  # SHADE_POSITION_OUTSIDE
+            "channels": [{"channel_type": 7,
+                          "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
+                          "push_expr": "round(100-attrs.get('current_position',0),1)"}],  # SHADE_POSITION_OUTSIDE
         },
     },
     {
@@ -285,10 +287,31 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "output_usage_choices": [(1, "Room / Indoor (1)"), (2, "Outdoors (2)")],
             "variable_ramp": True, "mode": 2, "groups": [2],
             # channels depend on outputUsage (resolved in builder)
-            "channels": [{"channel_type": 8}, {"channel_type": 10}],  # default indoor
+            "channels": [
+                {"channel_type": 8,
+                 "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
+                 "push_expr": "round(100-attrs.get('current_position',0),1)"},
+                {"channel_type": 10,
+                 "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
+                 "push_expr": "attrs.get('current_tilt_position',0)"},
+            ],  # default indoor
             "channels_by_usage": {
-                1: [{"channel_type": 8}, {"channel_type": 10}],   # indoor
-                2: [{"channel_type": 7}, {"channel_type": 9}],    # outdoor
+                1: [
+                    {"channel_type": 8,
+                     "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
+                     "push_expr": "round(100-attrs.get('current_position',0),1)"},
+                    {"channel_type": 10,
+                     "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
+                     "push_expr": "attrs.get('current_tilt_position',0)"},
+                ],   # indoor
+                2: [
+                    {"channel_type": 7,
+                     "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
+                     "push_expr": "round(100-attrs.get('current_position',0),1)"},
+                    {"channel_type": 9,
+                     "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
+                     "push_expr": "attrs.get('current_tilt_position',0)"},
+                ],    # outdoor
             },
         },
     },
@@ -297,7 +320,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 2, "default_group": 2, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [2],
-            "channels": [{"channel_type": 8}],  # SHADE_POSITION_INDOOR
+            "channels": [{"channel_type": 8,
+                          "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
+                          "push_expr": "attrs.get('current_position',0)"}],  # SHADE_POSITION_INDOOR
         },
     },
     {
@@ -305,7 +330,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 2, "default_group": 3, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [3],
-            "channels": [{"channel_type": 14}],  # AIR_FLAP_POSITION
+            "channels": [{"channel_type": 14,
+                          "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
+                          "push_expr": "attrs.get('current_position',0)"}],  # AIR_FLAP_POSITION
         },
     },
     {
@@ -313,7 +340,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 0, "default_group": 7, "output_usage": 2,
             "variable_ramp": False, "mode": 1, "groups": [7],
-            "channels": [{"channel_type": 19}],  # POWER_STATE
+            "channels": [{"channel_type": 19,
+                          "apply_expr": "{'domain':'cover','service':'open_cover' if value>=1 else 'close_cover','service_data':{}}",
+                          "push_expr": "1 if entity.state in ('open','opening') else 0"}],  # POWER_STATE
         },
     },
     {
@@ -321,7 +350,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 0, "default_group": 7, "output_usage": 2,
             "variable_ramp": False, "mode": 1, "groups": [7],
-            "channels": [{"channel_type": 19}],  # POWER_STATE
+            "channels": [{"channel_type": 19,
+                          "apply_expr": "{'domain':'cover','service':'open_cover' if value>=1 else 'close_cover','service_data':{}}",
+                          "push_expr": "1 if entity.state in ('open','opening') else 0"}],  # POWER_STATE
         },
     },
     {
@@ -331,7 +362,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "function_choices": [(2, "Positional — supports position feedback (2)"), (0, "On/Off only (0)")],
             "default_group": 7, "output_usage": 2,
             "variable_ramp": False, "mode": 2, "groups": [7],
-            "channels": [{"channel_type": 7}],  # SHADE_POSITION_OUTSIDE
+            "channels": [{"channel_type": 7,
+                          "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
+                          "push_expr": "round(100-attrs.get('current_position',0),1)"}],  # SHADE_POSITION_OUTSIDE
         },
     },
     {
@@ -339,7 +372,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 2, "default_group": 2, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [2],
-            "channels": [{"channel_type": 8}],  # SHADE_POSITION_INDOOR
+            "channels": [{"channel_type": 8,
+                          "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
+                          "push_expr": "attrs.get('current_position',0)"}],  # SHADE_POSITION_INDOOR
         },
     },
     {
@@ -347,7 +382,14 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 2, "default_group": 2, "output_usage": 2,
             "variable_ramp": True, "mode": 2, "groups": [2],
-            "channels": [{"channel_type": 7}, {"channel_type": 9}],
+            "channels": [
+                {"channel_type": 7,
+                 "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
+                 "push_expr": "round(100-attrs.get('current_position',0),1)"},
+                {"channel_type": 9,
+                 "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
+                 "push_expr": "attrs.get('current_tilt_position',0)"},
+            ],
         },
     },
     {
@@ -357,7 +399,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "function_choices": [(2, "Positional — supports position feedback (2)"), (0, "On/Off only (0)")],
             "default_group": 3, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [3],
-            "channels": [{"channel_type": 8}],  # SHADE_POSITION_INDOOR
+            "channels": [{"channel_type": 8,
+                          "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
+                          "push_expr": "attrs.get('current_position',0)"}],  # SHADE_POSITION_INDOOR
             "optional_tilt": True,               # user asked for second channel
         },
     },
@@ -398,7 +442,14 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 1, "default_group": 3, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [3],
-            "channels": [{"channel_type": 12}, {"channel_type": 13}],
+            "channels": [
+                {"channel_type": 12,
+                 "apply_expr": "{'domain':'fan','service':'set_percentage','service_data':{'percentage':round(value)}}",
+                 "push_expr": "attrs.get('percentage',0) or 0"},
+                {"channel_type": 13,
+                 "apply_expr": "{'domain':'fan','service':'set_direction','service_data':{'direction':'forward' if value<=1 else 'reverse'}}",
+                 "push_expr": "0 if attrs.get('direction','forward')=='forward' else 2"},
+            ],
         },
     },
     # ── Light ─────────────────────────────────────────────────────────────────
@@ -407,7 +458,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 0, "default_group": 1, "output_usage": 1,
             "variable_ramp": False, "mode": 1, "groups": [1],
-            "channels": [{"channel_type": 1}],  # BRIGHTNESS
+            "channels": [{"channel_type": 1,
+                          "apply_expr": "{'domain':'light','service':'turn_on' if value>50 else 'turn_off','service_data':{}}",
+                          "push_expr": "100.0 if entity.state=='on' else 0.0"}],  # BRIGHTNESS
         },
     },
     {
@@ -415,7 +468,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 1, "default_group": 1, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [1],
-            "channels": [{"channel_type": 1}],
+            "channels": [{"channel_type": 1,
+                          "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'brightness':round(value*2.55)}}",
+                          "push_expr": "round(attrs.get('brightness',0)/2.55,1)"}],
         },
     },
     {
@@ -423,7 +478,14 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 3, "default_group": 1, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [1],
-            "channels": [{"channel_type": 1}, {"channel_type": 4}],
+            "channels": [
+                {"channel_type": 1,
+                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'brightness':round(value*2.55)}}",
+                 "push_expr": "round(attrs.get('brightness',0)/2.55,1)"},
+                {"channel_type": 4,
+                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'color_temp':round(value)}}",
+                 "push_expr": "attrs.get('color_temp',370)"},
+            ],
         },
     },
     {
@@ -432,8 +494,24 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "function": 4, "default_group": 1, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [1],
             "channels": [
-                {"channel_type": 1}, {"channel_type": 2}, {"channel_type": 3},
-                {"channel_type": 4}, {"channel_type": 5}, {"channel_type": 6},
+                {"channel_type": 1,
+                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'brightness':round(value*2.55)}}",
+                 "push_expr": "round(attrs.get('brightness',0)/2.55,1)"},
+                {"channel_type": 2,
+                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'hs_color':(value,attrs.get('hs_color',(0,100))[1])}}",
+                 "push_expr": "attrs.get('hs_color',(0,0))[0]"},
+                {"channel_type": 3,
+                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'hs_color':(attrs.get('hs_color',(0,100))[0],value)}}",
+                 "push_expr": "attrs.get('hs_color',(0,100))[1]"},
+                {"channel_type": 4,
+                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'color_temp':round(value)}}",
+                 "push_expr": "attrs.get('color_temp',370)"},
+                {"channel_type": 5,
+                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'xy_color':(round(value/10000,4),attrs.get('xy_color',(0.3127,0.3290))[1])}}",
+                 "push_expr": "round(attrs.get('xy_color',(0.3127,0.3290))[0]*10000,1)"},
+                {"channel_type": 6,
+                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'xy_color':(attrs.get('xy_color',(0.3127,0.3290))[0],round(value/10000,4))}}",
+                 "push_expr": "round(attrs.get('xy_color',(0.3127,0.3290))[1]*10000,1)"},
             ],
         },
     },
@@ -443,7 +521,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 127, "default_group": 8, "output_usage": 0,
             "variable_ramp": False, "mode": 1, "groups": [8],
-            "channels": [{"channel_type": 19}],  # POWER_STATE
+            "channels": [{"channel_type": 19,
+                          "apply_expr": "{'domain':'lock','service':'lock' if value==0 else 'unlock','service_data':{}}",
+                          "push_expr": "0 if entity.state=='locked' else 1"}],  # POWER_STATE
         },
         "binary_input": {
             "sensor_function": 14, "group": 7, "input_usage": 0,
@@ -456,7 +536,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 2, "default_group": 8, "output_usage": 0,
             "variable_ramp": True, "mode": 2, "groups": [8],
-            "channels": [{"channel_type": 24}],  # POWER_LEVEL
+            "channels": [{"channel_type": 24,
+                          "apply_expr": "{'domain':'number','service':'set_value','service_data':{'value':round(_denorm(value,float(attrs.get('min',0)),float(attrs.get('max',100))),2)}}",
+                          "push_expr": "_norm(float(entity.state),float(attrs.get('min',0)),float(attrs.get('max',100)))"}],  # POWER_LEVEL
         },
     },
     # ── Sensor ────────────────────────────────────────────────────────────────
@@ -734,7 +816,14 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 127, "default_group": 8, "output_usage": 0,
             "variable_ramp": False, "mode": 1, "groups": [8],
-            "channels": [{"channel_type": 19}, {"channel_type": 18}],
+            "channels": [
+                {"channel_type": 19,
+                 "apply_expr": "{'domain':'siren','service':'turn_on' if value>=1 else 'turn_off','service_data':{}}",
+                 "push_expr": "1 if entity.state=='on' else 0"},
+                {"channel_type": 18,
+                 "apply_expr": "{'domain':'siren','service':'turn_on','service_data':{'volume_level':round(value/100,2)}}",
+                 "push_expr": "round(attrs.get('volume_level',1)*100,1)"},
+            ],
         },
     },
     # ── Switch ───────────────────────────────────────────────────────────────
@@ -743,7 +832,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 0, "default_group": 8, "output_usage": 0,
             "variable_ramp": False, "mode": 1, "groups": [8],
-            "channels": [{"channel_type": 19}],
+            "channels": [{"channel_type": 19,
+                          "apply_expr": "{'domain':'switch','service':'turn_on' if value>=1 else 'turn_off','service_data':{}}",
+                          "push_expr": "1 if entity.state=='on' else 0"}],
         },
     },
     {
@@ -751,7 +842,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 0, "default_group": 8, "output_usage": 0,
             "variable_ramp": False, "mode": 1, "groups": [8],
-            "channels": [{"channel_type": 19}],
+            "channels": [{"channel_type": 19,
+                          "apply_expr": "{'domain':'switch','service':'turn_on' if value>=1 else 'turn_off','service_data':{}}",
+                          "push_expr": "1 if entity.state=='on' else 0"}],
         },
     },
     {
@@ -759,7 +852,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 0, "default_group": 8, "output_usage": 0,
             "variable_ramp": False, "mode": 1, "groups": [8],
-            "channels": [{"channel_type": 19}],
+            "channels": [{"channel_type": 19,
+                          "apply_expr": "{'domain':'switch','service':'turn_on' if value>=1 else 'turn_off','service_data':{}}",
+                          "push_expr": "1 if entity.state=='on' else 0"}],
         },
     },
     # ── Valve ────────────────────────────────────────────────────────────────
@@ -768,7 +863,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 0, "default_group": 3, "output_usage": 0,
             "variable_ramp": False, "mode": 1, "groups": [3],
-            "channels": [{"channel_type": 19}],
+            "channels": [{"channel_type": 19,
+                          "apply_expr": "{'domain':'valve','service':'open_valve' if value>=1 else 'close_valve','service_data':{}}",
+                          "push_expr": "1 if entity.state=='open' else 0"}],
         },
     },
     {
@@ -776,7 +873,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 0, "default_group": 3, "output_usage": 0,
             "variable_ramp": False, "mode": 1, "groups": [3],
-            "channels": [{"channel_type": 19}],
+            "channels": [{"channel_type": 19,
+                          "apply_expr": "{'domain':'valve','service':'open_valve' if value>=1 else 'close_valve','service_data':{}}",
+                          "push_expr": "1 if entity.state=='open' else 0"}],
         },
     },
     {
@@ -784,7 +883,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 2, "default_group": 3, "output_usage": 0,
             "variable_ramp": True, "mode": 2, "groups": [3],
-            "channels": [{"channel_type": 23}],  # WATER_FLOW_RATE
+            "channels": [{"channel_type": 23,
+                          "apply_expr": "{'domain':'valve','service':'set_valve_position','service_data':{'position':round(value)}}",
+                          "push_expr": "attrs.get('current_position',0)"}],  # WATER_FLOW_RATE
         },
     },
     {
@@ -792,7 +893,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 2, "default_group": 3, "output_usage": 0,
             "variable_ramp": True, "mode": 2, "groups": [3],
-            "channels": [{"channel_type": 23}],
+            "channels": [{"channel_type": 23,
+                          "apply_expr": "{'domain':'valve','service':'set_valve_position','service_data':{'position':round(value)}}",
+                          "push_expr": "attrs.get('current_position',0)"}],
         },
     },
 ]
