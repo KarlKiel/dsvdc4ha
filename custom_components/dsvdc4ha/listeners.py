@@ -194,7 +194,7 @@ async def seed_initial_values(
                         try:
                             ch_value = _eval_push(push_expr, state)
                         except Exception:
-                            _LOGGER.debug("push_expr eval failed during seed: %s", push_expr)
+                            _LOGGER.warning("push_expr eval failed during seed: %s", push_expr, exc_info=True)
                     else:
                         try:
                             ch_value = float(state.state)
@@ -250,7 +250,7 @@ def setup_output_listeners(
                             val = _eval_push(_expr, new_state)
                             hass.async_create_task(api.report_channel_value(_ch, val))
                         except Exception:
-                            _LOGGER.debug("push_expr eval failed: %s", _expr)
+                            _LOGGER.warning("push_expr eval failed: %s", _expr, exc_info=True)
                     unsubs.append(
                         async_track_state_change_event(hass, read_entity, _on_channel_state_expr)
                     )
