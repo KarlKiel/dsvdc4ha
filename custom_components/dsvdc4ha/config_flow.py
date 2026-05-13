@@ -11,6 +11,8 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigSubentryFlow
 from homeassistant.core import callback
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector as selector_module
 
 from .api import (
@@ -38,6 +40,12 @@ from .const import (
     CONF_PORT,
     DOMAIN,
     ENTRY_TYPE_HUB,
+)
+from .device_grouper import (
+    EntityInfo as _EntityInfo,
+    VdsdPlan,
+    compute_vdsd_plan,
+    resolve_vdsd_plan,
 )
 from .entity_mapping import (
     CHANNEL_TYPE_LABELS as _CHANNEL_TYPE_LABELS,
@@ -760,6 +768,13 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         # Entity-flow state
         self._entity_id: str = ""
         self._entity_mapping: dict[str, Any] | None = None
+        # "from_ha_device" path state
+        self._ha_device_id: str = ""
+        self._vdsd_plans: list[VdsdPlan] = []
+        self._unsupported_entities: list[_EntityInfo] = []
+        self._pending_choice_entities: list[tuple[_EntityInfo, int]] = []
+        self._pending_choice_idx: int = 0
+        self._pending_vdsd_idx: int = 0
 
     async def async_step_user(self, user_input: dict | None = None):
         return await self.async_step_creation_mode(user_input)
@@ -772,12 +787,16 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             mode = user_input.get("mode", "from_scratch")
             if mode == "from_entity":
                 return await self.async_step_entity_picker()
+            if mode == "from_ha_device":
+                return await self.async_step_device_picker()
             return await self.async_step_device_info()
         schema = vol.Schema({
             vol.Required("mode", default="from_entity"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=[
                     selector.SelectOptionDict(value="from_entity", label="Create from entity"),
                     selector.SelectOptionDict(value="from_scratch", label="Create from scratch"),
+                    selector.SelectOptionDict(value="from_ha_device",
+                                              label="Create multi-vdSD device from HA device"),
                 ])
             ),
         })
@@ -1096,6 +1115,84 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                     ch.get("name", f"Channel {ch['dsIndex']}") for ch in self._current_channels
                 )
             },
+        )
+
+    # ── "From HA device" creation path ────────────────────────────────────────
+
+    async def async_step_device_picker(self, user_input: dict | None = None):
+        """Select a HA device; derive and group all its entities into VdsdPlans."""
+        if user_input is not None:
+            device_id: str = user_input["device_id"]
+            dev_reg = dr.async_get(self.hass)
+            ent_reg = er.async_get(self.hass)
+
+            device = dev_reg.async_get(device_id)
+            self._ha_device_id = device_id
+            self._device_name = (
+                (device.name_by_user or device.name) if device else device_id
+            )
+            self._vendor_name = (device.manufacturer or "") if device else ""
+            self._display_id = (device.model or "") if device else ""
+
+            entities: list[_EntityInfo] = []
+            for entry in ent_reg.entities.get_entries_for_device_id(device_id):
+                state = self.hass.states.get(entry.entity_id)
+                domain = entry.entity_id.split(".")[0]
+                device_class: str | None = (
+                    state.attributes.get("device_class") if state else None
+                )
+                mapping = get_entity_mapping(domain, device_class)
+                cat = entry.entity_category
+                cat_str = cat.value if cat is not None else None
+                entity_info = _EntityInfo(
+                    entity_id=entry.entity_id,
+                    friendly_name=(state.name if state else entry.entity_id),
+                    domain=domain,
+                    device_class=device_class,
+                    mapping=mapping,
+                    needs_choices=needs_user_input(mapping) if mapping else False,
+                    entity_category=cat_str,
+                )
+                entities.append(entity_info)
+
+            self._vdsd_plans, self._unsupported_entities = compute_vdsd_plan(
+                entities, self._device_name
+            )
+            # Build choice queue: (entity_info, plan_idx) for every entity needing input
+            self._pending_choice_entities = []
+            for plan_idx, plan in enumerate(self._vdsd_plans):
+                for candidate in [
+                    plan.output_entity,
+                    plan.binary_input_entity,
+                    plan.button_entity,
+                    *plan.sensor_entities,
+                ]:
+                    if candidate is not None and candidate.needs_choices:
+                        self._pending_choice_entities.append((candidate, plan_idx))
+            self._pending_choice_idx = 0
+            self._pending_vdsd_idx = 0
+
+            if self._pending_choice_entities:
+                return await self.async_step_device_entity_user_input()
+            return await self.async_step_device_plan_summary()
+
+        schema = vol.Schema({
+            vol.Required("device_id"): selector.DeviceSelector(),
+        })
+        return self.async_show_form(step_id="device_picker", data_schema=schema)
+
+    async def async_step_device_entity_user_input(self, user_input: dict | None = None):
+        """Stub: collect user choices for entities that need them (Task 5)."""
+        return self.async_show_form(
+            step_id="device_entity_user_input",
+            data_schema=vol.Schema({}),
+        )
+
+    async def async_step_device_plan_summary(self, user_input: dict | None = None):
+        """Stub: show derived VdsdPlan summary before creating the subentry (Task 5)."""
+        return self.async_show_form(
+            step_id="device_plan_summary",
+            data_schema=vol.Schema({}),
         )
 
     # ── "From scratch" creation path ──────────────────────────────────────────
