@@ -1185,18 +1185,154 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         return self.async_show_form(step_id="device_picker", data_schema=schema)
 
     async def async_step_device_entity_user_input(self, user_input: dict | None = None):
-        """Stub: collect user choices for entities that need them (Task 5)."""
+        """Collect per-entity choices (one entity at a time) for the HA-device path."""
+        entity_info, plan_idx = self._pending_choice_entities[self._pending_choice_idx]
+        mapping = entity_info.mapping or {}
+
+        if user_input is not None:
+            self._vdsd_plans[plan_idx].user_choices[entity_info.entity_id] = dict(user_input)
+            self._pending_choice_idx += 1
+            if self._pending_choice_idx < len(self._pending_choice_entities):
+                return await self.async_step_device_entity_user_input()
+            return await self.async_step_device_plan_summary()
+
+        # Build same schema as async_step_entity_user_input
+        schema_dict: dict = {}
+        bi = mapping.get("binary_input", {})
+        sen = mapping.get("sensor", {})
+        btn = mapping.get("button", {})
+        out = mapping.get("output", {})
+
+        if bi.get("sensor_function_choices"):
+            schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in bi["sensor_function_choices"]
+                ]))
+            )
+        if btn.get("group_choices"):
+            schema_dict[vol.Required("group", default=str(btn["group"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in btn["group_choices"]
+                ]))
+            )
+        stc = sen.get("sensor_type_choices")
+        if stc == "any":
+            schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=_SENSOR_TYPE_OPTIONS))
+            )
+        elif stc:
+            schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in stc
+                ]))
+            )
+        state = self.hass.states.get(entity_info.entity_id)
+        attrs = state.attributes if state else {}
+        if sen.get("min_max_user"):
+            schema_dict[vol.Required("min", default=attrs.get("min", sen.get("min", 0)))] = (
+                selector.NumberSelector(selector.NumberSelectorConfig(mode="box"))
+            )
+            schema_dict[vol.Required("max", default=attrs.get("max", sen.get("max", 100)))] = (
+                selector.NumberSelector(selector.NumberSelectorConfig(mode="box"))
+            )
+            schema_dict[vol.Required("resolution", default=attrs.get("step", sen.get("resolution", 0.4)))] = (
+                selector.NumberSelector(selector.NumberSelectorConfig(min=0, step=0.01, mode="box"))
+            )
+        if out.get("output_usage_choices"):
+            schema_dict[vol.Required("output_usage", default=str(out["output_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in out["output_usage_choices"]
+                ]))
+            )
+        if out.get("function_choices"):
+            schema_dict[vol.Required("function", default=str(out["function"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in out["function_choices"]
+                ]))
+            )
+        if out.get("optional_tilt"):
+            schema_dict[vol.Optional("has_tilt", default=False)] = selector.BooleanSelector()
+
+        current = self._pending_choice_idx + 1
+        total = len(self._pending_choice_entities)
         return self.async_show_form(
             step_id="device_entity_user_input",
-            data_schema=vol.Schema({}),
+            data_schema=vol.Schema(schema_dict),
+            description_placeholders={
+                "current": str(current),
+                "total": str(total),
+                "entity_name": entity_info.friendly_name,
+                "domain": entity_info.domain,
+            },
         )
 
     async def async_step_device_plan_summary(self, user_input: dict | None = None):
-        """Stub: show derived VdsdPlan summary before creating the subentry (Task 5)."""
+        """Show auto-generated vdSD plan; user proceeds or cancels."""
+        if user_input is not None:
+            if user_input.get("action") == "cancel":
+                return await self.async_step_creation_mode()
+            # Resolve all plans now (user_choices are all set)
+            entity_states: dict[str, dict] = {}
+            for plan in self._vdsd_plans:
+                for e in [plan.output_entity, plan.binary_input_entity,
+                          plan.button_entity, *plan.sensor_entities]:
+                    if e is not None:
+                        state = self.hass.states.get(e.entity_id)
+                        entity_states[e.entity_id] = dict(state.attributes) if state else {}
+            for plan in self._vdsd_plans:
+                plan.resolved_vdsd = resolve_vdsd_plan(
+                    plan, self._device_name, self._vendor_name,
+                    self._display_id, entity_states,
+                )
+            self._pending_vdsd_idx = 0
+            return await self.async_step_device_model_features()
+
+        # Build summary text for description_placeholders
+        lines: list[str] = []
+        for i, plan in enumerate(self._vdsd_plans, 1):
+            parts: list[str] = []
+            if plan.output_entity:
+                parts.append(f"output: {plan.output_entity.entity_id}")
+            if plan.binary_input_entity:
+                parts.append(f"binary input: {plan.binary_input_entity.entity_id}")
+            if plan.button_entity:
+                parts.append(f"button: {plan.button_entity.entity_id}")
+            if plan.sensor_entities:
+                parts.append(f"{len(plan.sensor_entities)} sensor(s)")
+            lines.append(f"{i}. {plan.name} ({', '.join(parts)})")
+        summary = "\n".join(lines) or "(no vdSDs)"
+
+        unsupported_lines: list[str] = [
+            f"• {e.entity_id}" for e in self._unsupported_entities
+        ]
+        unsupported = (
+            "\n".join(unsupported_lines)
+            if unsupported_lines
+            else "(none — all entities mapped)"
+        )
+
+        schema = vol.Schema({
+            vol.Required("action", default="proceed"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value="proceed", label="Proceed"),
+                    selector.SelectOptionDict(value="cancel", label="Cancel"),
+                ])
+            ),
+        })
         return self.async_show_form(
             step_id="device_plan_summary",
-            data_schema=vol.Schema({}),
+            data_schema=schema,
+            description_placeholders={"summary": summary, "unsupported": unsupported},
         )
+
+    async def async_step_device_model_features(self, user_input: dict | None = None):
+        """Stub: collect model features for auto-generated device vdSDs (Task 6)."""
+        return self.async_show_form(step_id="device_model_features", data_schema=vol.Schema({}))
 
     # ── "From scratch" creation path ──────────────────────────────────────────
 
