@@ -826,7 +826,6 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                     manufacturer: str = ""
                     model: str = ""
                     try:
-                        from homeassistant.helpers import entity_registry as er, device_registry as dr
                         ent_reg = er.async_get(self.hass)
                         dev_reg = dr.async_get(self.hass)
                         entry = ent_reg.async_get(entity_id)
