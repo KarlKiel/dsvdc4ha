@@ -143,9 +143,11 @@ def compute_vdsd_plan(
     return plans, unsupported
 
 
+_OUTPUT_ON_THRESHOLD = 50
+
+
 def resolve_vdsd_plan(
     plan: VdsdPlan,
-    device_name: str,
     vendor_name: str,
     display_id: str,
     entity_states: dict[str, dict[str, Any]],
@@ -280,7 +282,7 @@ def resolve_vdsd_plan(
             "outputUsage": usage,
             "variableRamp": o["variable_ramp"],
             "mode": mode,
-            "onThreshold": 50,
+            "onThreshold": _OUTPUT_ON_THRESHOLD,
             "channels": channels,
         }
 
