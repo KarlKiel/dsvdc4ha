@@ -14,6 +14,26 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+_SAFE_EVAL_CONTEXT: dict = {
+    "__builtins__": {},
+    "round": round,
+    "float": float,
+    "int": int,
+    "abs": abs,
+    "min": min,
+    "max": max,
+    "_norm": lambda v, lo, hi: 0.0 if hi == lo else round((v - lo) / (hi - lo) * 100, 1),
+    "_denorm": lambda v, lo, hi: lo + v / 100 * (hi - lo),
+}
+
+
+def _eval_push(expr: str, state) -> float:
+    """Evaluate a push_expr with entity/attrs in context. Returns float."""
+    ctx = dict(_SAFE_EVAL_CONTEXT)
+    ctx["entity"] = state
+    ctx["attrs"] = state.attributes if state else {}
+    return float(eval(expr, ctx))  # noqa: S307
+
 
 def setup_input_listeners(
     hass: HomeAssistant,
@@ -169,10 +189,17 @@ async def seed_initial_values(
             if entity_id := ch_data.get("read_entity"):
                 state = hass.states.get(entity_id)
                 if state and state.state not in ("unknown", "unavailable"):
-                    try:
-                        ch_value = float(state.state)
-                    except ValueError:
-                        pass
+                    push_expr = ch_data.get("push_expr")
+                    if push_expr:
+                        try:
+                            ch_value = _eval_push(push_expr, state)
+                        except Exception:
+                            _LOGGER.debug("push_expr eval failed during seed: %s", push_expr)
+                    else:
+                        try:
+                            ch_value = float(state.state)
+                        except ValueError:
+                            pass
             await ch.update_value(ch_value)
 
 
@@ -208,18 +235,39 @@ def setup_output_listeners(
                 continue
 
             if read_entity:
-                @callback
-                def _on_channel_state(event: Event, _ch=channel) -> None:
-                    new_state = event.data.get("new_state")
-                    if not new_state or new_state.state in ("unknown", "unavailable"):
-                        return
-                    try:
-                        value = float(new_state.state)
-                        hass.async_create_task(api.report_channel_value(_ch, value))
-                    except ValueError:
-                        pass
-
-                unsubs.append(async_track_state_change_event(hass, read_entity, _on_channel_state))
+                push_expr = ch_data.get("push_expr")
+                if push_expr:
+                    @callback
+                    def _on_channel_state_expr(
+                        event: Event,
+                        _ch=channel,
+                        _expr=push_expr,
+                    ) -> None:
+                        new_state = event.data.get("new_state")
+                        if not new_state or new_state.state in ("unknown", "unavailable"):
+                            return
+                        try:
+                            val = _eval_push(_expr, new_state)
+                            hass.async_create_task(api.report_channel_value(_ch, val))
+                        except Exception:
+                            _LOGGER.debug("push_expr eval failed: %s", _expr)
+                    unsubs.append(
+                        async_track_state_change_event(hass, read_entity, _on_channel_state_expr)
+                    )
+                else:
+                    @callback
+                    def _on_channel_state(event: Event, _ch=channel) -> None:
+                        new_state = event.data.get("new_state")
+                        if not new_state or new_state.state in ("unknown", "unavailable"):
+                            return
+                        try:
+                            value = float(new_state.state)
+                            hass.async_create_task(api.report_channel_value(_ch, value))
+                        except ValueError:
+                            pass
+                    unsubs.append(
+                        async_track_state_change_event(hass, read_entity, _on_channel_state)
+                    )
 
             if write_action:
                 async def _on_channel_applied(
