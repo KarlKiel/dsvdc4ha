@@ -221,6 +221,13 @@
           "title": "Model Features",
           "description": "The following model features will be added to the vdSD. Auto-derived features are pre-selected; adjust as needed."
         },
+        "entity_completion": {
+          "title": "Complete Device — {device_name}",
+          "description": "Configured vdSD components: {vdsds}\n\nChoose whether to create the device now or add another vdSD component first.",
+          "data": {
+            "action": "Action"
+          }
+        },
         "device_summary": { "title": "Device Summary" }
       },
       "error": {

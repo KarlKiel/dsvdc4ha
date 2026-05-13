@@ -775,6 +775,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         self._pending_choice_entities: list[tuple[_EntityInfo, int]] = []
         self._pending_choice_idx: int = 0
         self._pending_vdsd_idx: int = 0
+        self._creation_mode: str = "from_entity"
 
     async def async_step_user(self, user_input: dict | None = None):
         return await self.async_step_creation_mode(user_input)
@@ -785,6 +786,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         """Choose between creating a vdSD from an existing HA entity or from scratch."""
         if user_input is not None:
             mode = user_input.get("mode", "from_scratch")
+            self._creation_mode = mode
             if mode == "from_entity":
                 return await self.async_step_entity_picker()
             if mode == "from_ha_device":
@@ -839,9 +841,10 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                                 model = device.model or ""
                     except Exception:
                         pass
-                    self._device_name = friendly_name
-                    self._vendor_name = manufacturer
-                    self._display_id = model or domain.title()
+                    if not self._vdsds:
+                        self._device_name = friendly_name
+                        self._vendor_name = manufacturer
+                        self._display_id = model or domain.title()
                     if needs_user_input(mapping):
                         return await self.async_step_entity_user_input()
                     return await self._build_entity_vdsd_and_continue({})
@@ -1392,6 +1395,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
     async def async_step_device_info(self, user_input: dict | None = None):
         """Collect basic device identity."""
         if user_input is not None:
+            self._creation_mode = "from_scratch"
             self._device_name = user_input["name"]
             self._vendor_name = user_input["vendorName"]
             self._display_id = user_input["displayId"]
@@ -1514,6 +1518,8 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             self._current_vdsd["sensors"] = self._current_sensors
             self._current_vdsd["output"] = self._current_output
             self._vdsds.append(dict(self._current_vdsd))
+            if self._creation_mode == "from_entity":
+                return await self.async_step_entity_completion()
             return await self.async_step_device_summary()
 
         auto_features = _compute_auto_features(
@@ -1537,6 +1543,53 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             ),
         })
         return self.async_show_form(step_id="model_features", data_schema=schema)
+
+    async def async_step_entity_completion(self, user_input: dict | None = None):
+        """Entity-based flow: create the device or add another vdSD component."""
+        if user_input is not None:
+            action = user_input.get("action", "create")
+            if action == "add_vdsd":
+                # Reset per-vdSD state; preserve _device_name/_vendor_name/_display_id/_vdsds
+                self._current_vdsd = {}
+                self._current_buttons = []
+                self._current_binary_inputs = []
+                self._current_sensors = []
+                self._current_output = None
+                self._current_channels = []
+                self._entity_id = ""
+                self._entity_mapping = None
+                return await self.async_step_entity_picker()
+            return self.async_create_entry(
+                title=self._device_name,
+                data={
+                    "name": self._device_name,
+                    "vendorName": self._vendor_name,
+                    "displayId": self._display_id,
+                    "vdsds": self._vdsds,
+                },
+            )
+
+        vdsd_summary = [
+            f"{v.get('name', v.get('displayId', '?'))} (group {v['primaryGroup']})"
+            for v in self._vdsds
+        ]
+        schema = vol.Schema({
+            vol.Required("action", default="create"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value="create", label="Create device"),
+                    selector.SelectOptionDict(value="add_vdsd",
+                                              label="Add additional device component (vdSD)"),
+                ])
+            ),
+        })
+        return self.async_show_form(
+            step_id="entity_completion",
+            data_schema=schema,
+            description_placeholders={
+                "device_name": self._device_name,
+                "vdsds": ", ".join(vdsd_summary),
+            },
+        )
 
     async def async_step_button(self, user_input: dict | None = None):
         """Collect button element configuration."""

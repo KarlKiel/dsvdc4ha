@@ -765,3 +765,93 @@ async def test_channel_mapping_step_shown_when_no_apply_expr():
 
     result = await flow.async_step_entity_channel_mapping(user_input=None)
     assert result["step_id"] == "entity_channel_mapping"
+
+
+# ---------------------------------------------------------------------------
+# Entity-completion screen and multi-entity flow tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_model_features_from_entity_routes_to_entity_completion():
+    """model_features submit routes to entity_completion when mode is from_entity."""
+    flow = _make_subentry_flow()
+    flow._creation_mode = "from_entity"
+    flow._current_vdsd = {
+        "displayId": "switch", "primaryGroup": 8, "model": "switch",
+        "vendorName": "V", "modelVersion": "1.0", "modelUID": "V_switch",
+        "name": "Kitchen — Switch", "active": True,
+        "identify_action": None, "firmwareUpdate_action": None, "optional": {},
+    }
+    flow._current_buttons = []
+    flow._current_binary_inputs = []
+    flow._current_sensors = []
+    flow._current_output = None
+
+    result = await flow.async_step_model_features({"features": []})
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "entity_completion"
+
+
+@pytest.mark.asyncio
+async def test_entity_completion_create_makes_entry():
+    """entity_completion: 'create' action creates the subentry directly."""
+    flow = _make_subentry_flow()
+    flow._device_name = "Kitchen Switch"
+    flow._vendor_name = "Acme"
+    flow._display_id = "switch"
+    flow._vdsds = [{"displayId": "switch", "primaryGroup": 8, "name": "Kitchen Switch — switch",
+                    "model": "switch", "vendorName": "Acme", "modelVersion": "1.0",
+                    "modelUID": "Acmeswitch", "active": True, "identify_action": None,
+                    "firmwareUpdate_action": None, "optional": {}, "buttons": [],
+                    "binary_inputs": [], "sensors": [], "output": None}]
+
+    result = await flow.async_step_entity_completion({"action": "create"})
+    assert result["type"] == "create_entry"
+    assert result["title"] == "Kitchen Switch"
+    assert len(result["data"]["vdsds"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_entity_completion_add_vdsd_returns_to_entity_picker():
+    """entity_completion: 'add_vdsd' resets per-vdSD state and goes to entity_picker."""
+    flow = _make_subentry_flow()
+    flow._device_name = "Kitchen Switch"
+    flow._vendor_name = "Acme"
+    flow._display_id = "switch"
+    flow._vdsds = [{"name": "Kitchen Switch — switch"}]
+
+    result = await flow.async_step_entity_completion({"action": "add_vdsd"})
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "entity_picker"
+    # Device info preserved
+    assert flow._device_name == "Kitchen Switch"
+    # Per-vdSD state reset
+    assert flow._current_vdsd == {}
+    assert flow._current_buttons == []
+
+
+@pytest.mark.asyncio
+async def test_entity_picker_preserves_device_info_on_second_pick():
+    """entity_picker does not overwrite _device_name/_vendor_name when _vdsds is already populated."""
+    flow = _make_subentry_flow()
+    flow._device_name = "First Device"
+    flow._vendor_name = "Acme"
+    flow._display_id = "model"
+    flow._vdsds = [{"name": "First Device — entity"}]  # already have one vdSD
+
+    # Simulate: new entity on a different HA device (would overwrite if not guarded)
+    state = MagicMock()
+    state.name = "Other Device"
+    state.attributes = {}
+    flow.hass.states.get.return_value = state
+
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+    mapping = get_entity_mapping("switch", None)
+    with patch("custom_components.dsvdc4ha.config_flow.get_entity_mapping", return_value=mapping), \
+         patch("custom_components.dsvdc4ha.config_flow.needs_user_input", return_value=False), \
+         patch.object(flow, "_build_entity_vdsd_and_continue",
+                      new=AsyncMock(return_value={"type": "form", "step_id": "entity_user_input"})):
+        await flow.async_step_entity_picker({"entity_id": "switch.second"})
+
+    # Should NOT have overwritten with "Other Device"
+    assert flow._device_name == "First Device"
