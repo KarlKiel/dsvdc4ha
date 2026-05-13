@@ -194,9 +194,9 @@ async def test_hub_flow_routes_to_device_when_hub_exists():
     flow._async_current_entries = MagicMock(return_value=[mock_hub_entry])
 
     result = await flow.async_step_user(user_input=None)
-    # Should land on device_info form (stub)
+    # Should land on creation_mode (choose from entity vs from scratch)
     assert result["type"] == FlowResultType.FORM
-    assert result["step_id"] == "device_info"
+    assert result["step_id"] == "creation_mode"
 
 
 @pytest.mark.asyncio

@@ -35,7 +35,8 @@ DSS ◄──── pydsvdcapi ────► api.py ◄──── coordinato
 |---|---|---|
 | Library wrapper | `api.py` | All pydsvdcapi calls. Coordinator and entities never import pydsvdcapi directly. |
 | Hub lifecycle | `coordinator.py` | Manages VDC-HOST + VDC connection: setup, announcement, teardown. |
-| Config flow | `config_flow.py` | Hub flow (port) and device sub-flow (multi-step). |
+| Config flow | `config_flow.py` | Hub flow (port) and device sub-flow (multi-step, two creation paths). |
+| Entity mapping | `entity_mapping.py` | Static HA→dS mapping table for 90 entity types; powers the "Create from entity" flow. |
 | Entity base | `base_entity.py` | Shared HA entity base class for all integration entities. |
 | Platforms | `sensor.py`, `binary_sensor.py` | Entity creation and state management per platform. |
 | Constants | `const.py` | Domains, entry types, enum mappings, platform list. |
@@ -65,7 +66,8 @@ dsvdc4ha/                                  # repository root
         ├── manifest.json                  # domain, requirements (pydsvdcapi), config_flow, iot_class
         ├── const.py                       # DOMAIN, entry type constants, enum maps
         ├── strings.json                   # UI strings (authoritative, mirrored by translations/)
-        ├── config_flow.py                 # hub flow + device sub-flow
+        ├── config_flow.py                 # hub flow + device sub-flow (two creation paths)
+        ├── entity_mapping.py              # static HA→dS mapping for "Create from entity" flow
         ├── api.py                         # pydsvdcapi wrapper
         ├── coordinator.py                 # HubCoordinator
         ├── base_entity.py                 # DsvdcBaseEntity
@@ -194,9 +196,33 @@ Single step. User provides `port`. On submit, the flow calls `api.py` to validat
 
 ### 6.2 Device sub-flow
 
-Multi-step flow accessed via "Add device" on the integration page. Intermediate state is held in flow instance variables. An `_optional_return_step` variable tracks which step triggered an optional settings screen.
+Multi-step flow accessed via "Add device" on the integration page. Starts with a `creation_mode` step that branches into two paths.
 
-**Step sequence:**
+#### Creation mode
+
+```
+creation_mode
+  ├─► "Create from entity" path  ──► entity_picker → [entity_user_input] → entity_channel_mapping → model_features → device_summary → CREATE
+  └─► "Create from scratch" path ──► device_info → vdsd_creation → ... (full manual flow)
+```
+
+#### "Create from entity" path
+
+The user selects a HA entity. The integration looks up its `(domain, device_class)` in `entity_mapping.py` and auto-derives the complete vdSD configuration. Only fields with genuine user choices are asked via `entity_user_input`.
+
+```
+entity_picker
+  └─► [entity_user_input]         ← only shown when the mapping has choice fields
+        └─► entity_channel_mapping ← pre-filled; user adds write actions per channel
+              └─► model_features
+                    └─► device_summary  ──► CREATE
+```
+
+Device name, vendor, and displayId are pre-populated from the HA device registry. A single vdSD is created.
+
+#### "Create from scratch" path
+
+Full manual wizard. Intermediate state is held in flow instance variables. An `_optional_return_step` variable tracks which step triggered an optional settings screen.
 
 ```
 device_info
@@ -220,7 +246,23 @@ After `device_summary` the user confirms and the config entry is created.
 
 **Multiple vdSDs:** After each vdSD is saved from `model_features`, the flow returns to `vdsd_overview`. The user can add further vdSDs or proceed to `device_summary`.
 
-### 6.3 Key field derivations
+### 6.3 Entity user input — choice fields
+
+The `entity_user_input` step is shown only when the entity's mapping entry contains at least one of these choice flags:
+
+| Flag | Question asked |
+|---|---|
+| `sensor_function_choices` | Binary input function (e.g. presence, smoke, motion) |
+| `group_choices` | dS group (e.g. yellow light, grey shadow, black joker) |
+| `sensor_type_choices` | Sensor type (e.g. temperature, humidity, CO2) |
+| `output_usage_choices` | Output usage (indoor vs outdoor) |
+| `function_choices` | Output function (e.g. dimmer, switch, motor) |
+| `min_max_user` | Min / max / resolution for sensor or channel |
+| `optional_tilt` | Whether the cover device supports tilt / blade angle |
+
+For cover outputs with `channels_by_usage`, the correct channel set (indoor vs outdoor channel types) is resolved automatically from the user's `output_usage` choice.
+
+### 6.4 Key field derivations
 
 | Field | Derived from |
 |---|---|
@@ -325,7 +367,67 @@ Tests live in `tests/` at the repo root (standard HA integration test convention
 
 ---
 
-## 10. Deferred Features
+## 10. Entity Mapping System
+
+### 10.1 Purpose
+
+`entity_mapping.py` provides a static lookup table that maps HA `(domain, device_class)` pairs to complete dS vdSD configurations. It powers the "Create from entity" config flow path and eliminates the need for users to understand the digitalStrom data model.
+
+### 10.2 Source
+
+The mapping data was derived from `documents/ha_vdsd_mapping.xlsx` — a 110-row spreadsheet covering 143 configuration columns. Dynamic-definition rows (where any of cols 140–143 are non-empty and not `"— not applicable —"`) are excluded because they cannot be represented as static vdSD configurations.
+
+### 10.3 Supported entity types
+
+90 `(domain, device_class)` pairs across 13 domains:
+
+| Domain | Device classes |
+|---|---|
+| `binary_sensor` | battery, battery_charging, carbon_monoxide, cold, connectivity, door, garage_door, gas, heat, light, lock, moisture, motion, moving, occupancy, opening, plug, power, presence, problem, running, safety, smoke, sound, tamper, update, vibration, window |
+| `button` | *(any — announces call)* |
+| `cover` | awning, blind, curtain, garage, gate, shade, shutter, window |
+| `event` | button, doorbell, motion |
+| `fan` | *(any)* |
+| `light` | *(any)*, color_temp, brightness_only, onoff |
+| `lock` | *(any)* |
+| `number` | *(any)* |
+| `sensor` | aqi, carbon_dioxide, carbon_monoxide, current, distance, energy, frequency, gas, humidity, illuminance, moisture, monetary, nitrogen_dioxide, nitrogen_monoxide, nitrous_oxide, ozone, pm1, pm10, pm25, power, power_factor, precipitation, pressure, signal_strength, sulphur_dioxide, temperature, volatile_organic_compounds, wind_speed |
+| `siren` | *(any)* |
+| `switch` | outlet, switch *(any)* |
+| `valve` | gas, water *(any)* |
+
+**Excluded:** `weather` (5 sensors from one entity — not representable as a simple mapping), `light/rgbw`, `light/rgbww` (marked "NOT NATIVELY SUPPORTED" in the source spreadsheet).
+
+### 10.4 Choice flags
+
+Some mapping entries require a user decision before the vdSD can be fully configured. These are expressed as flags on the mapping entry:
+
+```python
+{
+    "sensor_function_choices": ["12", "13", ...],  # list of valid sensorFunction values
+    "group_choices": ["8", "9"],                    # list of valid dS group values
+    "sensor_type_choices": {"Temperature": "9", "Humidity": "29", ...},
+    "output_usage_choices": True,                   # indoor (1) vs outdoor (2)
+    "function_choices": {"Dimmer": "1", "Switch": "16"},
+    "channels_by_usage": {1: [...], 2: [...]},     # resolved from output_usage choice
+    "optional_tilt": True,                          # cover tilt support
+    "min_max_user": True,                           # user provides min/max/resolution
+}
+```
+
+Flags are checked by `needs_user_input(mapping)` to determine whether to show the `entity_user_input` step.
+
+### 10.5 Key helpers
+
+| Function | Purpose |
+|---|---|
+| `get_entity_mapping(domain, device_class)` | Returns mapping entry, falling back to `None` device_class if no specific one exists |
+| `needs_user_input(mapping)` | Returns `True` if any choice flag is present |
+| `SUPPORTED_DOMAINS` | Sorted list of HA domains with at least one mapping — used to filter the entity picker |
+
+---
+
+## 12. Deferred Features
 
 The following are explicitly out of scope for v1:
 
@@ -336,7 +438,7 @@ The following are explicitly out of scope for v1:
 
 ---
 
-## 11. Design Decisions Log
+## 13. Design Decisions Log
 
 | Decision | Choice | Reason |
 |---|---|---|
@@ -349,3 +451,9 @@ The following are explicitly out of scope for v1:
 | Hub coordinator type | Custom `HubCoordinator`, not `DataUpdateCoordinator` | Integration is push/callback-based, not polling |
 | Icon | `vdc.png` default | File upload not supported in HA config flow |
 | Tests | Parallel track with implementation | Quality gate; required for eventual HA integration quality tier compliance |
+| "Create from entity" as a separate flow path | Branch at `creation_mode`, not mixed into `device_info` | Keeps both paths clean; scratch path unchanged for power users who need multi-vdSD devices |
+| Choice flags in mapping | Sparse boolean/list flags on each mapping entry | Minimises questions to only those with genuine user choice; mapping entries that need no input skip `entity_user_input` entirely |
+| `weather` excluded from entity mapping | Not included | A weather entity exposes 5+ independent sensors; mapping it to a single vdSD requires 5-sensor output which is not representable as a simple static mapping |
+| `light/rgbw`, `light/rgbww` excluded | Not included | Source spreadsheet marks these "NOT NATIVELY SUPPORTED" — no dS output model covers the fourth (white) channel natively |
+| Device info auto-populated from HA device registry | `device_registry.async_get_device` | Reduces friction; user sees a pre-filled form they can adjust rather than a blank form |
+| Button function derived from group | `group == "JOKER" (group 8) → APP (15), else ROOM (5)` | Correct dS semantics; not a choice the user needs to make — the group value implies the function |

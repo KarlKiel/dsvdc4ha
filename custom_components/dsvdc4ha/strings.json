@@ -19,6 +19,39 @@
           "action": "What would you like to do with the existing state files?"
         }
       },
+      "creation_mode": {
+        "title": "Create vdSD",
+        "description": "How would you like to create the virtual device (vdSD)?",
+        "data": {
+          "mode": "Creation method"
+        }
+      },
+      "entity_picker": {
+        "title": "Select Entity",
+        "description": "Choose the Home Assistant entity you want to expose to digitalStrom. Only entities with a supported type are shown.",
+        "data": {
+          "entity_id": "Entity"
+        }
+      },
+      "entity_user_input": {
+        "title": "Additional Configuration",
+        "description": "Some settings for this entity type require your input.",
+        "data": {
+          "sensor_function": "Binary input function",
+          "group": "Button / input group",
+          "sensor_type": "Sensor type",
+          "min": "Minimum value",
+          "max": "Maximum value",
+          "resolution": "Resolution (LSB)",
+          "output_usage": "Output usage (indoor / outdoor)",
+          "function": "Output function",
+          "has_tilt": "Device supports tilt / blade angle control"
+        }
+      },
+      "entity_channel_mapping": {
+        "title": "Bind Output Channels to HA",
+        "description": "Select the entities and actions that provide and control each output channel ({channels}). The entity you selected is pre-filled as the read source."
+      },
       "device_info": {
         "title": "Add Physical Device",
         "description": "To create your device, consider splitting it into several logical vdSDs:\n- Are parts physically separable? → use individual vdSDs.\n- Does the (sub-)device contain several sensors? → keep as one vdSD.\n- Does the (sub-)device contain different kinds of capabilities (Button, Binary Input, Sensors, Output)? → keep as one vdSD.\n- Do functional units belong to different dS classes (colors)? → separate vdSDs.\n- Can functional units end up in different zones? → separate vdSDs.\n- Does the device contain several different outputs (not channels!)? → one vdSD per output required.\n- Are there multiple buttons/binary inputs that shall be configurable via DSS configurator? → separate vdSDs (max. one (Multi)button and one binary input per vdSD).",
@@ -138,7 +171,9 @@
     "error": {
       "port_in_use": "Port is already in use.",
       "cannot_connect": "Cannot connect to digitalStrom server.",
-      "unknown": "Unexpected error."
+      "unknown": "Unexpected error.",
+      "entity_not_found": "Entity not found.",
+      "entity_not_supported": "This entity type / device class combination is not supported."
     },
     "abort": {
       "already_configured": "Integration is already configured.",
