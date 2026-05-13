@@ -40,6 +40,7 @@ from .const import (
     ENTRY_TYPE_HUB,
 )
 from .entity_mapping import (
+    CHANNEL_TYPE_LABELS as _CHANNEL_TYPE_LABELS,
     SUPPORTED_DOMAINS,
     get_entity_mapping,
     needs_user_input,
@@ -284,36 +285,6 @@ _OUTPUT_USAGE_LABELS: dict[int, str] = {
     1: "Room",
     2: "Outdoors",
     3: "User",
-}
-
-_CHANNEL_TYPE_LABELS: dict[int, str] = {
-    0: "Default (none / catch-all)",
-    1: "Brightness",
-    2: "Hue",
-    3: "Saturation",
-    4: "Color Temperature (mired, 100–1000)",
-    5: "CIE X",
-    6: "CIE Y",
-    7: "Shade Position — Outside (0–100 %)",
-    8: "Shade Position — Indoor (0–100 %)",
-    9: "Shade Opening Angle — Outside",
-    10: "Shade Opening Angle — Indoor",
-    11: "Transparency",
-    12: "Air Flow Intensity",
-    13: "Air Flow Direction",
-    14: "Air Flap Position",
-    15: "Air Louver Position",
-    16: "Heating Power",
-    17: "Cooling Capacity",
-    18: "Audio Volume",
-    19: "Power State",
-    20: "Air Louver (Auto)",
-    21: "Air Flow (Auto)",
-    22: "Water Temperature",
-    23: "Water Flow Rate",
-    24: "Power Level",
-    25: "Video Station",
-    26: "Video Input Source",
 }
 
 # ---------------------------------------------------------------------------

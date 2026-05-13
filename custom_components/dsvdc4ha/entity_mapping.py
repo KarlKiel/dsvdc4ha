@@ -810,6 +810,38 @@ _MAPPING_INDEX: dict[tuple[str, str | None], dict[str, Any]] = {
 SUPPORTED_DOMAINS: list[str] = sorted({e["domain"] for e in ENTITY_MAPPING})
 
 
+# Human-readable labels for OutputChannelType integer values.
+CHANNEL_TYPE_LABELS: dict[int, str] = {
+    0: "Default (none / catch-all)",
+    1: "Brightness",
+    2: "Hue",
+    3: "Saturation",
+    4: "Color Temperature (mired, 100–1000)",
+    5: "CIE X",
+    6: "CIE Y",
+    7: "Shade Position — Outside (0–100 %)",
+    8: "Shade Position — Indoor (0–100 %)",
+    9: "Shade Opening Angle — Outside",
+    10: "Shade Opening Angle — Indoor",
+    11: "Transparency",
+    12: "Air Flow Intensity",
+    13: "Air Flow Direction",
+    14: "Air Flap Position",
+    15: "Air Louver Position",
+    16: "Heating Power",
+    17: "Cooling Capacity",
+    18: "Audio Volume",
+    19: "Power State",
+    20: "Fan Speed",
+    21: "Ventilation AirFlowIntensity",
+    22: "Ventilation AirFlowDirection",
+    23: "Water Flow Rate",
+    24: "Power Level",
+    25: "Video Station",
+    26: "Video Input Source",
+}
+
+
 def get_entity_mapping(domain: str, device_class: str | None) -> dict[str, Any] | None:
     """Return the mapping entry for (domain, device_class), or None if unsupported."""
     entry = _MAPPING_INDEX.get((domain, device_class))
