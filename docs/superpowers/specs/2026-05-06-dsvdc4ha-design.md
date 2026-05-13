@@ -199,7 +199,16 @@ All parameters are derived automatically except `port`. The integration package 
 
 ### 6.1 Hub flow
 
-Single step. User provides `port`. On submit, the flow calls `api.py` to validate the handshake. On success: creates hub config entry.
+Multi-step hub setup. Only one hub entry is allowed; re-entering the flow aborts with `already_configured`.
+
+```
+hub (port entry)
+  └─► [state_files]  ← shown only when host_state files from a prior install exist
+        └─► wait_for_dss  ← SHOW_PROGRESS; background task waits for DSS to connect
+              └─► finalize_hub  ← creates hub entry on success, aborts on timeout
+```
+
+On success the hub config entry is created with `{entry_type: "hub", port: N}`. The temporary coordinator is handed off via `hass.data[DOMAIN]["_pending_coordinator"]` for `async_setup_entry` to adopt without restarting it.
 
 ### 6.2 Device sub-flow
 
@@ -500,7 +509,7 @@ The mapping data was derived from `documents/ha_vdsd_mapping.xlsx` — a 110-row
 |---|---|
 | `binary_sensor` | battery, battery_charging, carbon_monoxide, cold, connectivity, door, garage_door, gas, heat, light, lock, moisture, motion, moving, occupancy, opening, plug, power, presence, problem, running, safety, smoke, sound, tamper, update, vibration, window |
 | `button` | *(any — announces call)* |
-| `cover` | awning, blind, curtain, garage, gate, shade, shutter, window |
+| `cover` | awning, blind, curtain, damper, garage, gate, shade, shutter, window |
 | `event` | button, doorbell, motion |
 | `fan` | *(any)* |
 | `light` | *(any)*, color_temp, brightness_only, onoff |
@@ -575,3 +584,7 @@ The following are explicitly out of scope for v1:
 | Button click-type detection | `ButtonEventTranslator` with three source modes (binary_sensor / event / button) | HA entities expose button activity in fundamentally different ways; a single passthrough is insufficient for real physical buttons. Mode is selected automatically from entity domain. |
 | Hold detection for button entities | Timestamp-diff heuristic (`last_changed − state`) | HA `button` entities store the press-start time as their state; many integrations fire the state-changed event on release, making the difference a proxy for hold duration without any extra configuration. |
 | Hold on event entities without explicit release | Auto-fire HOLD_END after one repeat interval | Not all device integrations send a `long_release` event; dS state machines require a paired HOLD_END or they stay in hold state indefinitely. |
+| "Create from entity" path lives in `VdsdSubentryFlowHandler`, not `DsvdcConfigFlow` | Moved to subentry flow | `DsvdcConfigFlow.async_create_entry` creates a hub config entry, not a device subentry. Device entries can only be created via `ConfigSubentryFlow`; the entity path must live in `VdsdSubentryFlowHandler`. |
+| Hub entry stores `entry_type: "hub"` | Field added to hub entry data | Enables the `already_configured` guard in `async_step_user` to distinguish hub entries from any future entry types without relying on entry count alone. |
+| `strings.json` is the canonical UI string source for all flow steps | Both `config` and `config_subentries` blocks live in `strings.json` | HA uses `strings.json` as the authoritative source; `en.json` mirrors it. Keeping device-wizard strings in `strings.json` ensures a single place to edit and prevents the two files from diverging. |
+| `async_step_output_optional` reachable via `action` field in output form | Action selector added to `output` step | HA config flow has no modal/overlay support; optional sub-forms must be reached via explicit navigation in the form schema. |

@@ -3,9 +3,18 @@ from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from homeassistant.data_entry_flow import FlowResultType
-from custom_components.dsvdc4ha.const import DOMAIN, CONF_PORT
+from custom_components.dsvdc4ha.const import (
+    DOMAIN,
+    CONF_ENTRY_TYPE,
+    CONF_PORT,
+    ENTRY_TYPE_HUB,
+)
 from custom_components.dsvdc4ha.config_flow import DsvdcConfigFlow, VdsdSubentryFlowHandler
 
+
+# ---------------------------------------------------------------------------
+# DsvdcConfigFlow — hub flow tests
+# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_hub_flow_shows_progress_waiting_for_dss():
@@ -14,7 +23,9 @@ async def test_hub_flow_shows_progress_waiting_for_dss():
     flow = DsvdcConfigFlow()
     flow.hass = MagicMock()
     flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
+    flow.hass.async_add_executor_job = AsyncMock(side_effect=lambda fn, *args: fn(*args))
     flow.context = {"source": "user"}
+    flow._async_current_entries = MagicMock(return_value=[])
     mock_task = MagicMock(spec=asyncio.Task)
     mock_task.done.return_value = False
     flow.hass.async_create_task = lambda coro: (coro.close(), mock_task)[1]
@@ -39,10 +50,27 @@ async def test_hub_flow_shows_progress_waiting_for_dss():
 
 
 @pytest.mark.asyncio
+async def test_hub_flow_aborts_when_already_configured():
+    """async_step_user aborts with already_configured when a hub entry exists."""
+    flow = DsvdcConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {"source": "user"}
+
+    mock_hub_entry = MagicMock()
+    mock_hub_entry.data = {CONF_ENTRY_TYPE: ENTRY_TYPE_HUB}
+    flow._async_current_entries = MagicMock(return_value=[mock_hub_entry])
+
+    result = await flow.async_step_user(user_input=None)
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "already_configured"
+
+
+@pytest.mark.asyncio
 async def test_hub_flow_port_in_use_shows_error():
     """Hub flow: port unavailable → re-show form with port_in_use error."""
     flow = DsvdcConfigFlow()
     flow.hass = MagicMock()
+    flow.hass.async_add_executor_job = AsyncMock(side_effect=lambda fn, *args: fn(*args))
     flow.context = {"source": "user"}
 
     with patch("custom_components.dsvdc4ha.config_flow._port_is_available", return_value=False):
@@ -60,6 +88,7 @@ async def test_hub_flow_state_files_found_shows_form():
     flow = DsvdcConfigFlow()
     flow.hass = MagicMock()
     flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
+    flow.hass.async_add_executor_job = AsyncMock(side_effect=lambda fn, *args: fn(*args))
     flow.context = {"source": "user"}
 
     with (
@@ -89,6 +118,7 @@ async def test_hub_flow_state_files_keep_advances_to_wait():
     flow = DsvdcConfigFlow()
     flow.hass = MagicMock()
     flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
+    flow.hass.async_add_executor_job = AsyncMock(side_effect=lambda fn, *args: fn(*args))
     flow.hass.async_create_task = lambda coro: (coro.close(), mock_task)[1]
     flow.context = {"source": "user"}
     flow._pending_port = 9090
@@ -120,6 +150,7 @@ async def test_hub_flow_state_files_delete_removes_files():
     flow = DsvdcConfigFlow()
     flow.hass = MagicMock()
     flow.hass.config.path.return_value = "/tmp/dsvdc4ha/host_state"
+    flow.hass.async_add_executor_job = AsyncMock(side_effect=lambda fn, *args: fn(*args))
     flow.hass.async_create_task = lambda coro: (coro.close(), mock_task)[1]
     flow.context = {"source": "user"}
     flow._pending_port = 9090
@@ -151,6 +182,7 @@ async def test_finalize_hub_connected_creates_entry():
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_PORT] == 9090
+    assert result["data"][CONF_ENTRY_TYPE] == ENTRY_TYPE_HUB
     assert flow.hass.data[DOMAIN].get("_pending_coordinator") is mock_coordinator
     assert flow._temp_coordinator is None
 
@@ -179,25 +211,42 @@ async def test_finalize_hub_timeout_stops_coordinator_and_aborts():
 # ---------------------------------------------------------------------------
 
 def _make_subentry_flow() -> VdsdSubentryFlowHandler:
+    """Create a bare VdsdSubentryFlowHandler with hass and context set up."""
     flow = VdsdSubentryFlowHandler()
     flow.hass = MagicMock()
-    flow.context = {"source": "user"}
-
-    # Simulate an existing hub entry
-    mock_hub_entry = MagicMock()
-    mock_hub_entry.data = {CONF_ENTRY_TYPE: ENTRY_TYPE_HUB}
-    flow._async_current_entries = MagicMock(return_value=[mock_hub_entry])
-
-    result = await flow.async_step_user(user_input=None)
-    # Should land on creation_mode (choose from entity vs from scratch)
-    assert result["type"] == FlowResultType.FORM
-    assert result["step_id"] == "creation_mode"
     flow.context = {"source": "user", "entry_id": "hub-entry-123"}
     return flow
 
 
 @pytest.mark.asyncio
-async def test_device_subentry_flow_device_info_to_vdsd_creation():
+async def test_subentry_flow_user_routes_to_creation_mode():
+    """VdsdSubentryFlowHandler.async_step_user routes to creation_mode."""
+    flow = _make_subentry_flow()
+    result = await flow.async_step_user(user_input=None)
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "creation_mode"
+
+
+@pytest.mark.asyncio
+async def test_creation_mode_from_scratch_routes_to_device_info():
+    """creation_mode: from_scratch → device_info."""
+    flow = _make_subentry_flow()
+    result = await flow.async_step_creation_mode(user_input={"mode": "from_scratch"})
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "device_info"
+
+
+@pytest.mark.asyncio
+async def test_creation_mode_from_entity_routes_to_entity_picker():
+    """creation_mode: from_entity → entity_picker."""
+    flow = _make_subentry_flow()
+    result = await flow.async_step_creation_mode(user_input={"mode": "from_entity"})
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "entity_picker"
+
+
+@pytest.mark.asyncio
+async def test_device_info_step_advances_to_vdsd_creation():
     """device_info step advances to vdsd_creation."""
     flow = _make_subentry_flow()
 

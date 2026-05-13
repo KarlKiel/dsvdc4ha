@@ -18,163 +18,12 @@
         "data": {
           "action": "What would you like to do with the existing state files?"
         }
-      },
-      "creation_mode": {
-        "title": "Create vdSD",
-        "description": "How would you like to create the virtual device (vdSD)?",
-        "data": {
-          "mode": "Creation method"
-        }
-      },
-      "entity_picker": {
-        "title": "Select Entity",
-        "description": "Choose the Home Assistant entity you want to expose to digitalStrom. Only entities with a supported type are shown.",
-        "data": {
-          "entity_id": "Entity"
-        }
-      },
-      "entity_user_input": {
-        "title": "Additional Configuration",
-        "description": "Some settings for this entity type require your input.",
-        "data": {
-          "sensor_function": "Binary input function",
-          "group": "Button / input group",
-          "sensor_type": "Sensor type",
-          "min": "Minimum value",
-          "max": "Maximum value",
-          "resolution": "Resolution (LSB)",
-          "output_usage": "Output usage (indoor / outdoor)",
-          "function": "Output function",
-          "has_tilt": "Device supports tilt / blade angle control"
-        }
-      },
-      "entity_channel_mapping": {
-        "title": "Bind Output Channels to HA",
-        "description": "Select the entities and actions that provide and control each output channel ({channels}). The entity you selected is pre-filled as the read source."
-      },
-      "device_info": {
-        "title": "Add Physical Device",
-        "description": "To create your device, consider splitting it into several logical vdSDs:\n- Are parts physically separable? → use individual vdSDs.\n- Does the (sub-)device contain several sensors? → keep as one vdSD.\n- Does the (sub-)device contain different kinds of capabilities (Button, Binary Input, Sensors, Output)? → keep as one vdSD.\n- Do functional units belong to different dS classes (colors)? → separate vdSDs.\n- Can functional units end up in different zones? → separate vdSDs.\n- Does the device contain several different outputs (not channels!)? → one vdSD per output required.\n- Are there multiple buttons/binary inputs that shall be configurable via DSS configurator? → separate vdSDs (max. one (Multi)button and one binary input per vdSD).",
-        "data": {
-          "name": "Name of the device (e.g. Livingroom Ceiling Lamp)",
-          "vendorName": "Vendor name of your device (e.g. Occhio)",
-          "displayId": "Device type name (e.g. Lunanova)"
-        }
-      },
-      "vdsd_creation": {
-        "title": "Create vdSD",
-        "data": {
-          "displayId": "Name of this component / vdSD",
-          "primaryGroup": "Main group of the device",
-          "modelVersion": "Exact model name of this component (e.g. Lunanova PowerUnit)",
-          "identify_action": "HA action to identify the device (optional)",
-          "firmwareUpdate_action": "HA action to trigger firmware update of device / component (optional)"
-        }
-      },
-      "optional_settings": {
-        "title": "Optional vdSD Settings",
-        "data": {
-          "hardwareVersion": "Hardware version",
-          "vendorGuid": "Vendor GUID",
-          "deviceIcon16": "Icon for this vdSD (16×16 PNG)"
-        }
-      },
-      "vdsd_overview": { "title": "vdSD Overview" },
-      "button": {
-        "title": "Configure Button",
-        "data": {
-          "name": "Name of this button / element",
-          "buttonType": "Type of pushbutton",
-          "group": "Group this button belongs to",
-          "function": "Scope of the button's function",
-          "mode": "Button behavior",
-          "channel": "Output channel controlled by this button",
-          "supportsLocalKeyMode": "Button can act as a local button",
-          "setsLocalPriority": "Button implements local prioritization behavior",
-          "callsPresent": "Button press sets absence state to present",
-          "callbackType": "Does the device deliver click types or scene IDs directly?",
-          "callback_entity": "Entity providing click type IDs / action IDs of button presses"
-        }
-      },
-      "binary_input": {
-        "title": "Configure Binary Input",
-        "data": {
-          "name": "Name of the binary input",
-          "group": "dS group the binary input belongs to",
-          "sensorFunction": "Function controlled by this binary input",
-          "hardwiredFunction": "Is the function hardwired or configurable at runtime?",
-          "updateInterval": "Time (in seconds) the hardware updates the value",
-          "inputType": "Is the value polled by DSS or pushed at change?",
-          "inputUsage": "Usage field of the binary input",
-          "valueType": "Does the binary input deliver boolean or integer values?",
-          "callback_entity": "Entity providing binary input state value"
-        }
-      },
-      "sensor": {
-        "title": "Configure Sensor",
-        "data": {
-          "name": "Name of the sensor",
-          "group": "Group the sensor belongs to",
-          "sensorType": "What does the sensor measure?",
-          "sensorUsage": "Usage field of the sensor",
-          "min": "Minimum value the sensor supports",
-          "max": "Maximum value the sensor supports",
-          "resolution": "Sensor resolution — smallest deviation that can be displayed (LSB)",
-          "updateInterval": "Time (in seconds) the hardware tracks the sensor value",
-          "aliveSignInterval": "Maximum time (in seconds) between updates before sensor is considered out of order",
-          "minPushInterval": "Minimum time (in seconds) to wait between pushes of changed sensor values (default: 2 s)",
-          "changesOnlyInterval": "Minimum time (in seconds) between pushes of unchanged values (0 = push all updates)",
-          "callback_entity": "Entity providing the sensor value"
-        }
-      },
-      "output": {
-        "title": "Configure Output",
-        "data": {
-          "name": "Name for this output",
-          "groups": "Groups the output generally supports",
-          "defaultGroup": "Default group of the output",
-          "function": "Function defining the output behavior",
-          "outputUsage": "Usage field of the output",
-          "variableRamp": "Output supports variable / configurable ramps",
-          "mode": "Operating mode of the output"
-        }
-      },
-      "output_optional": {
-        "title": "Optional Output Settings",
-        "data": {
-          "onThreshold": "Minimum output value that switches on the output (default: 50)",
-          "minBrightness": "Minimum output value the hardware supports (e.g. dimming value at which a bulb ignites)",
-          "maxPower": "Maximum power the output can deliver (W)",
-          "activeCoolingMode": "Output provides active cooling capabilities (e.g. air-conditioning, FCU)"
-        }
-      },
-      "channel": {
-        "title": "Configure Output Channel",
-        "data": {
-          "channelType": "Type of channel to add to the output",
-          "name": "Name of this channel",
-          "min": "Minimum value for the channel",
-          "max": "Maximum value for the channel",
-          "resolution": "Channel resolution — smallest deviation that can be displayed (LSB)"
-        }
-      },
-      "channel_mapping": {
-        "title": "Bind Output Channels to HA",
-        "description": "Select the entities that reflect the channel values of the output."
-      },
-      "model_features": {
-        "title": "Model Features",
-        "description": "The following model features will be added to the vdSD. Auto-derived features are pre-selected; adjust as needed."
-      },
-      "device_summary": { "title": "Device Summary" }
       }
     },
     "error": {
       "port_in_use": "Port is already in use.",
       "cannot_connect": "Cannot connect to digitalStrom server.",
-      "unknown": "Unexpected error.",
-      "entity_not_found": "Entity not found.",
-      "entity_not_supported": "This entity type / device class combination is not supported."
+      "unknown": "Unexpected error."
     },
     "abort": {
       "already_configured": "Integration is already configured.",
@@ -189,6 +38,39 @@
       },
       "entry": "{title}",
       "step": {
+        "creation_mode": {
+          "title": "Create vdSD",
+          "description": "How would you like to create the virtual device (vdSD)?",
+          "data": {
+            "mode": "Creation method"
+          }
+        },
+        "entity_picker": {
+          "title": "Select Entity",
+          "description": "Choose the Home Assistant entity you want to expose to digitalStrom. Only entities with a supported type are shown.",
+          "data": {
+            "entity_id": "Entity"
+          }
+        },
+        "entity_user_input": {
+          "title": "Additional Configuration",
+          "description": "Some settings for this entity type require your input.",
+          "data": {
+            "sensor_function": "Binary input function",
+            "group": "Button / input group",
+            "sensor_type": "Sensor type",
+            "min": "Minimum value",
+            "max": "Maximum value",
+            "resolution": "Resolution (LSB)",
+            "output_usage": "Output usage (indoor / outdoor)",
+            "function": "Output function",
+            "has_tilt": "Device supports tilt / blade angle control"
+          }
+        },
+        "entity_channel_mapping": {
+          "title": "Bind Output Channels to HA",
+          "description": "Select the entities and actions that provide and control each output channel ({channels}). The entity you selected is pre-filled as the read source."
+        },
         "device_info": {
           "title": "Add Physical Device",
           "description": "To create your device, consider splitting it into several logical vdSDs:\n- Are parts physically separable? → use individual vdSDs.\n- Does the (sub-)device contain several sensors? → keep as one vdSD.\n- Does the (sub-)device contain different kinds of capabilities (Button, Binary Input, Sensors, Output)? → keep as one vdSD.\n- Do functional units belong to different dS classes (colors)? → separate vdSDs.\n- Can functional units end up in different zones? → separate vdSDs.\n- Does the device contain several different outputs (not channels!)? → one vdSD per output required.\n- Are there multiple buttons/binary inputs that shall be configurable via DSS configurator? → separate vdSDs (max. one (Multi)button and one binary input per vdSD).",
@@ -212,8 +94,9 @@
           "title": "Optional vdSD Settings",
           "data": {
             "hardwareVersion": "Hardware version",
+            "hardwareGuid": "Hardware GUID",
             "vendorGuid": "Vendor GUID",
-            "deviceIcon16": "Icon for this vdSD (16×16 PNG)"
+            "oemGuid": "OEM GUID"
           }
         },
         "vdsd_overview": { "title": "vdSD Overview" },
@@ -273,7 +156,8 @@
             "function": "Function defining the output behavior",
             "outputUsage": "Usage field of the output",
             "variableRamp": "Output supports variable / configurable ramps",
-            "mode": "Operating mode of the output"
+            "mode": "Operating mode of the output",
+            "action": "Next step"
           }
         },
         "output_optional": {
@@ -292,7 +176,8 @@
             "name": "Name of this channel",
             "min": "Minimum value for the channel",
             "max": "Maximum value for the channel",
-            "resolution": "Channel resolution — smallest deviation that can be displayed (LSB)"
+            "resolution": "Channel resolution — smallest deviation that can be displayed (LSB)",
+            "action": "Next step"
           }
         },
         "channel_mapping": {
@@ -304,6 +189,10 @@
           "description": "The following model features will be added to the vdSD. Auto-derived features are pre-selected; adjust as needed."
         },
         "device_summary": { "title": "Device Summary" }
+      },
+      "error": {
+        "entity_not_found": "Entity not found.",
+        "entity_not_supported": "This entity type / device class combination is not supported."
       }
     }
   }

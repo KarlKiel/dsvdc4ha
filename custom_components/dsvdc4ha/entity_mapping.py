@@ -195,14 +195,14 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     {
         "domain": "binary_sensor", "device_class": "problem", "primary_group": 8,
         "binary_input": {
-            "sensor_function": 22, "group": 8, "input_usage": 4,
+            "sensor_function": 22, "group": 8, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
         },
     },
     {
         "domain": "binary_sensor", "device_class": "running", "primary_group": 8,
         "binary_input": {
-            "sensor_function": 0, "group": 8, "input_usage": 4,
+            "sensor_function": 0, "group": 8, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
         },
     },
