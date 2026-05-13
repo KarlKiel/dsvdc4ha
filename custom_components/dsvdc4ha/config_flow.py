@@ -1230,6 +1230,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 ]))
             )
         state = self.hass.states.get(entity_info.entity_id)
+        # Prefer live state attributes so repeat-visits pre-fill current values
         attrs = state.attributes if state else {}
         if sen.get("min_max_user"):
             schema_dict[vol.Required("min", default=attrs.get("min", sen.get("min", 0)))] = (

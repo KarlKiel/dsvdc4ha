@@ -577,15 +577,16 @@ async def test_device_entity_user_input_cycles_and_routes_to_summary():
 async def test_device_plan_summary_proceed_routes_to_model_features():
     flow = _make_subentry_flow()
     plan = _make_vdsd_plan()
-    plan.resolved_vdsd = {
-        "primaryGroup": 1, "displayId": "M", "name": "Lamp — Light",
-        "buttons": [], "binary_inputs": [], "sensors": [], "output": None,
-    }
     flow._vdsd_plans = [plan]
     flow._unsupported_entities = []
     flow._pending_vdsd_idx = 0
 
-    result = await flow.async_step_device_plan_summary({"action": "proceed"})
+    with patch(
+        "custom_components.dsvdc4ha.config_flow.resolve_vdsd_plan",
+        return_value={"primaryGroup": 1, "displayId": "M", "name": "Lamp — Light",
+                      "buttons": [], "binary_inputs": [], "sensors": [], "output": None},
+    ):
+        result = await flow.async_step_device_plan_summary({"action": "proceed"})
     assert result["step_id"] == "device_model_features"
 
 
