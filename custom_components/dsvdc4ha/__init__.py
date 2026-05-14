@@ -2,15 +2,41 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN, PLATFORMS
 from .coordinator import HubCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _entity_ids_in_vdsd(vdsd_data: dict[str, Any]) -> set[str]:
+    """Return all HA entity_ids referenced by a single vdSD config dict."""
+    ids: set[str] = set()
+    if output := vdsd_data.get("output"):
+        for ch in output.get("channels", []):
+            if eid := ch.get("read_entity"):
+                ids.add(eid)
+    for key in ("binary_inputs", "sensors", "buttons"):
+        for comp in vdsd_data.get(key, []):
+            if eid := comp.get("callback_entity"):
+                ids.add(eid)
+    return ids
+
+
+def _build_entity_index(entry: ConfigEntry) -> dict[str, list[tuple[str, int]]]:
+    """Map entity_id → [(subentry_id, vdsd_idx), …] for all subentries."""
+    index: dict[str, list[tuple[str, int]]] = {}
+    for subentry in entry.subentries.values():
+        for vdsd_idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):
+            for eid in _entity_ids_in_vdsd(vdsd_data):
+                index.setdefault(eid, []).append((subentry.subentry_id, vdsd_idx))
+    return index
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -44,6 +70,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN][subentry.subentry_id] = {"unsubs": unsubs}
         await seed_initial_values(hass, coordinator.api, subentry.subentry_id, vdsds)
         await coordinator.api.announce_device(subentry.subentry_id)
+
+    # React to entity enable/disable and deletion in the HA entity registry.
+    entity_index = _build_entity_index(entry)
+
+    @callback
+    def _on_entity_registry_updated(event: Event) -> None:
+        action: str = event.data.get("action", "")
+        entity_id: str = event.data.get("entity_id", "")
+        if entity_id not in entity_index:
+            return
+
+        if action == "update" and "disabled_by" in event.data.get("changes", {}):
+            reg_entry = er.async_get(hass).async_get(entity_id)
+            active = reg_entry is not None and reg_entry.disabled_by is None
+            for subentry_id, vdsd_idx in entity_index[entity_id]:
+                hass.async_create_task(
+                    coordinator.api.set_vdsd_active(subentry_id, vdsd_idx, active)
+                )
+        elif action == "remove":
+            for subentry_id, _ in entity_index.pop(entity_id, []):
+                hass.async_create_task(coordinator.api.vanish_device(subentry_id))
+
+    entry.async_on_unload(
+        hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, _on_entity_registry_updated)
+    )
 
     # Reload when subentries change (device added / removed)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))

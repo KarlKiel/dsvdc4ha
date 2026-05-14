@@ -471,6 +471,28 @@ class DsvdcApi:
     def get_device(self, entry_id: str) -> Device | None:
         return self._devices.get(entry_id)
 
+    async def set_vdsd_active(self, entry_id: str, vdsd_idx: int, active: bool) -> None:
+        """Set the active flag on a single vdSD and push to DSS if connected.
+
+        If the device is currently announced and a session is live, performs a
+        vanish → modify → re-announce cycle so the DSS learns the new state
+        immediately.  Otherwise the flag is applied locally and will be
+        reflected in the next announcement (e.g. on DSS reconnect).
+        """
+        device = self._devices.get(entry_id)
+        if device is None:
+            return
+
+        def _apply(dev: Device, _idx: int = vdsd_idx, _val: bool = active) -> None:
+            v = dev.get_vdsd(_idx)
+            if v is not None:
+                v.active = _val
+
+        if device.is_announced and self._host and self._host.session:
+            await device.update(self._host.session, _apply)
+        else:
+            _apply(device)
+
     async def report_button_click(self, button: ButtonInput, click_type: int) -> None:
         assert self._host is not None
         await button.update_click(click_type=click_type, session=self._host.session)
