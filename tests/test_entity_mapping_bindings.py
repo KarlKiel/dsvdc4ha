@@ -1,7 +1,9 @@
 """Validate that all output channel defs have apply_expr/push_expr."""
 from __future__ import annotations
 import pytest
-from custom_components.dsvdc4ha.entity_mapping import ENTITY_MAPPING
+from custom_components.dsvdc4ha.entity_mapping import (
+    ENTITY_MAPPING, needs_user_input, get_entity_mapping,
+)
 
 
 def _collect_channel_defs() -> list[tuple[str, str | None, int, dict]]:
@@ -35,12 +37,6 @@ def test_channel_has_push_expr(domain, dc, ch_idx, ch):
         f"{domain}/{dc} ch{ch_idx} (channel_type={ch['channel_type']}) missing push_expr"
     )
     assert isinstance(ch["push_expr"], str) and ch["push_expr"]
-
-
-import pytest
-from custom_components.dsvdc4ha.entity_mapping import (
-    ENTITY_MAPPING, needs_user_input, get_entity_mapping,
-)
 
 
 def _mapping(domain, dc):
@@ -113,6 +109,7 @@ def test_sensor_usage_choices_present(dc, expected_options_include):
     actual_values = [v for v, _ in choices]
     for v in expected_options_include:
         assert v in actual_values, f"sensor/{dc} choices missing {v}"
+    assert s["sensor_usage"] in actual_values, f"sensor/{dc} default {s['sensor_usage']} not in choices"
 
 
 def test_sensor_none_sensor_usage_choices_any():
