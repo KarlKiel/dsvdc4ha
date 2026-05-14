@@ -45,15 +45,25 @@ class VdsdPlan:
     model_features: list[str] | None = None
 
 
+def _primary_entity_label(plan: VdsdPlan) -> str:
+    """Return the friendly name of the plan's primary entity, or a group label fallback."""
+    for entity in [plan.output_entity, plan.binary_input_entity, plan.button_entity]:
+        if entity is not None:
+            return entity.friendly_name
+    if plan.sensor_entities:
+        return plan.sensor_entities[0].friendly_name
+    return _GROUP_LABELS.get(plan.primary_group, f"Group {plan.primary_group}")
+
+
 def _assign_names(plans: list[VdsdPlan], device_name: str) -> None:
     label_counts: dict[str, int] = {}
     for plan in plans:
-        label = _GROUP_LABELS.get(plan.primary_group, f"Group {plan.primary_group}")
+        label = _primary_entity_label(plan)
         label_counts[label] = label_counts.get(label, 0) + 1
 
     label_seen: dict[str, int] = {}
     for plan in plans:
-        label = _GROUP_LABELS.get(plan.primary_group, f"Group {plan.primary_group}")
+        label = _primary_entity_label(plan)
         if label_counts[label] == 1:
             plan.name = f"{device_name} — {label}"
         else:

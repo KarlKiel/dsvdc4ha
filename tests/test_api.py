@@ -225,3 +225,41 @@ async def test_report_channel_value_calls_update_value():
         mock_channel.update_value = AsyncMock()
         await api.report_channel_value(mock_channel, 75.0)
         mock_channel.update_value.assert_awaited_once_with(75.0)
+
+
+def test_build_vdsd_uses_per_vdsd_icon_when_present():
+    """_build_vdsd uses icon_data_b64 and icon_name from vdSD data instead of global fallback."""
+    import base64, io
+    from PIL import Image
+    from unittest.mock import MagicMock, patch
+    buf = io.BytesIO()
+    Image.new("RGBA", (16, 16), (0, 128, 0, 255)).save(buf, format="PNG")
+    entity_icon = buf.getvalue()
+    icon_b64 = base64.b64encode(entity_icon).decode()
+
+    from custom_components.dsvdc4ha.api import DsvdcApi
+    from pydsvdcapi.vdsd import Device
+
+    api = DsvdcApi.__new__(DsvdcApi)
+    api._icon_bytes = b"fallback"  # global fallback should NOT be used
+    api._config_url = "http://test"
+
+    device = MagicMock(spec=Device)
+    vdsd_data = {
+        "displayId": "switch", "primaryGroup": 8, "model": "switch",
+        "vendorName": "Acme", "modelVersion": "1.0", "modelUID": "Acmeswitch",
+        "name": "Kitchen — switch", "active": True, "identify_action": None,
+        "firmwareUpdate_action": None, "optional": {}, "buttons": [],
+        "binary_inputs": [], "sensors": [], "output": None,
+        "icon_name": "switch_kitchen",
+        "icon_data_b64": icon_b64,
+    }
+
+    with patch("custom_components.dsvdc4ha.api.Vdsd") as MockVdsd:
+        mock_vdsd = MagicMock()
+        MockVdsd.return_value = mock_vdsd
+        mock_vdsd.model_features = []
+        api._build_vdsd(device, 0, vdsd_data)
+        call_kwargs = MockVdsd.call_args.kwargs
+        assert call_kwargs["device_icon_16"] == entity_icon
+        assert call_kwargs["device_icon_name"] == "switch_kitchen"

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import socket
 from pathlib import Path
@@ -352,8 +353,12 @@ class DsvdcApi:
             model_uid=data.get("modelUID"),
             vendor_name=data.get("vendorName"),
             config_url=self._config_url,
-            device_icon_16=self._icon_bytes,
-            device_icon_name=VDC_DEVICE_ICON_NAME,
+            device_icon_16=(
+                base64.b64decode(data["icon_data_b64"])
+                if data.get("icon_data_b64")
+                else self._icon_bytes
+            ),
+            device_icon_name=data.get("icon_name") or VDC_DEVICE_ICON_NAME,
         )
         for btn_data in data.get("buttons", []):
             self._add_button(vdsd, btn_data)

@@ -181,24 +181,24 @@ def test_priority_alphabetical_final_tiebreaker():
 
 def test_plan_naming_unique_groups():
     entities = [
-        _entity("light.lamp", "light", _LIGHT_MAPPING),
-        _entity("cover.blind", "cover", _COVER_MAPPING),
+        _entity("light.lamp", "light", _LIGHT_MAPPING, friendly_name="Living Room Lamp"),
+        _entity("cover.blind", "cover", _COVER_MAPPING, friendly_name="Bedroom Blind"),
     ]
     plans, _ = compute_vdsd_plan(entities, "My Device")
     names = {p.name for p in plans}
-    assert "My Device — Light" in names
-    assert "My Device — Shadow" in names
+    assert "My Device — Living Room Lamp" in names
+    assert "My Device — Bedroom Blind" in names
 
 
-def test_plan_naming_duplicate_groups_get_suffix():
+def test_plan_naming_duplicate_entity_names_get_suffix():
     entities = [
-        _entity("light.a", "light", _LIGHT_MAPPING),
-        _entity("light.b", "light", _LIGHT_MAPPING),
+        _entity("light.a", "light", _LIGHT_MAPPING, friendly_name="Lamp"),
+        _entity("light.b", "light", _LIGHT_MAPPING, friendly_name="Lamp"),
     ]
     plans, _ = compute_vdsd_plan(entities, "My Device")
     names = [p.name for p in plans]
-    assert "My Device — Light 1" in names
-    assert "My Device — Light 2" in names
+    assert "My Device — Lamp 1" in names
+    assert "My Device — Lamp 2" in names
 
 
 def test_dual_component_entity_contributes_both_output_and_binary_input():

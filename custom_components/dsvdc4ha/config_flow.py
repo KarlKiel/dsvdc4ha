@@ -14,6 +14,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector as selector_module
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import (
     BinaryInputGroup,
@@ -45,7 +46,7 @@ from .device_grouper import (
     EntityInfo as _EntityInfo,
     VdsdPlan,
     compute_vdsd_plan,
-    resolve_vdsd_plan,  # used in async_step_device_plan_summary (Task 5)
+    resolve_vdsd_plan,
 )
 from .entity_mapping import (
     CHANNEL_TYPE_LABELS as _CHANNEL_TYPE_LABELS,
@@ -775,6 +776,57 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         self._pending_choice_entities: list[tuple[_EntityInfo, int]] = []
         self._pending_choice_idx: int = 0
         self._pending_vdsd_idx: int = 0
+        self._creation_mode: str = "from_entity"
+
+    async def _resolve_entity_icon(self, entity_id: str) -> tuple[str, str | None]:
+        """Return (icon_name, base64_16x16_png_or_None) for an entity.
+
+        icon_name is entity_id with dots replaced by underscores.
+        Fetches entity_picture if available and resizes to 16x16 PNG.
+        Returns None for b64 on any failure.
+        """
+        import base64
+        import io
+
+        icon_name = entity_id.replace(".", "_")
+        state = self.hass.states.get(entity_id)
+        if state is None:
+            return icon_name, None
+
+        picture_url: str | None = state.attributes.get("entity_picture")
+        if not picture_url:
+            return icon_name, None
+
+        try:
+            from PIL import Image
+            import aiohttp
+
+            if not (picture_url.startswith("http") or picture_url.startswith("//")):
+                api_cfg = getattr(self.hass.config, "api", None)
+                base = str(api_cfg.base_url).rstrip("/") if api_cfg else "http://localhost:8123"
+                picture_url = f"{base}{picture_url}"
+
+            session = async_get_clientsession(self.hass)
+            async with session.get(
+                picture_url, timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                if resp.status != 200:
+                    return icon_name, None
+                raw = await resp.read()
+
+            def _resize(data: bytes) -> bytes:
+                img = Image.open(io.BytesIO(data)).convert("RGBA").resize(
+                    (16, 16), Image.LANCZOS
+                )
+                out = io.BytesIO()
+                img.save(out, format="PNG")
+                return out.getvalue()
+
+            resized = await self.hass.async_add_executor_job(_resize, raw)
+            return icon_name, base64.b64encode(resized).decode()
+        except Exception:
+            _LOGGER.debug("Failed to resolve icon for %s", entity_id, exc_info=True)
+            return icon_name, None
 
     async def async_step_user(self, user_input: dict | None = None):
         return await self.async_step_creation_mode(user_input)
@@ -785,6 +837,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         """Choose between creating a vdSD from an existing HA entity or from scratch."""
         if user_input is not None:
             mode = user_input.get("mode", "from_scratch")
+            self._creation_mode = mode
             if mode == "from_entity":
                 return await self.async_step_entity_picker()
             if mode == "from_ha_device":
@@ -793,10 +846,12 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         schema = vol.Schema({
             vol.Required("mode", default="from_entity"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="from_entity", label="Create from entity"),
-                    selector.SelectOptionDict(value="from_scratch", label="Create from scratch"),
+                    selector.SelectOptionDict(value="from_entity",
+                                              label="Create device based on HA entities (recommended)"),
                     selector.SelectOptionDict(value="from_ha_device",
-                                              label="Create multi-vdSD device from HA device"),
+                                              label="Create device based on HA device"),
+                    selector.SelectOptionDict(value="from_scratch",
+                                              label="Create device from scratch (BETA)"),
                 ])
             ),
         })
@@ -837,9 +892,10 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                                 model = device.model or ""
                     except Exception:
                         pass
-                    self._device_name = friendly_name
-                    self._vendor_name = manufacturer
-                    self._display_id = model or domain.title()
+                    if not self._vdsds:
+                        self._device_name = friendly_name
+                        self._vendor_name = manufacturer
+                        self._display_id = model or domain.title()
                     if needs_user_input(mapping):
                         return await self.async_step_entity_user_input()
                     return await self._build_entity_vdsd_and_continue({})
@@ -950,7 +1006,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             "vendorName": self._vendor_name,
             "modelVersion": "1.0",
             "modelUID": (self._vendor_name + self._display_id).replace(" ", ""),
-            "name": self._device_name,          # human-readable name goes here
+            "name": f"{self._device_name} — {friendly_name}",
             "active": True,
             "identify_action": None,
             "firmwareUpdate_action": None,
@@ -1077,6 +1133,12 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "onThreshold": 50,
                 "channels": channels,
             }
+
+        # Resolve entity icon and store in vdSD dict
+        icon_name, icon_b64 = await self._resolve_entity_icon(entity_id)
+        vdsd["icon_name"] = icon_name
+        if icon_b64:
+            vdsd["icon_data_b64"] = icon_b64
 
         # Store result and forward to channel mapping or model_features
         self._current_vdsd = vdsd
@@ -1298,6 +1360,19 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                     plan, self._device_name, self._vendor_name,
                     self._display_id, entity_states,
                 )
+                primary_e = (
+                    plan.output_entity
+                    or plan.binary_input_entity
+                    or plan.button_entity
+                    or (plan.sensor_entities[0] if plan.sensor_entities else None)
+                )
+                if primary_e and plan.resolved_vdsd is not None:
+                    icon_name, icon_b64 = await self._resolve_entity_icon(
+                        primary_e.entity_id
+                    )
+                    plan.resolved_vdsd["icon_name"] = icon_name
+                    if icon_b64:
+                        plan.resolved_vdsd["icon_data_b64"] = icon_b64
             self._pending_vdsd_idx = 0
             return await self.async_step_device_model_features()
 
@@ -1390,6 +1465,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
     async def async_step_device_info(self, user_input: dict | None = None):
         """Collect basic device identity."""
         if user_input is not None:
+            self._creation_mode = "from_scratch"
             self._device_name = user_input["name"]
             self._vendor_name = user_input["vendorName"]
             self._display_id = user_input["displayId"]
@@ -1512,6 +1588,8 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             self._current_vdsd["sensors"] = self._current_sensors
             self._current_vdsd["output"] = self._current_output
             self._vdsds.append(dict(self._current_vdsd))
+            if self._creation_mode == "from_entity":
+                return await self.async_step_entity_completion()
             return await self.async_step_device_summary()
 
         auto_features = _compute_auto_features(
@@ -1535,6 +1613,53 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             ),
         })
         return self.async_show_form(step_id="model_features", data_schema=schema)
+
+    async def async_step_entity_completion(self, user_input: dict | None = None):
+        """Entity-based flow: create the device or add another vdSD component."""
+        if user_input is not None:
+            action = user_input.get("action", "create")
+            if action == "add_vdsd":
+                # Reset per-vdSD state; preserve _device_name/_vendor_name/_display_id/_vdsds
+                self._current_vdsd = {}
+                self._current_buttons = []
+                self._current_binary_inputs = []
+                self._current_sensors = []
+                self._current_output = None
+                self._current_channels = []
+                self._entity_id = ""
+                self._entity_mapping = None
+                return await self.async_step_entity_picker()
+            return self.async_create_entry(
+                title=self._device_name,
+                data={
+                    "name": self._device_name,
+                    "vendorName": self._vendor_name,
+                    "displayId": self._display_id,
+                    "vdsds": self._vdsds,
+                },
+            )
+
+        vdsd_summary = [
+            f"{v.get('name', v.get('displayId', '?'))} (group {v.get('primaryGroup', '?')})"
+            for v in self._vdsds
+        ]
+        schema = vol.Schema({
+            vol.Required("action", default="create"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value="create", label="Create device"),
+                    selector.SelectOptionDict(value="add_vdsd",
+                                              label="Add additional device component (vdSD)"),
+                ])
+            ),
+        })
+        return self.async_show_form(
+            step_id="entity_completion",
+            data_schema=schema,
+            description_placeholders={
+                "device_name": self._device_name,
+                "vdsds": ", ".join(vdsd_summary),
+            },
+        )
 
     async def async_step_button(self, user_input: dict | None = None):
         """Collect button element configuration."""
