@@ -1311,6 +1311,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                     for v, lbl in sfc
                 ]))
             )
+
         if bi.get("group_choices"):
             schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
                 selector.SelectSelector(selector.SelectSelectorConfig(options=[

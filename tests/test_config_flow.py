@@ -1026,3 +1026,60 @@ async def test_entity_user_input_sensor_usage_default_when_not_provided():
         with patch.object(flow, "_resolve_entity_icon", new=AM(return_value=(None, None))):
             await flow._build_entity_vdsd_and_continue({})
     assert flow._current_sensors[0]["sensorUsage"] == 0, "default sensor_usage for temperature must be 0"
+
+
+@pytest.mark.asyncio
+async def test_entity_user_input_form_shows_bi_group_for_motion():
+    """binary_sensor/motion has group_choices → form step is shown with bi_group field."""
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = None
+    flow._entity_mapping = get_entity_mapping("binary_sensor", "motion")
+    flow._entity_id = "binary_sensor.test"
+    flow._display_id = "Test"
+    flow._vendor_name = "HA"
+    flow._device_name = "Device"
+    result = await flow.async_step_entity_user_input(user_input=None)
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "entity_user_input"
+    schema_keys = {k.schema if hasattr(k, "schema") else k for k in result["data_schema"].schema.keys()}
+    assert "bi_group" in schema_keys, "bi_group field missing from form schema"
+
+
+@pytest.mark.asyncio
+async def test_entity_user_input_form_shows_sensor_usage_for_temperature():
+    """sensor/temperature has sensor_usage_choices → form step is shown with sensor_usage field."""
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = None
+    flow._entity_mapping = get_entity_mapping("sensor", "temperature")
+    flow._entity_id = "sensor.test"
+    flow._display_id = "Test"
+    flow._vendor_name = "HA"
+    flow._device_name = "Device"
+    result = await flow.async_step_entity_user_input(user_input=None)
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "entity_user_input"
+    schema_keys = {k.schema if hasattr(k, "schema") else k for k in result["data_schema"].schema.keys()}
+    assert "sensor_usage" in schema_keys, "sensor_usage field missing from form schema"
+
+
+@pytest.mark.asyncio
+async def test_entity_user_input_form_shows_sensor_function_for_binary_sensor_none():
+    """binary_sensor/None has sensor_function_choices='any' → form shows sensor_function field."""
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = None
+    flow._entity_mapping = get_entity_mapping("binary_sensor", None)
+    flow._entity_id = "binary_sensor.test"
+    flow._display_id = "Test"
+    flow._vendor_name = "HA"
+    flow._device_name = "Device"
+    result = await flow.async_step_entity_user_input(user_input=None)
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "entity_user_input"
+    schema_keys = {k.schema if hasattr(k, "schema") else k for k in result["data_schema"].schema.keys()}
+    assert "sensor_function" in schema_keys, "sensor_function field missing from form schema"
