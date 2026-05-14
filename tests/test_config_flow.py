@@ -787,6 +787,63 @@ async def test_entity_flow_vdsd_name_combines_device_and_entity_name():
     assert flow._current_vdsd["name"] == "Kitchen — Kitchen Switch"
 
 
+@pytest.mark.asyncio
+async def test_entity_flow_sets_icon_name_in_vdsd():
+    """_build_entity_vdsd_and_continue stores icon_name in the vdSD dict."""
+    flow = _make_switch_flow()
+    state = MagicMock()
+    state.name = "Kitchen Switch"
+    state.state = "off"
+    state.attributes = {}
+    flow.hass.states.get.return_value = state
+
+    with patch.object(flow, "async_step_model_features",
+                      new=AsyncMock(return_value={"type": "form", "step_id": "model_features"})):
+        with patch.object(flow, "async_step_entity_channel_mapping",
+                          new=AsyncMock(return_value={"type": "form", "step_id": "entity_channel_mapping"})):
+            await flow._build_entity_vdsd_and_continue({})
+
+    assert flow._current_vdsd.get("icon_name") == "switch_kitchen"
+
+
+@pytest.mark.asyncio
+async def test_entity_flow_fetches_icon_when_entity_picture_available():
+    """_resolve_entity_icon stores base64 PNG when entity_picture is present."""
+    flow = _make_switch_flow()
+
+    import base64, io
+    from PIL import Image
+    # Tiny 1x1 red PNG
+    buf = io.BytesIO()
+    Image.new("RGBA", (1, 1), (255, 0, 0, 255)).save(buf, format="PNG")
+    fake_png = buf.getvalue()
+
+    state = MagicMock()
+    state.name = "Kitchen Switch"
+    state.state = "off"
+    state.attributes = {"entity_picture": "/api/entity_pic/switch.kitchen"}
+    flow.hass.states.get.return_value = state
+    flow.hass.config.api = MagicMock()
+    flow.hass.config.api.base_url = "http://localhost:8123"
+
+    mock_response = AsyncMock()
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.__aexit__ = AsyncMock(return_value=False)
+    mock_response.status = 200
+    mock_response.read = AsyncMock(return_value=fake_png)
+    mock_session = MagicMock()
+    mock_session.get.return_value = mock_response
+
+    with patch("custom_components.dsvdc4ha.config_flow.async_get_clientsession",
+               return_value=mock_session):
+        icon_name, b64 = await flow._resolve_entity_icon("switch.kitchen")
+
+    assert icon_name == "switch_kitchen"
+    assert b64 is not None
+    decoded = base64.b64decode(b64)
+    assert decoded[:8] == b"\x89PNG\r\n\x1a\n"  # PNG magic bytes
+
+
 # ---------------------------------------------------------------------------
 # Entity-completion screen and multi-entity flow tests
 # ---------------------------------------------------------------------------

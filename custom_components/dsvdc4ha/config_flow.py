@@ -7,6 +7,7 @@ import socket
 from pathlib import Path
 from typing import Any
 
+import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigSubentryFlow
@@ -14,6 +15,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import selector as selector_module
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import (
     BinaryInputGroup,
@@ -777,6 +779,55 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         self._pending_vdsd_idx: int = 0
         self._creation_mode: str = "from_entity"
 
+    async def _resolve_entity_icon(self, entity_id: str) -> tuple[str, str | None]:
+        """Return (icon_name, base64_16x16_png_or_None) for an entity.
+
+        icon_name is entity_id with dots replaced by underscores.
+        Fetches entity_picture if available and resizes to 16x16 PNG.
+        Returns None for b64 on any failure.
+        """
+        import base64
+        import io
+
+        icon_name = entity_id.replace(".", "_")
+        state = self.hass.states.get(entity_id)
+        if state is None:
+            return icon_name, None
+
+        picture_url: str | None = state.attributes.get("entity_picture")
+        if not picture_url:
+            return icon_name, None
+
+        try:
+            from PIL import Image
+
+            if not picture_url.startswith("http"):
+                api_cfg = getattr(self.hass.config, "api", None)
+                base = str(api_cfg.base_url).rstrip("/") if api_cfg else "http://localhost:8123"
+                picture_url = f"{base}{picture_url}"
+
+            session = async_get_clientsession(self.hass)
+            async with session.get(
+                picture_url, timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
+                if resp.status != 200:
+                    return icon_name, None
+                raw = await resp.read()
+
+            def _resize(data: bytes) -> bytes:
+                img = Image.open(io.BytesIO(data)).convert("RGBA").resize(
+                    (16, 16), Image.LANCZOS
+                )
+                out = io.BytesIO()
+                img.save(out, format="PNG")
+                return out.getvalue()
+
+            resized = await asyncio.get_event_loop().run_in_executor(None, _resize, raw)
+            return icon_name, base64.b64encode(resized).decode()
+        except Exception:
+            _LOGGER.debug("Failed to resolve icon for %s", entity_id, exc_info=True)
+            return icon_name, None
+
     async def async_step_user(self, user_input: dict | None = None):
         return await self.async_step_creation_mode(user_input)
 
@@ -1083,6 +1134,12 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "channels": channels,
             }
 
+        # Resolve entity icon and store in vdSD dict
+        icon_name, icon_b64 = await self._resolve_entity_icon(entity_id)
+        vdsd["icon_name"] = icon_name
+        if icon_b64:
+            vdsd["icon_data_b64"] = icon_b64
+
         # Store result and forward to channel mapping or model_features
         self._current_vdsd = vdsd
         self._current_buttons = vdsd["buttons"]
@@ -1303,6 +1360,19 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                     plan, self._device_name, self._vendor_name,
                     self._display_id, entity_states,
                 )
+                primary_e = (
+                    plan.output_entity
+                    or plan.binary_input_entity
+                    or plan.button_entity
+                    or (plan.sensor_entities[0] if plan.sensor_entities else None)
+                )
+                if primary_e and plan.resolved_vdsd is not None:
+                    icon_name, icon_b64 = await self._resolve_entity_icon(
+                        primary_e.entity_id
+                    )
+                    plan.resolved_vdsd["icon_name"] = icon_name
+                    if icon_b64:
+                        plan.resolved_vdsd["icon_data_b64"] = icon_b64
             self._pending_vdsd_idx = 0
             return await self.async_step_device_model_features()
 
