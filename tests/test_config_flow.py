@@ -834,6 +834,12 @@ async def test_entity_flow_fetches_icon_when_entity_picture_available():
     mock_session = MagicMock()
     mock_session.get.return_value = mock_response
 
+    # Mock async_add_executor_job to simply call the function with the data
+    async def mock_executor_job(func, data):
+        return func(data)
+
+    flow.hass.async_add_executor_job = AsyncMock(side_effect=mock_executor_job)
+
     with patch("custom_components.dsvdc4ha.config_flow.async_get_clientsession",
                return_value=mock_session):
         icon_name, b64 = await flow._resolve_entity_icon("switch.kitchen")

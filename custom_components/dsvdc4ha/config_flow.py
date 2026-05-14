@@ -7,7 +7,6 @@ import socket
 from pathlib import Path
 from typing import Any
 
-import aiohttp
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigSubentryFlow
@@ -800,8 +799,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
         try:
             from PIL import Image
+            import aiohttp
 
-            if not picture_url.startswith("http"):
+            if not (picture_url.startswith("http") or picture_url.startswith("//")):
                 api_cfg = getattr(self.hass.config, "api", None)
                 base = str(api_cfg.base_url).rstrip("/") if api_cfg else "http://localhost:8123"
                 picture_url = f"{base}{picture_url}"
@@ -822,7 +822,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 img.save(out, format="PNG")
                 return out.getvalue()
 
-            resized = await asyncio.get_event_loop().run_in_executor(None, _resize, raw)
+            resized = await self.hass.async_add_executor_job(_resize, raw)
             return icon_name, base64.b64encode(resized).decode()
         except Exception:
             _LOGGER.debug("Failed to resolve icon for %s", entity_id, exc_info=True)
