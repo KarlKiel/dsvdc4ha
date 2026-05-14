@@ -46,7 +46,7 @@ from .device_grouper import (
     EntityInfo as _EntityInfo,
     VdsdPlan,
     compute_vdsd_plan,
-    resolve_vdsd_plan,  # used in async_step_device_plan_summary (Task 5)
+    resolve_vdsd_plan,
 )
 from .entity_mapping import (
     CHANNEL_TYPE_LABELS as _CHANNEL_TYPE_LABELS,
