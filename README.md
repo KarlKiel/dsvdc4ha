@@ -35,6 +35,14 @@ Pick an existing HA entity. The integration looks up its domain and device class
 
 Full manual wizard for power users who need multi-vdSD devices or configurations not covered by the entity mapping. Walks through device info, one or more vdSDs, buttons, binary inputs, sensors, outputs, and channel bindings step by step.
 
+## Notes
+
+### Button devices
+
+When a button entity (`button` domain or `event` with device class `button`) is created automatically via the entity or device path, it is always classified as a **Joker device in App-Mode (group 8)**. This is the safe default that works for any scene or app trigger without interfering with group-based lighting or shading control.
+
+If you need the button to control a specific room group (e.g. Yellow — Light), change the group and function assignment afterwards in the **dSS Configurator** under *Device Properties* for that device.
+
 ## Requirements
 
 - Home Assistant 2024.x or later
