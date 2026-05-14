@@ -260,9 +260,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "domain": "button", "device_class": None, "primary_group": 8,
         "button": {
             "button_type": 1,
-            "group": 1,
-            "group_choices": [(1, "Yellow — Light / Room (1)"), (8, "Joker — App (8)")],
-            "function": 5,
+            "group": 8,
+            "function": 15,
             "mode": 0,
             "supports_local_key_mode": True,
             "calls_present": True,
@@ -410,9 +409,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "domain": "event", "device_class": "button", "primary_group": 8,
         "button": {
             "button_type": 1,
-            "group": 1,
-            "group_choices": [(1, "Yellow — Light / Room (1)"), (8, "Joker — App (8)")],
-            "function": 5,
+            "group": 8,
+            "function": 15,
             "mode": 0,
             "supports_local_key_mode": False,
             "calls_present": False,
