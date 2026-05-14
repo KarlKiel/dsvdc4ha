@@ -1,7 +1,7 @@
 {
   "domain": "dsvdc4ha",
   "name": "dSVDC for Home Assistant",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "documentation": "https://github.com/KarlKiel/dsvdc4ha",
   "requirements": ["pydsvdcapi==0.8.1"],
   "dependencies": [],
