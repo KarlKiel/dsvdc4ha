@@ -938,3 +938,148 @@ async def test_entity_picker_preserves_device_info_on_second_pick():
 
     # Should NOT have overwritten with "Other Device"
     assert flow._device_name == "First Device"
+
+
+# ---------------------------------------------------------------------------
+# entity user-input form — new choice types
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_entity_user_input_bi_group_applied():
+    """bi_group from user_input must be written to binary_inputs[0]['group']."""
+    from unittest.mock import patch, AsyncMock as AM
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = MagicMock(name="Test Motion")
+    flow.hass.states.get.return_value.name = "Test Motion"
+    flow.hass.states.get.return_value.attributes = {}
+    flow._entity_mapping = get_entity_mapping("binary_sensor", "motion")
+    flow._entity_id = "binary_sensor.motion"
+    flow._display_id = "Test"
+    flow._vendor_name = "HA"
+    flow._device_name = "Device"
+    with patch.object(flow, "async_step_model_features", new=AM(return_value={"type": "form", "step_id": "model_features", "data_schema": None, "errors": {}})):
+        with patch.object(flow, "_resolve_entity_icon", new=AM(return_value=(None, None))):
+            await flow._build_entity_vdsd_and_continue({"bi_group": "6"})
+    assert flow._current_binary_inputs[0]["group"] == 6, "bi_group user choice must override mapping default"
+
+
+@pytest.mark.asyncio
+async def test_entity_user_input_bi_group_default_when_not_provided():
+    """Without bi_group in user_input, binary_inputs[0]['group'] must use mapping default."""
+    from unittest.mock import patch, AsyncMock as AM
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = MagicMock(name="Test Motion")
+    flow.hass.states.get.return_value.name = "Test Motion"
+    flow.hass.states.get.return_value.attributes = {}
+    flow._entity_mapping = get_entity_mapping("binary_sensor", "motion")
+    flow._entity_id = "binary_sensor.motion"
+    flow._display_id = "Test"
+    flow._vendor_name = "HA"
+    flow._device_name = "Device"
+    with patch.object(flow, "async_step_model_features", new=AM(return_value={"type": "form", "step_id": "model_features", "data_schema": None, "errors": {}})):
+        with patch.object(flow, "_resolve_entity_icon", new=AM(return_value=(None, None))):
+            await flow._build_entity_vdsd_and_continue({})
+    assert flow._current_binary_inputs[0]["group"] == 1, "default group for motion must be 1 (Light)"
+
+
+@pytest.mark.asyncio
+async def test_entity_user_input_sensor_usage_applied():
+    """sensor_usage from user_input must be written to sensors[0]['sensorUsage']."""
+    from unittest.mock import patch, AsyncMock as AM
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = MagicMock(name="Test Temp")
+    flow.hass.states.get.return_value.name = "Test Temp"
+    flow.hass.states.get.return_value.attributes = {}
+    flow._entity_mapping = get_entity_mapping("sensor", "temperature")
+    flow._entity_id = "sensor.temperature"
+    flow._display_id = "Test"
+    flow._vendor_name = "HA"
+    flow._device_name = "Device"
+    with patch.object(flow, "async_step_model_features", new=AM(return_value={"type": "form", "step_id": "model_features", "data_schema": None, "errors": {}})):
+        with patch.object(flow, "_resolve_entity_icon", new=AM(return_value=(None, None))):
+            await flow._build_entity_vdsd_and_continue({"sensor_usage": "2"})
+    assert flow._current_sensors[0]["sensorUsage"] == 2, "sensor_usage user choice must override mapping default"
+
+
+@pytest.mark.asyncio
+async def test_entity_user_input_sensor_usage_default_when_not_provided():
+    """Without sensor_usage in user_input, sensors[0]['sensorUsage'] must use mapping default."""
+    from unittest.mock import patch, AsyncMock as AM
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = MagicMock(name="Test Temp")
+    flow.hass.states.get.return_value.name = "Test Temp"
+    flow.hass.states.get.return_value.attributes = {}
+    flow._entity_mapping = get_entity_mapping("sensor", "temperature")
+    flow._entity_id = "sensor.temperature"
+    flow._display_id = "Test"
+    flow._vendor_name = "HA"
+    flow._device_name = "Device"
+    with patch.object(flow, "async_step_model_features", new=AM(return_value={"type": "form", "step_id": "model_features", "data_schema": None, "errors": {}})):
+        with patch.object(flow, "_resolve_entity_icon", new=AM(return_value=(None, None))):
+            await flow._build_entity_vdsd_and_continue({})
+    assert flow._current_sensors[0]["sensorUsage"] == 0, "default sensor_usage for temperature must be 0"
+
+
+@pytest.mark.asyncio
+async def test_entity_user_input_form_shows_bi_group_for_motion():
+    """binary_sensor/motion has group_choices → form step is shown with bi_group field."""
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = None
+    flow._entity_mapping = get_entity_mapping("binary_sensor", "motion")
+    flow._entity_id = "binary_sensor.test"
+    flow._display_id = "Test"
+    flow._vendor_name = "HA"
+    flow._device_name = "Device"
+    result = await flow.async_step_entity_user_input(user_input=None)
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "entity_user_input"
+    schema_keys = {k.schema if hasattr(k, "schema") else k for k in result["data_schema"].schema.keys()}
+    assert "bi_group" in schema_keys, "bi_group field missing from form schema"
+
+
+@pytest.mark.asyncio
+async def test_entity_user_input_form_shows_sensor_usage_for_temperature():
+    """sensor/temperature has sensor_usage_choices → form step is shown with sensor_usage field."""
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = None
+    flow._entity_mapping = get_entity_mapping("sensor", "temperature")
+    flow._entity_id = "sensor.test"
+    flow._display_id = "Test"
+    flow._vendor_name = "HA"
+    flow._device_name = "Device"
+    result = await flow.async_step_entity_user_input(user_input=None)
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "entity_user_input"
+    schema_keys = {k.schema if hasattr(k, "schema") else k for k in result["data_schema"].schema.keys()}
+    assert "sensor_usage" in schema_keys, "sensor_usage field missing from form schema"
+
+
+@pytest.mark.asyncio
+async def test_entity_user_input_form_shows_sensor_function_for_binary_sensor_none():
+    """binary_sensor/None has sensor_function_choices='any' → form shows sensor_function field."""
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = None
+    flow._entity_mapping = get_entity_mapping("binary_sensor", None)
+    flow._entity_id = "binary_sensor.test"
+    flow._display_id = "Test"
+    flow._vendor_name = "HA"
+    flow._device_name = "Device"
+    result = await flow.async_step_entity_user_input(user_input=None)
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "entity_user_input"
+    schema_keys = {k.schema if hasattr(k, "schema") else k for k in result["data_schema"].schema.keys()}
+    assert "sensor_function" in schema_keys, "sensor_function field missing from form schema"

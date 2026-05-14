@@ -5,6 +5,28 @@
       "Bash(python -m pytest tests/test_api.py::test_positional_output_registers_both_channels tests/test_api.py::test_on_off_output_channel_type_replaced_correctly -v)",
       "Bash(.venv/bin/python -m pytest tests/test_api.py::test_positional_output_registers_both_channels tests/test_api.py::test_on_off_output_channel_type_replaced_correctly -v)",
       "Bash(python3 -c \"import subprocess; result = subprocess.run\\(['python3', '-c', 'from pydsvdcapi.output import Output; import inspect; print\\(inspect.getsource\\(Output\\)\\)'], capture_output=True, text=True, cwd='/home/arne/Development/dsvdc4ha'\\); print\\(result.stdout or result.stderr\\)\")"
+      "Bash(/home/arne/Development/dsvdc4ha/.venv/bin/python -c ' *)",
+      "Bash(.venv/bin/python -m pytest tests/test_entity_mapping_bindings.py -v)",
+      "Bash(python3 -m pytest tests/ -q)",
+      "Bash(.venv/bin/pytest tests/test_config_flow.py::test_entity_user_input_bi_group_applied tests/test_config_flow.py::test_entity_user_input_sensor_usage_applied -v)",
+      "Bash(python -m pytest tests/test_config_flow.py -q --tb=no)",
+      "Bash(python3 -m pytest tests/test_config_flow.py -q --tb=no)",
+      "Bash(/home/arne/Development/dsvdc4ha/.venv/bin/pytest tests/test_config_flow.py -q --tb=no)",
+      "Bash(/home/arne/Development/dsvdc4ha/.venv/bin/pytest tests/ -q --tb=no)",
+      "Bash(python -m pytest tests/test_config_flow.py -v --tb=short)",
+      "Bash(python3 -m pytest tests/test_config_flow.py -v --tb=short)",
+      "Bash(.venv/bin/pytest tests/test_config_flow.py -v --tb=short)",
+      "Bash(awk 'NR>=929 && NR<=950' /home/arne/Development/dsvdc4ha/custom_components/dsvdc4ha/config_flow.py)",
+      "Bash(awk 'NR>=1302 && NR<=1325' /home/arne/Development/dsvdc4ha/custom_components/dsvdc4ha/config_flow.py)",
+      "Bash(.venv/bin/pytest tests/test_config_flow.py::test_entity_user_input_form_shows_bi_group_for_motion -v)",
+      "Bash(.venv/bin/pytest tests/test_config_flow.py::test_entity_user_input_form_shows_bi_group_for_motion tests/test_config_flow.py::test_entity_user_input_form_shows_sensor_usage_for_temperature tests/test_config_flow.py::test_entity_user_input_form_shows_sensor_function_for_binary_sensor_none -v)",
+      "Bash(.venv/bin/pytest tests/test_config_flow.py -v --tb=no)",
+      "Bash(.venv/bin/pytest tests/test_device_grouper.py::test_resolve_bi_group_user_choice_applied tests/test_device_grouper.py::test_resolve_sensor_usage_user_choice_applied -v)",
+      "Bash(.venv/bin/pytest tests/test_device_grouper.py::test_resolve_bi_group_user_choice_applied tests/test_device_grouper.py::test_resolve_bi_group_uses_mapping_default_when_no_choice tests/test_device_grouper.py::test_resolve_sensor_usage_user_choice_applied tests/test_device_grouper.py::test_resolve_sensor_usage_uses_mapping_default_when_no_choice -v)",
+      "Bash(python -m pytest tests/test_device_grouper.py::test_resolve_bi_group_user_choice_applied -xvs)",
+      "Bash(python3 -m pytest tests/test_device_grouper.py::test_resolve_bi_group_user_choice_applied tests/test_device_grouper.py::test_resolve_bi_group_uses_mapping_default_when_no_choice tests/test_device_grouper.py::test_resolve_sensor_usage_user_choice_applied tests/test_device_grouper.py::test_resolve_sensor_usage_uses_mapping_default_when_no_choice -xvs)",
+      "Bash(python3 -m pytest tests/)",
+      "Bash(.venv/bin/python -m pytest tests/)"
     ]
   }
 }
