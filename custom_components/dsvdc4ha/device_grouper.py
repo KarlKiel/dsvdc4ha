@@ -195,7 +195,7 @@ def resolve_vdsd_plan(
         vdsd["binary_inputs"] = [{
             "dsIndex": 0,
             "name": e.friendly_name,
-            "group": bi["group"],
+            "group": int(choices.get("bi_group", bi["group"])),
             "sensorFunction": sf,
             "hardwiredFunction": sf,
             "updateInterval": bi["update_interval"],
@@ -249,7 +249,7 @@ def resolve_vdsd_plan(
             "name": e.friendly_name,
             "group": s["group"],
             "sensorType": st,
-            "sensorUsage": s["sensor_usage"],
+            "sensorUsage": int(choices.get("sensor_usage", s["sensor_usage"])),
             "min": sen_min,
             "max": sen_max,
             "resolution": sen_res,
