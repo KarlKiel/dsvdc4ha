@@ -955,7 +955,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             "vendorName": self._vendor_name,
             "modelVersion": "1.0",
             "modelUID": (self._vendor_name + self._display_id).replace(" ", ""),
-            "name": self._device_name,          # human-readable name goes here
+            "name": f"{self._device_name} — {friendly_name}",
             "active": True,
             "identify_action": None,
             "firmwareUpdate_action": None,

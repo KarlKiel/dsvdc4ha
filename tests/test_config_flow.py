@@ -767,6 +767,26 @@ async def test_channel_mapping_step_shown_when_no_apply_expr():
     assert result["step_id"] == "entity_channel_mapping"
 
 
+@pytest.mark.asyncio
+async def test_entity_flow_vdsd_name_combines_device_and_entity_name():
+    """_build_entity_vdsd_and_continue names the vdSD as '<device> — <entity>'."""
+    flow = _make_switch_flow()
+    flow._device_name = "Kitchen"
+    state = MagicMock()
+    state.name = "Kitchen Switch"
+    state.state = "off"
+    state.attributes = {}
+    flow.hass.states.get.return_value = state
+
+    with patch.object(flow, "async_step_model_features",
+                      new=AsyncMock(return_value={"type": "form", "step_id": "model_features"})):
+        with patch.object(flow, "async_step_entity_channel_mapping",
+                          new=AsyncMock(return_value={"type": "form", "step_id": "entity_channel_mapping"})):
+            await flow._build_entity_vdsd_and_continue({})
+
+    assert flow._current_vdsd["name"] == "Kitchen — Kitchen Switch"
+
+
 # ---------------------------------------------------------------------------
 # Entity-completion screen and multi-entity flow tests
 # ---------------------------------------------------------------------------
