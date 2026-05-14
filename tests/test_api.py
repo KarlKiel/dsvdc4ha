@@ -263,3 +263,57 @@ def test_build_vdsd_uses_per_vdsd_icon_when_present():
         call_kwargs = MockVdsd.call_args.kwargs
         assert call_kwargs["device_icon_16"] == entity_icon
         assert call_kwargs["device_icon_name"] == "switch_kitchen"
+
+
+def test_positional_output_registers_both_channels():
+    """Bug: POSITIONAL (function=2) outputs had 0 channels because OutputChannel
+    objects were created but discarded — they don't self-register."""
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+    mock_vdsd = MagicMock()
+    output_data = {
+        "name": "test-blind",
+        "function": 2,      # POSITIONAL — not in FUNCTION_CHANNELS
+        "defaultGroup": 2,
+        "activeGroup": 2,
+        "groups": [2],
+        "channels": [
+            {"dsIndex": 0, "channelType": 8},   # SHADE_POSITION_INDOOR
+            {"dsIndex": 1, "channelType": 10},  # SHADE_ANGLE_INDOOR
+        ],
+    }
+    api._add_output(mock_vdsd, output_data)
+    actual_output = mock_vdsd.set_output.call_args[0][0]
+
+    ch0 = actual_output.get_channel(0)
+    ch1 = actual_output.get_channel(1)
+    assert ch0 is not None, "channel at dsIndex 0 must be registered"
+    assert ch1 is not None, "channel at dsIndex 1 must be registered"
+    assert int(ch0.channel_type) == 8
+    assert int(ch1.channel_type) == 10
+
+
+def test_on_off_output_channel_type_replaced_correctly():
+    """Bug: ON_OFF (function=0) auto-creates BRIGHTNESS (type=1) at dsIndex 0.
+    When entity_mapping specifies POWER_STATE (type=19), apply_pending_channels
+    builds {BRIGHTNESS: v} not {POWER_STATE: v} — dS→HA direction silently broken."""
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+    mock_vdsd = MagicMock()
+    output_data = {
+        "name": "test-door",
+        "function": 0,      # ON_OFF — auto-creates BRIGHTNESS at dsIndex 0
+        "defaultGroup": 7,
+        "activeGroup": 7,
+        "groups": [7],
+        "channels": [
+            {"dsIndex": 0, "channelType": 19},  # POWER_STATE — not BRIGHTNESS
+        ],
+    }
+    api._add_output(mock_vdsd, output_data)
+    actual_output = mock_vdsd.set_output.call_args[0][0]
+
+    ch = actual_output.get_channel(0)
+    assert ch is not None
+    assert int(ch.channel_type) == 19, (
+        f"expected POWER_STATE (19), got {int(ch.channel_type)} — "
+        "auto-created BRIGHTNESS channel was not replaced"
+    )
