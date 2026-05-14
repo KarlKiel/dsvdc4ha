@@ -926,11 +926,24 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         btn = mapping.get("button", {})
         out = mapping.get("output", {})
 
-        if bi.get("sensor_function_choices"):
+        sfc = bi.get("sensor_function_choices")
+        if sfc == "any":
+            schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=_BINARY_INPUT_TYPE_OPTIONS))
+            )
+        elif sfc:
             schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
                 selector.SelectSelector(selector.SelectSelectorConfig(options=[
                     selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in bi["sensor_function_choices"]
+                    for v, lbl in sfc
+                ]))
+            )
+
+        if bi.get("group_choices"):
+            schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in bi["group_choices"]
                 ]))
             )
 
@@ -964,6 +977,19 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             )
             schema_dict[vol.Required("resolution", default=sen["resolution"])] = selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, step=0.01, mode="box")
+            )
+
+        suc = sen.get("sensor_usage_choices")
+        if suc == "any":
+            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=_SENSOR_USAGE_OPTIONS))
+            )
+        elif suc:
+            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in suc
+                ]))
             )
 
         if out.get("output_usage_choices"):
@@ -1024,7 +1050,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             vdsd["binary_inputs"] = [{
                 "dsIndex": 0,
                 "name": friendly_name,
-                "group": bi["group"],
+                "group": int(user_input.get("bi_group", bi["group"])),
                 "sensorFunction": sf,
                 "hardwiredFunction": sf,
                 "updateInterval": bi["update_interval"],
@@ -1043,7 +1069,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "name": friendly_name,
                 "group": s["group"],
                 "sensorType": st,
-                "sensorUsage": s["sensor_usage"],
+                "sensorUsage": int(user_input.get("sensor_usage", s["sensor_usage"])),
                 "min": float(user_input.get("min", s["min"])),
                 "max": float(user_input.get("max", s["max"])),
                 "resolution": float(user_input.get("resolution", s["resolution"])),
@@ -1273,11 +1299,23 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         btn = mapping.get("button", {})
         out = mapping.get("output", {})
 
-        if bi.get("sensor_function_choices"):
+        sfc = bi.get("sensor_function_choices")
+        if sfc == "any":
+            schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=_BINARY_INPUT_TYPE_OPTIONS))
+            )
+        elif sfc:
             schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
                 selector.SelectSelector(selector.SelectSelectorConfig(options=[
                     selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in bi["sensor_function_choices"]
+                    for v, lbl in sfc
+                ]))
+            )
+        if bi.get("group_choices"):
+            schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in bi["group_choices"]
                 ]))
             )
         if btn.get("group_choices"):
@@ -1311,6 +1349,18 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             )
             schema_dict[vol.Required("resolution", default=attrs.get("step", sen.get("resolution", 0.4)))] = (
                 selector.NumberSelector(selector.NumberSelectorConfig(min=0, step=0.01, mode="box"))
+            )
+        suc = sen.get("sensor_usage_choices")
+        if suc == "any":
+            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=_SENSOR_USAGE_OPTIONS))
+            )
+        elif suc:
+            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in suc
+                ]))
             )
         if out.get("output_usage_choices"):
             schema_dict[vol.Required("output_usage", default=str(out["output_usage"]))] = (
