@@ -448,10 +448,11 @@ class DsvdcApi:
             max_power=data.get("maxPower"),
         )
         for ch_data in data.get("channels", []):
-            OutputChannel(
-                output=output,
-                channel_type=OutputChannelType(ch_data["channelType"]),
-                ds_index=ch_data["dsIndex"],
+            ds_index = ch_data["dsIndex"]
+            output.remove_channel(ds_index)
+            output.add_channel(
+                OutputChannelType(ch_data["channelType"]),
+                ds_index=ds_index,
                 name=ch_data.get("name"),
                 min_value=ch_data.get("min"),
                 max_value=ch_data.get("max"),
