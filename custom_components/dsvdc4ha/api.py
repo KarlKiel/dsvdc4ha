@@ -77,7 +77,7 @@ class DsvdcApi:
         self._host: VdcHost | None = None
         self._vdc: Vdc | None = None
         self._devices: dict[str, Device] = {}  # entry_id → Device
-        self._pending_vanish: dict[str, Any] = {}  # entry_id → Device awaiting session to vanish
+        self._pending_vanish: dict[str, Device] = {}  # entry_id → Device awaiting session to vanish
 
     async def start(
         self,

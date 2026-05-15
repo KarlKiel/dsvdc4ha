@@ -319,9 +319,9 @@ def test_on_off_output_channel_type_replaced_correctly():
     )
 
 
-def test_vanish_without_session_queues_pending():
+@pytest.mark.asyncio
+async def test_vanish_without_session_queues_pending():
     """vanish_device with no session stores the device in _pending_vanish."""
-    import asyncio
     api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
 
     mock_device = MagicMock()
@@ -329,7 +329,7 @@ def test_vanish_without_session_queues_pending():
     api._vdc = MagicMock()
     # _host is None → no session
 
-    asyncio.get_event_loop().run_until_complete(api.vanish_device("sub1"))
+    await api.vanish_device("sub1")
 
     assert "sub1" not in api._devices
     assert api._pending_vanish.get("sub1") is mock_device
