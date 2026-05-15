@@ -1032,7 +1032,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             "vendorName": self._vendor_name,
             "modelVersion": "1.0",
             "modelUID": (self._vendor_name + self._display_id).replace(" ", ""),
-            "name": f"{self._device_name} — {friendly_name}",
+            "name": friendly_name,
             "active": True,
             "identify_action": None,
             "firmwareUpdate_action": None,
@@ -1245,7 +1245,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 cat_str = cat.value if cat is not None else None
                 entity_info = _EntityInfo(
                     entity_id=entry.entity_id,
-                    friendly_name=(state.name if state else entry.entity_id),
+                    friendly_name=(state.name or entry.entity_id) if state else entry.entity_id,
                     domain=domain,
                     device_class=device_class,
                     mapping=mapping,

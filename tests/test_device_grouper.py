@@ -186,8 +186,8 @@ def test_plan_naming_unique_groups():
     ]
     plans, _ = compute_vdsd_plan(entities, "My Device")
     names = {p.name for p in plans}
-    assert "My Device — Living Room Lamp" in names
-    assert "My Device — Bedroom Blind" in names
+    assert "Living Room Lamp" in names
+    assert "Bedroom Blind" in names
 
 
 def test_plan_naming_duplicate_entity_names_get_suffix():
@@ -197,8 +197,8 @@ def test_plan_naming_duplicate_entity_names_get_suffix():
     ]
     plans, _ = compute_vdsd_plan(entities, "My Device")
     names = [p.name for p in plans]
-    assert "My Device — Lamp 1" in names
-    assert "My Device — Lamp 2" in names
+    assert "Lamp 1" in names
+    assert "Lamp 2" in names
 
 
 def test_dual_component_entity_contributes_both_output_and_binary_input():

@@ -768,8 +768,8 @@ async def test_channel_mapping_step_shown_when_no_apply_expr():
 
 
 @pytest.mark.asyncio
-async def test_entity_flow_vdsd_name_combines_device_and_entity_name():
-    """_build_entity_vdsd_and_continue names the vdSD as '<device> — <entity>'."""
+async def test_entity_flow_vdsd_name_uses_entity_friendly_name():
+    """_build_entity_vdsd_and_continue names the vdSD with the entity's friendly name only."""
     flow = _make_switch_flow()
     flow._device_name = "Kitchen"
     state = MagicMock()
@@ -784,7 +784,7 @@ async def test_entity_flow_vdsd_name_combines_device_and_entity_name():
                           new=AsyncMock(return_value={"type": "form", "step_id": "entity_channel_mapping"})):
             await flow._build_entity_vdsd_and_continue({})
 
-    assert flow._current_vdsd["name"] == "Kitchen — Kitchen Switch"
+    assert flow._current_vdsd["name"] == "Kitchen Switch"
 
 
 @pytest.mark.asyncio
