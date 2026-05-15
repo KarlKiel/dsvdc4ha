@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN, PLATFORMS
@@ -72,7 +73,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await coordinator.api.announce_device(subentry.subentry_id)
 
     # React to entity enable/disable and deletion in the HA entity registry.
+    # Store in domain_data so the subentry delta listener can update it in-place.
     entity_index = _build_entity_index(entry)
+    hass.data[DOMAIN]["_entity_index"] = entity_index
+    hass.data[DOMAIN]["_known_subentry_ids"] = set(entry.subentries.keys())
 
     @callback
     def _on_entity_registry_updated(event: Event) -> None:
@@ -96,14 +100,62 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.bus.async_listen(er.EVENT_ENTITY_REGISTRY_UPDATED, _on_entity_registry_updated)
     )
 
-    # Reload when subentries change (device added / removed)
-    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    entry.async_on_unload(entry.add_update_listener(_async_subentry_update_listener))
 
     return True
 
 
-async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    await hass.config_entries.async_reload(entry.entry_id)
+async def _async_subentry_update_listener(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    domain_data = hass.data.get(DOMAIN, {})
+    coordinator: HubCoordinator | None = domain_data.get("hub")
+    if coordinator is None or coordinator.api is None:
+        return
+
+    known_ids: set[str] = domain_data.get("_known_subentry_ids", set())
+    current_ids = set(entry.subentries.keys())
+    removed = known_ids - current_ids
+    added = current_ids - known_ids
+
+    ent_reg = er.async_get(hass)
+    dev_reg = dr.async_get(hass)
+
+    for subentry_id in removed:
+        await coordinator.api.vanish_device(subentry_id)
+        ent_reg.async_clear_config_subentry(entry.entry_id, subentry_id)
+        dev_reg.async_clear_config_subentry(entry.entry_id, subentry_id)
+        subentry_data = domain_data.pop(subentry_id, {})
+        for unsub in subentry_data.get("unsubs", []):
+            unsub()
+
+    if added:
+        from .listeners import setup_input_listeners, setup_output_listeners, seed_initial_values
+        from . import sensor as _sensor_mod
+        from . import binary_sensor as _binary_sensor_mod
+
+        add_sensor = domain_data.get("_add_sensor_entities")
+        add_binary = domain_data.get("_add_binary_entities")
+
+        for subentry_id in added:
+            subentry = entry.subentries[subentry_id]
+            vdsds = subentry.data.get("vdsds", [])
+            coordinator.api.add_device(subentry_id, vdsds)
+            unsubs = setup_input_listeners(hass, coordinator.api, subentry_id, vdsds)
+            unsubs += setup_output_listeners(hass, coordinator.api, subentry_id, vdsds)
+            domain_data[subentry_id] = {"unsubs": unsubs}
+            await seed_initial_values(hass, coordinator.api, subentry_id, vdsds)
+            await coordinator.api.announce_device(subentry_id)
+            if add_sensor:
+                _sensor_mod._add_entities_for_subentry(subentry, add_sensor)
+            if add_binary:
+                _binary_sensor_mod._add_entities_for_subentry(subentry, add_binary)
+
+    if removed or added:
+        entity_index: dict = domain_data.get("_entity_index", {})
+        entity_index.clear()
+        entity_index.update(_build_entity_index(entry))
+        domain_data["_known_subentry_ids"] = current_ids
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
