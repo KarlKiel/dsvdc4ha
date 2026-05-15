@@ -27,7 +27,8 @@ async def async_setup_entry(
 
 
 def _add_entities_for_subentry(
-    subentry: Any, async_add_entities: AddConfigEntryEntitiesCallback
+    subentry: Any,  # ConfigSubEntry is not yet exported by HA's public API
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     entities: list[DsvdcBaseEntity] = []
     for idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):

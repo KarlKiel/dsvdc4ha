@@ -27,7 +27,8 @@ async def async_setup_entry(
 
 
 def _add_entities_for_subentry(
-    subentry: Any, async_add_entities: AddConfigEntryEntitiesCallback
+    subentry: Any,  # ConfigSubEntry is not yet exported by HA's public API
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     entities: list[DsvdcBaseEntity] = []
     for idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):
@@ -37,9 +38,7 @@ def _add_entities_for_subentry(
             entities.append(SensorInputEntity(subentry.subentry_id, idx, vdsd_data, si))
         if output := vdsd_data.get("output"):
             for ch in output.get("channels", []):
-                entities.append(
-                    OutputChannelEntity(subentry.subentry_id, idx, vdsd_data, output, ch)
-                )
+                entities.append(OutputChannelEntity(subentry.subentry_id, idx, vdsd_data, output, ch))
     async_add_entities(entities, config_subentry_id=subentry.subentry_id)
 
 
