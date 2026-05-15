@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import asyncio
-import cairosvg
 import logging
+import re
 import socket
 from pathlib import Path
 from typing import Any
@@ -788,6 +788,10 @@ async def _fetch_mdi_icon_b64(hass: Any, icon_slug: str) -> str | None:
     """Fetch MDI SVG from CDN, render to 16x16 PNG, return base64 string or None."""
     import aiohttp
     import base64
+    import cairosvg
+
+    if not isinstance(icon_slug, str) or not re.fullmatch(r'[a-z0-9\-]+', icon_slug):
+        return None
 
     svg_bytes = _MDI_SVG_CACHE.get(icon_slug)
     if svg_bytes is None:
