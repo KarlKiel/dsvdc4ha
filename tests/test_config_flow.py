@@ -920,7 +920,7 @@ async def test_resolve_entity_icon_uses_mdi_icon_attribute():
 
     with patch("custom_components.dsvdc4ha.config_flow.async_get_clientsession",
                return_value=mock_session):
-        with patch("cairosvg.svg2png", return_value=fake_png):
+        with patch("custom_components.dsvdc4ha.config_flow.cairosvg.svg2png", return_value=fake_png):
             icon_name, b64 = await flow._resolve_entity_icon("switch.kitchen")
 
     assert icon_name == "switch_kitchen"
@@ -962,7 +962,7 @@ async def test_resolve_entity_icon_uses_domain_fallback_when_no_explicit_icon():
 
     with patch("custom_components.dsvdc4ha.config_flow.async_get_clientsession",
                return_value=mock_session):
-        with patch("cairosvg.svg2png", return_value=fake_png):
+        with patch("custom_components.dsvdc4ha.config_flow.cairosvg.svg2png", return_value=fake_png):
             icon_name, b64 = await flow._resolve_entity_icon("light.lamp")
 
     assert icon_name == "light_lamp"

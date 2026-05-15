@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import cairosvg
 import logging
 import socket
 from pathlib import Path
@@ -803,8 +804,6 @@ async def _fetch_mdi_icon_b64(hass: Any, icon_slug: str) -> str | None:
             return None
 
     try:
-        import cairosvg
-
         def _svg_to_png(svg: bytes) -> bytes:
             return cairosvg.svg2png(bytestring=svg, output_width=16, output_height=16)
 
@@ -880,23 +879,21 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 async with session.get(
                     picture_url, timeout=aiohttp.ClientTimeout(total=5)
                 ) as resp:
-                    if resp.status != 200:
-                        return icon_name, None
-                    raw = await resp.read()
+                    if resp.status == 200:
+                        raw = await resp.read()
 
-                def _resize(data: bytes) -> bytes:
-                    img = Image.open(io.BytesIO(data)).convert("RGBA").resize(
-                        (16, 16), Image.LANCZOS
-                    )
-                    out = io.BytesIO()
-                    img.save(out, format="PNG")
-                    return out.getvalue()
+                        def _resize(data: bytes) -> bytes:
+                            img = Image.open(io.BytesIO(data)).convert("RGBA").resize(
+                                (16, 16), Image.LANCZOS
+                            )
+                            out = io.BytesIO()
+                            img.save(out, format="PNG")
+                            return out.getvalue()
 
-                resized = await self.hass.async_add_executor_job(_resize, raw)
-                return icon_name, base64.b64encode(resized).decode()
+                        resized = await self.hass.async_add_executor_job(_resize, raw)
+                        return icon_name, base64.b64encode(resized).decode()
             except Exception:
                 _LOGGER.debug("Failed to resolve icon for %s from entity_picture", entity_id, exc_info=True)
-                return icon_name, None
 
         # Path 2: MDI icon (explicit attribute or domain/device_class fallback)
         mdi_name = _mdi_icon_name_for(state, entity_id)
