@@ -11,7 +11,8 @@
       "Bash(git -C /home/arne/Development/dsvdc4ha commit -m \"docs: add plan for MDI icon resolution\")",
       "Bash(git -C /home/arne/Development/dsvdc4ha add custom_components/dsvdc4ha/config_flow.py custom_components/dsvdc4ha/manifest.json tests/test_config_flow.py)",
       "Bash(git -C /home/arne/Development/dsvdc4ha log --oneline main..HEAD)",
-      "Bash(git -C /home/arne/Development/dsvdc4ha diff HEAD custom_components/dsvdc4ha/config_flow.py)"
+      "Bash(git -C /home/arne/Development/dsvdc4ha diff HEAD custom_components/dsvdc4ha/config_flow.py)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }
