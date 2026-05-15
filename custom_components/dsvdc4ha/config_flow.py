@@ -2,11 +2,17 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 import re
 import socket
 from pathlib import Path
 from typing import Any
+
+try:
+    import cairosvg as _cairosvg
+except (ImportError, OSError):
+    _cairosvg = None
 
 import voluptuous as vol
 from homeassistant import config_entries
@@ -787,8 +793,9 @@ def _mdi_icon_name_for(state: Any, entity_id: str) -> str | None:
 async def _fetch_mdi_icon_b64(hass: Any, icon_slug: str) -> str | None:
     """Fetch MDI SVG from CDN, render to 16x16 PNG, return base64 string or None."""
     import aiohttp
-    import base64
-    import cairosvg
+
+    if _cairosvg is None:
+        return None
 
     if not isinstance(icon_slug, str) or not re.fullmatch(r'[a-z0-9\-]+', icon_slug):
         return None
@@ -809,7 +816,7 @@ async def _fetch_mdi_icon_b64(hass: Any, icon_slug: str) -> str | None:
 
     try:
         def _svg_to_png(svg: bytes) -> bytes:
-            return cairosvg.svg2png(bytestring=svg, output_width=16, output_height=16)
+            return _cairosvg.svg2png(bytestring=svg, output_width=16, output_height=16)
 
         png_bytes = await hass.async_add_executor_job(_svg_to_png, svg_bytes)
         return base64.b64encode(png_bytes).decode()
