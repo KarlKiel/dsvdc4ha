@@ -851,6 +851,215 @@ async def test_entity_flow_fetches_icon_when_entity_picture_available():
 
 
 # ---------------------------------------------------------------------------
+# MDI icon resolution tests
+# ---------------------------------------------------------------------------
+
+def test_mdi_icon_name_for_returns_explicit_mdi_icon():
+    """_mdi_icon_name_for returns the slug from an explicit mdi: icon attribute."""
+    from custom_components.dsvdc4ha.config_flow import _mdi_icon_name_for
+    state = MagicMock()
+    state.attributes = {"icon": "mdi:toggle-switch-variant"}
+    assert _mdi_icon_name_for(state, "switch.kitchen") == "toggle-switch-variant"
+
+
+def test_mdi_icon_name_for_returns_domain_fallback():
+    """_mdi_icon_name_for falls back to domain lookup when no icon attribute."""
+    from custom_components.dsvdc4ha.config_flow import _mdi_icon_name_for
+    state = MagicMock()
+    state.attributes = {}
+    assert _mdi_icon_name_for(state, "light.lamp") == "lightbulb"
+
+
+def test_mdi_icon_name_for_returns_device_class_fallback():
+    """_mdi_icon_name_for uses domain.device_class lookup when no icon attribute."""
+    from custom_components.dsvdc4ha.config_flow import _mdi_icon_name_for
+    state = MagicMock()
+    state.attributes = {"device_class": "blind"}
+    assert _mdi_icon_name_for(state, "cover.bedroom_blind") == "blinds"
+
+
+def test_mdi_icon_name_for_returns_none_for_unknown_domain():
+    """_mdi_icon_name_for returns None for unsupported domains."""
+    from custom_components.dsvdc4ha.config_flow import _mdi_icon_name_for
+    state = MagicMock()
+    state.attributes = {}
+    assert _mdi_icon_name_for(state, "weather.home") is None
+
+
+@pytest.mark.asyncio
+async def test_resolve_entity_icon_uses_mdi_icon_attribute():
+    """_resolve_entity_icon returns a PNG when the entity has an explicit mdi: icon."""
+    import base64, io
+    from PIL import Image
+    from custom_components.dsvdc4ha.config_flow import _MDI_SVG_CACHE
+
+    _MDI_SVG_CACHE.clear()
+
+    flow = _make_switch_flow()
+    state = MagicMock()
+    state.attributes = {"icon": "mdi:lightbulb"}
+    flow.hass.states.get.return_value = state
+
+    fake_svg = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2Z"/></svg>'
+    buf = io.BytesIO()
+    Image.new("RGBA", (16, 16), (0, 0, 0, 255)).save(buf, format="PNG")
+    fake_png = buf.getvalue()
+
+    mock_response = AsyncMock()
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.__aexit__ = AsyncMock(return_value=False)
+    mock_response.status = 200
+    mock_response.read = AsyncMock(return_value=fake_svg)
+    mock_session = MagicMock()
+    mock_session.get.return_value = mock_response
+
+    async def mock_executor_job(func, data):
+        return func(data)
+
+    flow.hass.async_add_executor_job = AsyncMock(side_effect=mock_executor_job)
+
+    with patch("custom_components.dsvdc4ha.config_flow.async_get_clientsession",
+               return_value=mock_session):
+        with patch("cairosvg.svg2png", return_value=fake_png):
+            icon_name, b64 = await flow._resolve_entity_icon("switch.kitchen")
+
+    assert icon_name == "switch_kitchen"
+    assert b64 is not None
+    assert base64.b64decode(b64)[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+@pytest.mark.asyncio
+async def test_resolve_entity_icon_uses_domain_fallback_when_no_explicit_icon():
+    """_resolve_entity_icon returns a PNG via domain fallback when entity has no icon attr."""
+    import base64, io
+    from PIL import Image
+    from custom_components.dsvdc4ha.config_flow import _MDI_SVG_CACHE
+
+    _MDI_SVG_CACHE.clear()
+
+    flow = _make_switch_flow()
+    state = MagicMock()
+    state.attributes = {}
+    flow.hass.states.get.return_value = state
+
+    fake_svg = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2Z"/></svg>'
+    buf = io.BytesIO()
+    Image.new("RGBA", (16, 16), (255, 255, 0, 255)).save(buf, format="PNG")
+    fake_png = buf.getvalue()
+
+    mock_response = AsyncMock()
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.__aexit__ = AsyncMock(return_value=False)
+    mock_response.status = 200
+    mock_response.read = AsyncMock(return_value=fake_svg)
+    mock_session = MagicMock()
+    mock_session.get.return_value = mock_response
+
+    async def mock_executor_job(func, data):
+        return func(data)
+
+    flow.hass.async_add_executor_job = AsyncMock(side_effect=mock_executor_job)
+
+    with patch("custom_components.dsvdc4ha.config_flow.async_get_clientsession",
+               return_value=mock_session):
+        with patch("cairosvg.svg2png", return_value=fake_png):
+            icon_name, b64 = await flow._resolve_entity_icon("light.lamp")
+
+    assert icon_name == "light_lamp"
+    assert b64 is not None
+    assert base64.b64decode(b64)[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+@pytest.mark.asyncio
+async def test_resolve_entity_icon_returns_none_when_mdi_cdn_unreachable():
+    """_resolve_entity_icon returns None gracefully when the MDI CDN fetch fails."""
+    from custom_components.dsvdc4ha.config_flow import _MDI_SVG_CACHE
+
+    _MDI_SVG_CACHE.clear()
+
+    flow = _make_switch_flow()
+    state = MagicMock()
+    state.attributes = {"icon": "mdi:lightbulb"}
+    flow.hass.states.get.return_value = state
+
+    mock_session = MagicMock()
+    mock_session.get.side_effect = Exception("Connection refused")
+
+    with patch("custom_components.dsvdc4ha.config_flow.async_get_clientsession",
+               return_value=mock_session):
+        icon_name, b64 = await flow._resolve_entity_icon("switch.kitchen")
+
+    assert icon_name == "switch_kitchen"
+    assert b64 is None
+
+
+@pytest.mark.asyncio
+async def test_resolve_entity_icon_falls_through_to_mdi_when_entity_picture_returns_non200():
+    """_resolve_entity_icon tries MDI when entity_picture fetch returns a non-200 status."""
+    import base64, io
+    from PIL import Image
+    from custom_components.dsvdc4ha.config_flow import _MDI_SVG_CACHE
+
+    _MDI_SVG_CACHE.clear()
+
+    flow = _make_switch_flow()
+    # Entity has entity_picture that returns 404 AND an explicit MDI icon
+    state = MagicMock()
+    state.attributes = {
+        "entity_picture": "/api/camera_proxy/broken",
+        "icon": "mdi:lightbulb",
+    }
+    flow.hass.states.get.return_value = state
+    flow.hass.config.api = MagicMock()
+    flow.hass.config.api.base_url = "http://localhost:8123"
+
+    # entity_picture fetch returns 404
+    mock_picture_response = AsyncMock()
+    mock_picture_response.__aenter__ = AsyncMock(return_value=mock_picture_response)
+    mock_picture_response.__aexit__ = AsyncMock(return_value=False)
+    mock_picture_response.status = 404
+
+    # MDI SVG fetch returns fake SVG
+    fake_svg = b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12,2A10,10 0 0,1 22,12Z"/></svg>'
+    buf = io.BytesIO()
+    Image.new("RGBA", (16, 16), (0, 0, 0, 255)).save(buf, format="PNG")
+    fake_png = buf.getvalue()
+
+    mock_svg_response = AsyncMock()
+    mock_svg_response.__aenter__ = AsyncMock(return_value=mock_svg_response)
+    mock_svg_response.__aexit__ = AsyncMock(return_value=False)
+    mock_svg_response.status = 200
+    mock_svg_response.read = AsyncMock(return_value=fake_svg)
+
+    call_count = 0
+
+    def make_get(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return mock_picture_response  # entity_picture → 404
+        return mock_svg_response  # MDI SVG → 200
+
+    mock_session = MagicMock()
+    mock_session.get.side_effect = make_get
+
+    async def mock_executor_job(func, data):
+        return func(data)
+
+    flow.hass.async_add_executor_job = AsyncMock(side_effect=mock_executor_job)
+
+    with patch("custom_components.dsvdc4ha.config_flow.async_get_clientsession",
+               return_value=mock_session):
+        with patch("cairosvg.svg2png",
+                   return_value=fake_png):
+            icon_name, b64 = await flow._resolve_entity_icon("switch.kitchen")
+
+    assert icon_name == "switch_kitchen"
+    assert b64 is not None
+    assert base64.b64decode(b64)[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+# ---------------------------------------------------------------------------
 # Entity-completion screen and multi-entity flow tests
 # ---------------------------------------------------------------------------
 
