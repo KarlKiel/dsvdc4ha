@@ -77,6 +77,7 @@ class DsvdcApi:
         self._host: VdcHost | None = None
         self._vdc: Vdc | None = None
         self._devices: dict[str, Device] = {}  # entry_id → Device
+        self._pending_vanish: dict[str, Any] = {}  # entry_id → Device awaiting session to vanish
 
     async def start(
         self,
@@ -101,13 +102,16 @@ class DsvdcApi:
         host, vdc = await asyncio.to_thread(self._build_host_and_vdc)
         self._host = host
         self._vdc = vdc
-        if on_session_ready is not None:
-            _orig = host._on_session_ready
-            _cb = on_session_ready
-            async def _hooked(session) -> None:
-                await _orig(session)
+        _orig_session_ready = host._on_session_ready
+        _cb = on_session_ready
+
+        async def _hooked(session) -> None:
+            await self._flush_pending_vanish(session)
+            await _orig_session_ready(session)
+            if _cb is not None:
                 _cb()
-            host._on_session_ready = _hooked
+
+        host._on_session_ready = _hooked
         if zeroconf is not None:
             await host.start(announce=False)
             await self._register_zeroconf(host, zeroconf)
@@ -461,16 +465,37 @@ class DsvdcApi:
         vdsd.set_output(output)
 
     async def vanish_device(self, entry_id: str) -> None:
-        """Vanish and remove a device from dS."""
+        """Vanish and remove a device from dS.
+
+        If no session is active the vanish message cannot be sent now;
+        the Device is kept in _pending_vanish and flushed on the next
+        session-ready event.
+        """
         if device := self._devices.pop(entry_id, None):
             if self._host and self._host.session:
                 await device.vanish(self._host.session)
+            else:
+                self._pending_vanish[entry_id] = device
             if self._vdc:
                 dsuid = self._build_device_dsuid(entry_id)
                 self._vdc.remove_device(dsuid)
 
+    async def _flush_pending_vanish(self, session: Any) -> None:
+        """Send VDC_SEND_VANISH for all devices deleted while session was down."""
+        for entry_id in list(self._pending_vanish):
+            device = self._pending_vanish.pop(entry_id)
+            try:
+                await device.vanish(session)
+            except Exception:
+                _LOGGER.warning("Failed to vanish pending device %s", entry_id, exc_info=True)
+
     def get_device(self, entry_id: str) -> Device | None:
         return self._devices.get(entry_id)
+
+    @property
+    def registered_entry_ids(self) -> set[str]:
+        """Set of entry_ids currently tracked by this API."""
+        return set(self._devices.keys())
 
     async def set_vdsd_active(self, entry_id: str, vdsd_idx: int, active: bool) -> None:
         """Set the active flag on a single vdSD and push to DSS if connected.
