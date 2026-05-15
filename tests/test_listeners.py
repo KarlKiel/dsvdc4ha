@@ -149,6 +149,103 @@ def test_push_expr_fallback_to_float_state():
     api.report_channel_value.assert_called_once_with(mock_ch, 75.0)
 
 
+def _make_bi_vdsd(bi_obj):
+    """Helper: build the API / device mock stack for a binary-input seed test."""
+    api = MagicMock()
+    device = MagicMock()
+    vdsd = MagicMock()
+    vdsd.output = None
+    vdsd.get_binary_input.return_value = bi_obj
+    device.get_vdsd.return_value = vdsd
+    api.get_device.return_value = device
+    return api
+
+
+@pytest.mark.asyncio
+async def test_seed_binary_input_on_state_seeds_true():
+    """'on' state → update_value(True, session=None)."""
+    bi = MagicMock()
+    bi.update_value = AsyncMock()
+    bi.update_extended_value = AsyncMock()
+
+    hass = MagicMock()
+    state = MagicMock()
+    state.state = "on"
+    hass.states.get.return_value = state
+
+    vdsd_data = [{"binary_inputs": [{"dsIndex": 0, "callback_entity": "binary_sensor.motion",
+                                      "valueType": "boolean"}]}]
+    await seed_initial_values(hass, _make_bi_vdsd(bi), "e1", vdsd_data)
+    bi.update_value.assert_awaited_once_with(True, session=None)
+    bi.update_extended_value.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_seed_binary_input_off_state_seeds_false():
+    """'off' state → update_value(False, session=None)."""
+    bi = MagicMock()
+    bi.update_value = AsyncMock()
+
+    hass = MagicMock()
+    state = MagicMock()
+    state.state = "off"
+    hass.states.get.return_value = state
+
+    vdsd_data = [{"binary_inputs": [{"dsIndex": 0, "callback_entity": "binary_sensor.door",
+                                      "valueType": "boolean"}]}]
+    await seed_initial_values(hass, _make_bi_vdsd(bi), "e1", vdsd_data)
+    bi.update_value.assert_awaited_once_with(False, session=None)
+
+
+@pytest.mark.asyncio
+async def test_seed_binary_input_integer_type_uses_extended_value():
+    """valueType='integer' → update_extended_value with int cast of state."""
+    bi = MagicMock()
+    bi.update_value = AsyncMock()
+    bi.update_extended_value = AsyncMock()
+
+    hass = MagicMock()
+    state = MagicMock()
+    state.state = "2"
+    hass.states.get.return_value = state
+
+    vdsd_data = [{"binary_inputs": [{"dsIndex": 0, "callback_entity": "sensor.handle",
+                                      "valueType": "integer"}]}]
+    await seed_initial_values(hass, _make_bi_vdsd(bi), "e1", vdsd_data)
+    bi.update_extended_value.assert_awaited_once_with(2, session=None)
+    bi.update_value.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_seed_binary_input_skipped_when_state_unavailable():
+    """'unavailable' state → binary input is NOT seeded (value stays unknown)."""
+    bi = MagicMock()
+    bi.update_value = AsyncMock()
+
+    hass = MagicMock()
+    state = MagicMock()
+    state.state = "unavailable"
+    hass.states.get.return_value = state
+
+    vdsd_data = [{"binary_inputs": [{"dsIndex": 0, "callback_entity": "binary_sensor.door",
+                                      "valueType": "boolean"}]}]
+    await seed_initial_values(hass, _make_bi_vdsd(bi), "e1", vdsd_data)
+    bi.update_value.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_seed_binary_input_skipped_when_no_callback_entity():
+    """No callback_entity → binary input is NOT seeded."""
+    bi = MagicMock()
+    bi.update_value = AsyncMock()
+
+    hass = MagicMock()
+
+    vdsd_data = [{"binary_inputs": [{"dsIndex": 0, "valueType": "boolean"}]}]
+    await seed_initial_values(hass, _make_bi_vdsd(bi), "e1", vdsd_data)
+    bi.update_value.assert_not_awaited()
+
+
 @pytest.mark.asyncio
 async def test_apply_expr_calls_ha_service():
     """apply_expr is eval'd with channel value and correct HA service is called."""

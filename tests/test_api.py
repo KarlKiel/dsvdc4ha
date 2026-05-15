@@ -317,3 +317,55 @@ def test_on_off_output_channel_type_replaced_correctly():
         f"expected POWER_STATE (19), got {int(ch.channel_type)} — "
         "auto-created BRIGHTNESS channel was not replaced"
     )
+
+
+@pytest.mark.asyncio
+async def test_vanish_without_session_queues_pending():
+    """vanish_device with no session stores the device in _pending_vanish."""
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+
+    mock_device = MagicMock()
+    api._devices["sub1"] = mock_device
+    api._vdc = MagicMock()
+    # _host is None → no session
+
+    await api.vanish_device("sub1")
+
+    assert "sub1" not in api._devices
+    assert api._pending_vanish.get("sub1") is mock_device
+    api._vdc.remove_device.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_flush_pending_vanish_sends_and_clears():
+    """_flush_pending_vanish calls device.vanish for each pending entry then clears."""
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+
+    mock_device = MagicMock()
+    mock_device.vanish = AsyncMock()
+    api._pending_vanish["sub1"] = mock_device
+
+    mock_session = MagicMock()
+    await api._flush_pending_vanish(mock_session)
+
+    mock_device.vanish.assert_awaited_once_with(mock_session)
+    assert "sub1" not in api._pending_vanish
+
+
+@pytest.mark.asyncio
+async def test_flush_pending_vanish_skips_failed_and_continues():
+    """_flush_pending_vanish continues if one device.vanish raises."""
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+
+    bad_device = MagicMock()
+    bad_device.vanish = AsyncMock(side_effect=Exception("boom"))
+    good_device = MagicMock()
+    good_device.vanish = AsyncMock()
+    api._pending_vanish["bad"] = bad_device
+    api._pending_vanish["good"] = good_device
+
+    mock_session = MagicMock()
+    await api._flush_pending_vanish(mock_session)  # must not raise
+
+    good_device.vanish.assert_awaited_once_with(mock_session)
+    assert not api._pending_vanish  # both cleared

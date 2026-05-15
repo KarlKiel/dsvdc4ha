@@ -187,6 +187,25 @@ async def seed_initial_values(
             if value is None:
                 value = si.min_value
             await si.update_value(value=value, session=None)
+        for bi_data in vdsd_data.get("binary_inputs", []):
+            bi = vdsd.get_binary_input(bi_data["dsIndex"])
+            if not bi:
+                continue
+            entity_id = bi_data.get("callback_entity")
+            if not entity_id:
+                continue
+            state = hass.states.get(entity_id)
+            if not state or state.state in ("unknown", "unavailable"):
+                continue
+            is_bool = bi_data.get("valueType", "boolean") == "boolean"
+            if is_bool:
+                await bi.update_value(state.state in ("on", "true", "1", "True"), session=None)
+            else:
+                try:
+                    await bi.update_extended_value(int(float(state.state)), session=None)
+                except ValueError:
+                    pass
+
         output_data = vdsd_data.get("output")
         if not output_data or not vdsd.output:
             continue

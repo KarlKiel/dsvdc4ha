@@ -280,3 +280,54 @@ def test_unrelated_entity_change_ignored():
     _fire(_on, "update", "light.other", changes={"disabled_by": None})
 
     hass.async_create_task.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_vanish_deleted_devices_vanishes_diff():
+    """_vanish_deleted_devices vanishes entry_ids in api but not in entry.subentries."""
+    from custom_components.dsvdc4ha import _vanish_deleted_devices
+
+    api = MagicMock()
+    api.registered_entry_ids = {"sub_kept", "sub_deleted"}
+    api.vanish_device = AsyncMock()
+
+    coordinator = MagicMock()
+    coordinator.api = api
+
+    entry = _make_entry([{"subentry_id": "sub_kept", "data": {}}])
+
+    await _vanish_deleted_devices(coordinator, entry)
+
+    api.vanish_device.assert_awaited_once_with("sub_deleted")
+
+
+@pytest.mark.asyncio
+async def test_vanish_deleted_devices_noop_when_api_is_none():
+    """_vanish_deleted_devices does nothing when coordinator.api is None."""
+    from custom_components.dsvdc4ha import _vanish_deleted_devices
+
+    coordinator = MagicMock()
+    coordinator.api = None
+
+    entry = _make_entry([{"subentry_id": "sub1", "data": {}}])
+
+    await _vanish_deleted_devices(coordinator, entry)  # must not raise
+
+
+@pytest.mark.asyncio
+async def test_vanish_deleted_devices_noop_when_no_deletions():
+    """_vanish_deleted_devices does nothing when entry matches api devices."""
+    from custom_components.dsvdc4ha import _vanish_deleted_devices
+
+    api = MagicMock()
+    api.registered_entry_ids = {"sub1"}
+    api.vanish_device = AsyncMock()
+
+    coordinator = MagicMock()
+    coordinator.api = api
+
+    entry = _make_entry([{"subentry_id": "sub1", "data": {}}])
+
+    await _vanish_deleted_devices(coordinator, entry)
+
+    api.vanish_device.assert_not_awaited()
