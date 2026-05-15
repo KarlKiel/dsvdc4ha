@@ -745,6 +745,77 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 # ---------------------------------------------------------------------------
+# MDI icon resolution helpers
+# ---------------------------------------------------------------------------
+
+_MDI_DOMAIN_ICONS: dict[str, str] = {
+    "light": "lightbulb",
+    "switch": "toggle-switch-variant",
+    "cover": "window-shutter",
+    "cover.awning": "awning",
+    "cover.blind": "blinds",
+    "cover.curtain": "curtains",
+    "cover.door": "door",
+    "cover.garage": "garage",
+    "cover.gate": "gate",
+    "cover.shutter": "window-shutter",
+    "binary_sensor": "radiobox-blank",
+    "sensor": "eye",
+    "event": "calendar-star",
+    "number": "ray-vertex",
+    "lock": "lock",
+}
+
+_MDI_SVG_CACHE: dict[str, bytes] = {}
+
+
+def _mdi_icon_name_for(state: Any, entity_id: str) -> str | None:
+    """Return the MDI icon slug for an entity state, or None if not resolvable."""
+    icon: str | None = state.attributes.get("icon")
+    if icon and icon.startswith("mdi:"):
+        return icon[4:]
+    domain = entity_id.split(".")[0]
+    device_class: str | None = state.attributes.get("device_class")
+    if device_class:
+        result = _MDI_DOMAIN_ICONS.get(f"{domain}.{device_class}")
+        if result:
+            return result
+    return _MDI_DOMAIN_ICONS.get(domain)
+
+
+async def _fetch_mdi_icon_b64(hass: Any, icon_slug: str) -> str | None:
+    """Fetch MDI SVG from CDN, render to 16x16 PNG, return base64 string or None."""
+    import aiohttp
+    import base64
+
+    svg_bytes = _MDI_SVG_CACHE.get(icon_slug)
+    if svg_bytes is None:
+        try:
+            url = f"https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/{icon_slug}.svg"
+            session = async_get_clientsession(hass)
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status != 200:
+                    return None
+                svg_bytes = await resp.read()
+            _MDI_SVG_CACHE[icon_slug] = svg_bytes
+        except Exception:
+            _LOGGER.debug("Failed to fetch MDI icon %s", icon_slug, exc_info=True)
+            return None
+
+    try:
+        import cairosvg
+
+        def _svg_to_png(svg: bytes) -> bytes:
+            return cairosvg.svg2png(bytestring=svg, output_width=16, output_height=16)
+
+        png_bytes = await hass.async_add_executor_job(_svg_to_png, svg_bytes)
+        return base64.b64encode(png_bytes).decode()
+    except Exception:
+        _LOGGER.debug("Failed to render MDI icon %s to PNG", icon_slug, exc_info=True)
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Device subentry flow — handles both "from entity" and "from scratch" paths
 # ---------------------------------------------------------------------------
 
@@ -782,7 +853,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         """Return (icon_name, base64_16x16_png_or_None) for an entity.
 
         icon_name is entity_id with dots replaced by underscores.
-        Fetches entity_picture if available and resizes to 16x16 PNG.
+        Tries entity_picture first, then MDI icon attribute, then domain fallback.
         Returns None for b64 on any failure.
         """
         import base64
@@ -793,40 +864,47 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         if state is None:
             return icon_name, None
 
+        # Path 1: entity_picture (camera snapshots, custom pictures)
         picture_url: str | None = state.attributes.get("entity_picture")
-        if not picture_url:
+        if picture_url:
+            try:
+                from PIL import Image
+                import aiohttp
+
+                if not (picture_url.startswith("http") or picture_url.startswith("//")):
+                    api_cfg = getattr(self.hass.config, "api", None)
+                    base = str(api_cfg.base_url).rstrip("/") if api_cfg else "http://localhost:8123"
+                    picture_url = f"{base}{picture_url}"
+
+                session = async_get_clientsession(self.hass)
+                async with session.get(
+                    picture_url, timeout=aiohttp.ClientTimeout(total=5)
+                ) as resp:
+                    if resp.status != 200:
+                        return icon_name, None
+                    raw = await resp.read()
+
+                def _resize(data: bytes) -> bytes:
+                    img = Image.open(io.BytesIO(data)).convert("RGBA").resize(
+                        (16, 16), Image.LANCZOS
+                    )
+                    out = io.BytesIO()
+                    img.save(out, format="PNG")
+                    return out.getvalue()
+
+                resized = await self.hass.async_add_executor_job(_resize, raw)
+                return icon_name, base64.b64encode(resized).decode()
+            except Exception:
+                _LOGGER.debug("Failed to resolve icon for %s from entity_picture", entity_id, exc_info=True)
+                return icon_name, None
+
+        # Path 2: MDI icon (explicit attribute or domain/device_class fallback)
+        mdi_name = _mdi_icon_name_for(state, entity_id)
+        if mdi_name is None:
             return icon_name, None
 
-        try:
-            from PIL import Image
-            import aiohttp
-
-            if not (picture_url.startswith("http") or picture_url.startswith("//")):
-                api_cfg = getattr(self.hass.config, "api", None)
-                base = str(api_cfg.base_url).rstrip("/") if api_cfg else "http://localhost:8123"
-                picture_url = f"{base}{picture_url}"
-
-            session = async_get_clientsession(self.hass)
-            async with session.get(
-                picture_url, timeout=aiohttp.ClientTimeout(total=5)
-            ) as resp:
-                if resp.status != 200:
-                    return icon_name, None
-                raw = await resp.read()
-
-            def _resize(data: bytes) -> bytes:
-                img = Image.open(io.BytesIO(data)).convert("RGBA").resize(
-                    (16, 16), Image.LANCZOS
-                )
-                out = io.BytesIO()
-                img.save(out, format="PNG")
-                return out.getvalue()
-
-            resized = await self.hass.async_add_executor_job(_resize, raw)
-            return icon_name, base64.b64encode(resized).decode()
-        except Exception:
-            _LOGGER.debug("Failed to resolve icon for %s", entity_id, exc_info=True)
-            return icon_name, None
+        b64 = await _fetch_mdi_icon_b64(self.hass, mdi_name)
+        return icon_name, b64
 
     async def async_step_user(self, user_input: dict | None = None):
         return await self.async_step_creation_mode(user_input)
