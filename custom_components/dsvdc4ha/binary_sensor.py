@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -20,13 +21,23 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
+    hass.data.setdefault(DOMAIN, {})["_add_binary_entities"] = async_add_entities
     for subentry in entry.subentries.values():
-        entities: list[DsvdcBaseEntity] = []
-        for idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):
-            for bi in vdsd_data.get("binary_inputs", []):
-                if bi.get("valueType") == "boolean":
-                    entities.append(BinaryInputEntity(subentry.subentry_id, idx, vdsd_data, bi))
-        async_add_entities(entities, config_subentry_id=subentry.subentry_id)
+        _add_entities_for_subentry(subentry, async_add_entities)
+
+
+def _add_entities_for_subentry(
+    subentry: Any,  # ConfigSubEntry is not yet exported by HA's public API
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    entities: list[DsvdcBaseEntity] = []
+    for idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):
+        for bi in vdsd_data.get("binary_inputs", []):
+            if bi.get("valueType") == "boolean":
+                entities.append(
+                    BinaryInputEntity(subentry.subentry_id, idx, vdsd_data, bi)
+                )
+    async_add_entities(entities, config_subentry_id=subentry.subentry_id)
 
 
 class BinaryInputEntity(DsvdcBaseEntity, BinarySensorEntity):

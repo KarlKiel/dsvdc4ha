@@ -283,51 +283,125 @@ def test_unrelated_entity_change_ignored():
 
 
 @pytest.mark.asyncio
-async def test_vanish_deleted_devices_vanishes_diff():
-    """_vanish_deleted_devices vanishes entry_ids in api but not in entry.subentries."""
-    from custom_components.dsvdc4ha import _vanish_deleted_devices
+async def test_subentry_listener_removes_device_on_deletion():
+    """Delta listener vanishes a removed subentry's device and clears HA registry entries."""
+    from custom_components.dsvdc4ha import _async_subentry_update_listener
 
     api = MagicMock()
-    api.registered_entry_ids = {"sub_kept", "sub_deleted"}
     api.vanish_device = AsyncMock()
-
     coordinator = MagicMock()
     coordinator.api = api
 
-    entry = _make_entry([{"subentry_id": "sub_kept", "data": {}}])
+    hass = MagicMock()
+    hass.data = {
+        "dsvdc4ha": {
+            "hub": coordinator,
+            "_known_subentry_ids": {"sub_a", "sub_b"},
+            "sub_b": {"unsubs": []},
+        }
+    }
+    entry = _make_entry([{"subentry_id": "sub_a", "data": {}}])
+    entry.entry_id = "entry1"
 
-    await _vanish_deleted_devices(coordinator, entry)
+    with (
+        patch("custom_components.dsvdc4ha.er.async_get") as mock_er,
+        patch("custom_components.dsvdc4ha.dr.async_get") as mock_dr,
+    ):
+        await _async_subentry_update_listener(hass, entry)
 
-    api.vanish_device.assert_awaited_once_with("sub_deleted")
+    api.vanish_device.assert_awaited_once_with("sub_b")
+    mock_er.return_value.async_clear_config_subentry.assert_called_once_with("entry1", "sub_b")
+    mock_dr.return_value.async_clear_config_subentry.assert_called_once_with("entry1", "sub_b")
+    assert hass.data["dsvdc4ha"]["_known_subentry_ids"] == {"sub_a"}
 
 
 @pytest.mark.asyncio
-async def test_vanish_deleted_devices_noop_when_api_is_none():
-    """_vanish_deleted_devices does nothing when coordinator.api is None."""
-    from custom_components.dsvdc4ha import _vanish_deleted_devices
-
-    coordinator = MagicMock()
-    coordinator.api = None
-
-    entry = _make_entry([{"subentry_id": "sub1", "data": {}}])
-
-    await _vanish_deleted_devices(coordinator, entry)  # must not raise
-
-
-@pytest.mark.asyncio
-async def test_vanish_deleted_devices_noop_when_no_deletions():
-    """_vanish_deleted_devices does nothing when entry matches api devices."""
-    from custom_components.dsvdc4ha import _vanish_deleted_devices
+async def test_subentry_listener_adds_new_device():
+    """Delta listener adds + announces a newly added subentry's device."""
+    from custom_components.dsvdc4ha import _async_subentry_update_listener
 
     api = MagicMock()
-    api.registered_entry_ids = {"sub1"}
-    api.vanish_device = AsyncMock()
-
+    api.add_device = MagicMock()
+    api.announce_device = AsyncMock()
     coordinator = MagicMock()
     coordinator.api = api
 
-    entry = _make_entry([{"subentry_id": "sub1", "data": {}}])
+    add_sensor = MagicMock()
+    add_binary = MagicMock()
+    hass = MagicMock()
+    hass.data = {
+        "dsvdc4ha": {
+            "hub": coordinator,
+            "_known_subentry_ids": {"sub_a"},
+            "_add_sensor_entities": add_sensor,
+            "_add_binary_entities": add_binary,
+        }
+    }
+    entry = _make_entry([
+        {"subentry_id": "sub_a", "data": {}},
+        {"subentry_id": "sub_b", "data": {"vdsds": []}},
+    ])
+    entry.entry_id = "entry1"
 
-    await _vanish_deleted_devices(coordinator, entry)
+    with (
+        patch("custom_components.dsvdc4ha.er.async_get"),
+        patch("custom_components.dsvdc4ha.dr.async_get"),
+        patch("custom_components.dsvdc4ha.listeners.setup_input_listeners", return_value=[]),
+        patch("custom_components.dsvdc4ha.listeners.setup_output_listeners", return_value=[]),
+        patch(
+            "custom_components.dsvdc4ha.listeners.seed_initial_values",
+            new_callable=AsyncMock,
+        ),
+        patch("custom_components.dsvdc4ha.sensor._add_entities_for_subentry"),
+        patch("custom_components.dsvdc4ha.binary_sensor._add_entities_for_subentry"),
+    ):
+        await _async_subentry_update_listener(hass, entry)
+
+    api.add_device.assert_called_once_with("sub_b", [])
+    api.announce_device.assert_awaited_once_with("sub_b")
+    assert hass.data["dsvdc4ha"]["_known_subentry_ids"] == {"sub_a", "sub_b"}
+
+
+@pytest.mark.asyncio
+async def test_subentry_listener_noop_when_no_changes():
+    """Delta listener does nothing when subentries match the known ID set."""
+    from custom_components.dsvdc4ha import _async_subentry_update_listener
+
+    api = MagicMock()
+    api.vanish_device = AsyncMock()
+    api.announce_device = AsyncMock()
+    coordinator = MagicMock()
+    coordinator.api = api
+
+    hass = MagicMock()
+    hass.data = {
+        "dsvdc4ha": {
+            "hub": coordinator,
+            "_known_subentry_ids": {"sub_a"},
+        }
+    }
+    entry = _make_entry([{"subentry_id": "sub_a", "data": {}}])
+    entry.entry_id = "entry1"
+
+    with (
+        patch("custom_components.dsvdc4ha.er.async_get"),
+        patch("custom_components.dsvdc4ha.dr.async_get"),
+    ):
+        await _async_subentry_update_listener(hass, entry)
 
     api.vanish_device.assert_not_awaited()
+    api.announce_device.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_subentry_listener_noop_when_coordinator_is_none():
+    """Delta listener does nothing if coordinator has not been started yet."""
+    from custom_components.dsvdc4ha import _async_subentry_update_listener
+
+    hass = MagicMock()
+    hass.data = {"dsvdc4ha": {}}
+    entry = _make_entry([])
+    entry.entry_id = "entry1"
+
+    # Must not raise — no patches needed, coordinator is absent
+    await _async_subentry_update_listener(hass, entry)

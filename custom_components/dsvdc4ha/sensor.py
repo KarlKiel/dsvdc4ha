@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -20,17 +21,25 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
+    hass.data.setdefault(DOMAIN, {})["_add_sensor_entities"] = async_add_entities
     for subentry in entry.subentries.values():
-        entities: list[DsvdcBaseEntity] = []
-        for idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):
-            for btn in vdsd_data.get("buttons", []):
-                entities.append(ButtonSensorEntity(subentry.subentry_id, idx, vdsd_data, btn))
-            for si in vdsd_data.get("sensors", []):
-                entities.append(SensorInputEntity(subentry.subentry_id, idx, vdsd_data, si))
-            if output := vdsd_data.get("output"):
-                for ch in output.get("channels", []):
-                    entities.append(OutputChannelEntity(subentry.subentry_id, idx, vdsd_data, output, ch))
-        async_add_entities(entities, config_subentry_id=subentry.subentry_id)
+        _add_entities_for_subentry(subentry, async_add_entities)
+
+
+def _add_entities_for_subentry(
+    subentry: Any,  # ConfigSubEntry is not yet exported by HA's public API
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    entities: list[DsvdcBaseEntity] = []
+    for idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):
+        for btn in vdsd_data.get("buttons", []):
+            entities.append(ButtonSensorEntity(subentry.subentry_id, idx, vdsd_data, btn))
+        for si in vdsd_data.get("sensors", []):
+            entities.append(SensorInputEntity(subentry.subentry_id, idx, vdsd_data, si))
+        if output := vdsd_data.get("output"):
+            for ch in output.get("channels", []):
+                entities.append(OutputChannelEntity(subentry.subentry_id, idx, vdsd_data, output, ch))
+    async_add_entities(entities, config_subentry_id=subentry.subentry_id)
 
 
 class ButtonSensorEntity(DsvdcBaseEntity, SensorEntity):
