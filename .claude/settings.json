@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /home/arne/Development/dsvdc4ha diff 74b5e14..c47b771)",
+      "Bash(awk '/^def compute_vdsd_plan/,/^def [a-z_]/ { if \\(/device_name/ && !/^def/\\) print NR\": \"$0 }' /home/arne/Development/dsvdc4ha/custom_components/dsvdc4ha/device_grouper.py)",
+      "Bash(git -C /home/arne/Development/dsvdc4ha log --oneline -3)",
+      "Bash(grep -n \"friendly_name.*entity_id\\\\|entity_id.*friendly_name\\\\|or entity_id\\\\|entity_id$\" /home/arne/Development/dsvdc4ha/custom_components/dsvdc4ha/device_grouper.py /home/arne/Development/dsvdc4ha/custom_components/dsvdc4ha/config_flow.py)",
+      "Bash(git -C /home/arne/Development/dsvdc4ha add custom_components/dsvdc4ha/config_flow.py)",
+      "Bash(git -C /home/arne/Development/dsvdc4ha commit -m ' *)",
+      "Bash(git -C /home/arne/Development/dsvdc4ha add docs/superpowers/plans/2026-05-15-mdi-icon-resolution.md)",
+      "Bash(git -C /home/arne/Development/dsvdc4ha commit -m \"docs: add plan for MDI icon resolution\")",
+      "Bash(git -C /home/arne/Development/dsvdc4ha add custom_components/dsvdc4ha/config_flow.py custom_components/dsvdc4ha/manifest.json tests/test_config_flow.py)",
+      "Bash(git -C /home/arne/Development/dsvdc4ha log --oneline main..HEAD)",
+      "Bash(git -C /home/arne/Development/dsvdc4ha diff HEAD custom_components/dsvdc4ha/config_flow.py)"
+    ]
+  }
+}
