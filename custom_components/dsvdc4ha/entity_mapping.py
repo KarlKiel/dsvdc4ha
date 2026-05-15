@@ -26,6 +26,27 @@ _CHANNEL_TYPE_NAMES: dict[str, int] = {
     "POWER_LEVEL": 24,
 }
 
+# Reusable choice lists for binary_input.group_choices
+_BI_GROUP_ALL: list[tuple[int, str]] = [
+    (1, "Light (1)"), (2, "Shadow (2)"), (3, "Climate (3)"),
+    (4, "Audio (4)"), (5, "Video (5)"), (6, "Security (6)"),
+    (7, "Access (7)"), (8, "Joker (8)"),
+]
+_BI_GROUP_MOISTURE: list[tuple[int, str]] = [
+    (6, "Security (6)"), (3, "Climate (3)"), (8, "Joker (8)"),
+]
+# Reusable choice lists for sensor.sensor_usage_choices
+_SU_ROOM_OUTDOOR: list[tuple[int, str]] = [
+    (1, "Room (1)"), (2, "Outdoor (2)"),
+]
+_SU_DEVICE_LEVEL: list[tuple[int, str]] = [
+    (4, "Device Level (4)"), (5, "Device Last Run (5)"), (6, "Device Average (6)"),
+]
+_SU_GENERAL: list[tuple[int, str]] = [
+    (0, "Undefined (0)"), (1, "Room (1)"), (2, "Outdoor (2)"),
+    (4, "Device Level (4)"), (5, "Device Last Run (5)"), (6, "Device Average (6)"),
+]
+
 # ---------------------------------------------------------------------------
 # Mapping entries
 #
@@ -53,7 +74,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     {
         "domain": "binary_sensor", "device_class": None, "primary_group": 8,
         "binary_input": {
-            "sensor_function": 0, "group": 8, "input_usage": 0,
+            "sensor_function": 0,
+            "sensor_function_choices": "any",
+            "group": 8, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
         },
     },
@@ -74,8 +97,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     {
         "domain": "binary_sensor", "device_class": "carbon_monoxide", "primary_group": 8,
         "binary_input": {
-            "sensor_function": 0, "group": 6, "input_usage": 1,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 0, "group": 6, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
@@ -83,8 +106,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "binary_input": {
             "sensor_function": 18,
             "sensor_function_choices": [(18, "Frost (18)"), (0, "Generic (0)")],
-            "group": 3, "input_usage": 2,
-            "input_type": 1, "update_interval": 1.0,
+            "group": 3, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 2, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
@@ -111,22 +134,22 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     {
         "domain": "binary_sensor", "device_class": "gas", "primary_group": 8,
         "binary_input": {
-            "sensor_function": 0, "group": 6, "input_usage": 1,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 0, "group": 6, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
         "domain": "binary_sensor", "device_class": "heat", "primary_group": 8,
         "binary_input": {
-            "sensor_function": 11, "group": 3, "input_usage": 1,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 11, "group": 3, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
         "domain": "binary_sensor", "device_class": "light", "primary_group": 8,
         "binary_input": {
-            "sensor_function": 2, "group": 1, "input_usage": 1,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 2, "group": 1, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
@@ -139,21 +162,22 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     {
         "domain": "binary_sensor", "device_class": "moisture", "primary_group": 8,
         "binary_input": {
-            "sensor_function": 0, "group": 8, "input_usage": 0,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 0, "group": 6, "group_choices": _BI_GROUP_MOISTURE,
+            "input_usage": 0, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
         "domain": "binary_sensor", "device_class": "motion", "primary_group": 8,
         "binary_input": {
-            "sensor_function": 5, "group": 1, "input_usage": 1,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 5, "group": 1, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
         "domain": "binary_sensor", "device_class": "moving", "primary_group": 8,
         "binary_input": {
-            "sensor_function": 0, "group": 8, "input_usage": 0,
+            "sensor_function": 5, "sensor_function_choices": "any",
+            "group": 8, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
         },
     },
@@ -167,8 +191,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     {
         "domain": "binary_sensor", "device_class": "opening", "primary_group": 8,
         "binary_input": {
-            "sensor_function": 0, "group": 8, "input_usage": 0,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 0, "group": 8, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 0, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
@@ -223,8 +247,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     {
         "domain": "binary_sensor", "device_class": "sound", "primary_group": 8,
         "binary_input": {
-            "sensor_function": 0, "group": 8, "input_usage": 1,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 0, "group": 8, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
@@ -430,8 +454,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     {
         "domain": "event", "device_class": "motion", "primary_group": 8,
         "binary_input": {
-            "sensor_function": 5, "group": 1, "input_usage": 1,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 5, "group": 1, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
         },
     },
     # ── Fan ──────────────────────────────────────────────────────────────────
@@ -546,6 +570,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "sensor_type": 1,
             "sensor_type_choices": "any",  # full SensorType selector
             "sensor_usage": 0,
+            "sensor_usage_choices": "any",
             "min": 0.0, "max": 100.0, "resolution": 0.1,
             "min_max_user": True,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
@@ -565,6 +590,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "domain": "sensor", "device_class": "aqi", "primary_group": 8,
         "sensor": {
             "sensor_type": 0, "sensor_usage": 1,
+            "sensor_usage_choices": _SU_ROOM_OUTDOOR,
             "min": 0.0, "max": 500.0, "resolution": 1.0,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -619,6 +645,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "domain": "sensor", "device_class": "distance", "primary_group": 8,
         "sensor": {
             "sensor_type": 29, "sensor_usage": 4,
+            "sensor_usage_choices": _SU_DEVICE_LEVEL,
             "min": 0.0, "max": 1000.0, "resolution": 0.01,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -628,6 +655,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "domain": "sensor", "device_class": "duration", "primary_group": 8,
         "sensor": {
             "sensor_type": 31, "sensor_usage": 4,
+            "sensor_usage_choices": _SU_DEVICE_LEVEL,
             "min": 0.0, "max": 86400.0, "resolution": 1.0,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -657,6 +685,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "sensor_type": 0,
             "sensor_type_choices": [(0, "None / Generic (0)"), (7, "Gas Type (7)")],
             "sensor_usage": 0,
+            "sensor_usage_choices": _SU_GENERAL,
             "min": 0.0, "max": 100.0, "resolution": 1.0,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -666,6 +695,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "domain": "sensor", "device_class": "humidity", "primary_group": 8,
         "sensor": {
             "sensor_type": 2, "sensor_usage": 0,
+            "sensor_usage_choices": _SU_GENERAL,
             "min": 0.0, "max": 100.0, "resolution": 0.5,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -675,6 +705,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "domain": "sensor", "device_class": "illuminance", "primary_group": 8,
         "sensor": {
             "sensor_type": 3, "sensor_usage": 0,
+            "sensor_usage_choices": _SU_GENERAL,
             "min": 0.0, "max": 100000.0, "resolution": 1.0,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -684,6 +715,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "domain": "sensor", "device_class": "moisture", "primary_group": 8,
         "sensor": {
             "sensor_type": 0, "sensor_usage": 0,
+            "sensor_usage_choices": _SU_GENERAL,
             "min": 0.0, "max": 100.0, "resolution": 0.5,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -756,6 +788,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "domain": "sensor", "device_class": "speed", "primary_group": 8,
         "sensor": {
             "sensor_type": 0, "sensor_usage": 0,
+            "sensor_usage_choices": _SU_GENERAL,
             "min": 0.0, "max": 60.0, "resolution": 0.1,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -765,6 +798,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "domain": "sensor", "device_class": "temperature", "primary_group": 8,
         "sensor": {
             "sensor_type": 1, "sensor_usage": 0,
+            "sensor_usage_choices": _SU_GENERAL,
             "min": -40.0, "max": 85.0, "resolution": 0.1,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -960,6 +994,7 @@ def needs_user_input(mapping: dict[str, Any]) -> bool:
             comp.get("sensor_function_choices")
             or comp.get("group_choices")
             or comp.get("sensor_type_choices")
+            or comp.get("sensor_usage_choices")
             or comp.get("output_usage_choices")
             or comp.get("function_choices")
             or comp.get("min_max_user")

@@ -2,10 +2,17 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
+import re
 import socket
 from pathlib import Path
 from typing import Any
+
+try:
+    import cairosvg as _cairosvg
+except (ImportError, OSError):
+    _cairosvg = None
 
 import voluptuous as vol
 from homeassistant import config_entries
@@ -745,6 +752,80 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 # ---------------------------------------------------------------------------
+# MDI icon resolution helpers
+# ---------------------------------------------------------------------------
+
+_MDI_DOMAIN_ICONS: dict[str, str] = {
+    "light": "lightbulb",
+    "switch": "toggle-switch-variant",
+    "cover": "window-shutter",
+    "cover.awning": "awning",
+    "cover.blind": "blinds",
+    "cover.curtain": "curtains",
+    "cover.door": "door",
+    "cover.garage": "garage",
+    "cover.gate": "gate",
+    "cover.shutter": "window-shutter",
+    "binary_sensor": "radiobox-blank",
+    "sensor": "eye",
+    "event": "calendar-star",
+    "number": "ray-vertex",
+    "lock": "lock",
+}
+
+_MDI_SVG_CACHE: dict[str, bytes] = {}
+
+
+def _mdi_icon_name_for(state: Any, entity_id: str) -> str | None:
+    """Return the MDI icon slug for an entity state, or None if not resolvable."""
+    icon: str | None = state.attributes.get("icon")
+    if icon and icon.startswith("mdi:"):
+        return icon[4:]
+    domain = entity_id.split(".")[0]
+    device_class: str | None = state.attributes.get("device_class")
+    if device_class:
+        result = _MDI_DOMAIN_ICONS.get(f"{domain}.{device_class}")
+        if result:
+            return result
+    return _MDI_DOMAIN_ICONS.get(domain)
+
+
+async def _fetch_mdi_icon_b64(hass: Any, icon_slug: str) -> str | None:
+    """Fetch MDI SVG from CDN, render to 16x16 PNG, return base64 string or None."""
+    import aiohttp
+
+    if _cairosvg is None:
+        return None
+
+    if not isinstance(icon_slug, str) or not re.fullmatch(r'[a-z0-9\-]+', icon_slug):
+        return None
+
+    svg_bytes = _MDI_SVG_CACHE.get(icon_slug)
+    if svg_bytes is None:
+        try:
+            url = f"https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/{icon_slug}.svg"
+            session = async_get_clientsession(hass)
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status != 200:
+                    return None
+                svg_bytes = await resp.read()
+            _MDI_SVG_CACHE[icon_slug] = svg_bytes
+        except Exception:
+            _LOGGER.debug("Failed to fetch MDI icon %s", icon_slug, exc_info=True)
+            return None
+
+    try:
+        def _svg_to_png(svg: bytes) -> bytes:
+            return _cairosvg.svg2png(bytestring=svg, output_width=16, output_height=16)
+
+        png_bytes = await hass.async_add_executor_job(_svg_to_png, svg_bytes)
+        return base64.b64encode(png_bytes).decode()
+    except Exception:
+        _LOGGER.debug("Failed to render MDI icon %s to PNG", icon_slug, exc_info=True)
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Device subentry flow — handles both "from entity" and "from scratch" paths
 # ---------------------------------------------------------------------------
 
@@ -782,7 +863,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         """Return (icon_name, base64_16x16_png_or_None) for an entity.
 
         icon_name is entity_id with dots replaced by underscores.
-        Fetches entity_picture if available and resizes to 16x16 PNG.
+        Tries entity_picture first, then MDI icon attribute, then domain fallback.
         Returns None for b64 on any failure.
         """
         import base64
@@ -793,40 +874,45 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         if state is None:
             return icon_name, None
 
+        # Path 1: entity_picture (camera snapshots, custom pictures)
         picture_url: str | None = state.attributes.get("entity_picture")
-        if not picture_url:
+        if picture_url:
+            try:
+                from PIL import Image
+                import aiohttp
+
+                if not (picture_url.startswith("http") or picture_url.startswith("//")):
+                    api_cfg = getattr(self.hass.config, "api", None)
+                    base = str(api_cfg.base_url).rstrip("/") if api_cfg else "http://localhost:8123"
+                    picture_url = f"{base}{picture_url}"
+
+                session = async_get_clientsession(self.hass)
+                async with session.get(
+                    picture_url, timeout=aiohttp.ClientTimeout(total=5)
+                ) as resp:
+                    if resp.status == 200:
+                        raw = await resp.read()
+
+                        def _resize(data: bytes) -> bytes:
+                            img = Image.open(io.BytesIO(data)).convert("RGBA").resize(
+                                (16, 16), Image.LANCZOS
+                            )
+                            out = io.BytesIO()
+                            img.save(out, format="PNG")
+                            return out.getvalue()
+
+                        resized = await self.hass.async_add_executor_job(_resize, raw)
+                        return icon_name, base64.b64encode(resized).decode()
+            except Exception:
+                _LOGGER.debug("Failed to resolve icon for %s from entity_picture", entity_id, exc_info=True)
+
+        # Path 2: MDI icon (explicit attribute or domain/device_class fallback)
+        mdi_name = _mdi_icon_name_for(state, entity_id)
+        if mdi_name is None:
             return icon_name, None
 
-        try:
-            from PIL import Image
-            import aiohttp
-
-            if not (picture_url.startswith("http") or picture_url.startswith("//")):
-                api_cfg = getattr(self.hass.config, "api", None)
-                base = str(api_cfg.base_url).rstrip("/") if api_cfg else "http://localhost:8123"
-                picture_url = f"{base}{picture_url}"
-
-            session = async_get_clientsession(self.hass)
-            async with session.get(
-                picture_url, timeout=aiohttp.ClientTimeout(total=5)
-            ) as resp:
-                if resp.status != 200:
-                    return icon_name, None
-                raw = await resp.read()
-
-            def _resize(data: bytes) -> bytes:
-                img = Image.open(io.BytesIO(data)).convert("RGBA").resize(
-                    (16, 16), Image.LANCZOS
-                )
-                out = io.BytesIO()
-                img.save(out, format="PNG")
-                return out.getvalue()
-
-            resized = await self.hass.async_add_executor_job(_resize, raw)
-            return icon_name, base64.b64encode(resized).decode()
-        except Exception:
-            _LOGGER.debug("Failed to resolve icon for %s", entity_id, exc_info=True)
-            return icon_name, None
+        b64 = await _fetch_mdi_icon_b64(self.hass, mdi_name)
+        return icon_name, b64
 
     async def async_step_user(self, user_input: dict | None = None):
         return await self.async_step_creation_mode(user_input)
@@ -926,11 +1012,24 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         btn = mapping.get("button", {})
         out = mapping.get("output", {})
 
-        if bi.get("sensor_function_choices"):
+        sfc = bi.get("sensor_function_choices")
+        if sfc == "any":
+            schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=_BINARY_INPUT_TYPE_OPTIONS))
+            )
+        elif sfc:
             schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
                 selector.SelectSelector(selector.SelectSelectorConfig(options=[
                     selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in bi["sensor_function_choices"]
+                    for v, lbl in sfc
+                ]))
+            )
+
+        if bi.get("group_choices"):
+            schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in bi["group_choices"]
                 ]))
             )
 
@@ -964,6 +1063,19 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             )
             schema_dict[vol.Required("resolution", default=sen["resolution"])] = selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, step=0.01, mode="box")
+            )
+
+        suc = sen.get("sensor_usage_choices")
+        if suc == "any":
+            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=_SENSOR_USAGE_OPTIONS))
+            )
+        elif suc:
+            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in suc
+                ]))
             )
 
         if out.get("output_usage_choices"):
@@ -1006,7 +1118,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             "vendorName": self._vendor_name,
             "modelVersion": "1.0",
             "modelUID": (self._vendor_name + self._display_id).replace(" ", ""),
-            "name": f"{self._device_name} — {friendly_name}",
+            "name": friendly_name,
             "active": True,
             "identify_action": None,
             "firmwareUpdate_action": None,
@@ -1024,7 +1136,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             vdsd["binary_inputs"] = [{
                 "dsIndex": 0,
                 "name": friendly_name,
-                "group": bi["group"],
+                "group": int(user_input.get("bi_group", bi["group"])),
                 "sensorFunction": sf,
                 "hardwiredFunction": sf,
                 "updateInterval": bi["update_interval"],
@@ -1043,7 +1155,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "name": friendly_name,
                 "group": s["group"],
                 "sensorType": st,
-                "sensorUsage": s["sensor_usage"],
+                "sensorUsage": int(user_input.get("sensor_usage", s["sensor_usage"])),
                 "min": float(user_input.get("min", s["min"])),
                 "max": float(user_input.get("max", s["max"])),
                 "resolution": float(user_input.get("resolution", s["resolution"])),
@@ -1219,7 +1331,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 cat_str = cat.value if cat is not None else None
                 entity_info = _EntityInfo(
                     entity_id=entry.entity_id,
-                    friendly_name=(state.name if state else entry.entity_id),
+                    friendly_name=(state.name or entry.entity_id) if state else entry.entity_id,
                     domain=domain,
                     device_class=device_class,
                     mapping=mapping,
@@ -1273,11 +1385,24 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         btn = mapping.get("button", {})
         out = mapping.get("output", {})
 
-        if bi.get("sensor_function_choices"):
+        sfc = bi.get("sensor_function_choices")
+        if sfc == "any":
+            schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=_BINARY_INPUT_TYPE_OPTIONS))
+            )
+        elif sfc:
             schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
                 selector.SelectSelector(selector.SelectSelectorConfig(options=[
                     selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in bi["sensor_function_choices"]
+                    for v, lbl in sfc
+                ]))
+            )
+
+        if bi.get("group_choices"):
+            schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in bi["group_choices"]
                 ]))
             )
         if btn.get("group_choices"):
@@ -1311,6 +1436,18 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             )
             schema_dict[vol.Required("resolution", default=attrs.get("step", sen.get("resolution", 0.4)))] = (
                 selector.NumberSelector(selector.NumberSelectorConfig(min=0, step=0.01, mode="box"))
+            )
+        suc = sen.get("sensor_usage_choices")
+        if suc == "any":
+            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=_SENSOR_USAGE_OPTIONS))
+            )
+        elif suc:
+            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in suc
+                ]))
             )
         if out.get("output_usage_choices"):
             schema_dict[vol.Required("output_usage", default=str(out["output_usage"]))] = (

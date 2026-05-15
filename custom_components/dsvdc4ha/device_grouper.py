@@ -55,7 +55,7 @@ def _primary_entity_label(plan: VdsdPlan) -> str:
     return _GROUP_LABELS.get(plan.primary_group, f"Group {plan.primary_group}")
 
 
-def _assign_names(plans: list[VdsdPlan], device_name: str) -> None:
+def _assign_names(plans: list[VdsdPlan]) -> None:
     label_counts: dict[str, int] = {}
     for plan in plans:
         label = _primary_entity_label(plan)
@@ -65,10 +65,10 @@ def _assign_names(plans: list[VdsdPlan], device_name: str) -> None:
     for plan in plans:
         label = _primary_entity_label(plan)
         if label_counts[label] == 1:
-            plan.name = f"{device_name} — {label}"
+            plan.name = label
         else:
             label_seen[label] = label_seen.get(label, 0) + 1
-            plan.name = f"{device_name} — {label} {label_seen[label]}"
+            plan.name = f"{label} {label_seen[label]}"
 
 
 def compute_vdsd_plan(
@@ -149,7 +149,7 @@ def compute_vdsd_plan(
             plans.append(VdsdPlan(primary_group=8, name=""))
         plans[0].sensor_entities.extend(sensors)
 
-    _assign_names(plans, device_name)
+    _assign_names(plans)
     return plans, unsupported
 
 
@@ -195,7 +195,7 @@ def resolve_vdsd_plan(
         vdsd["binary_inputs"] = [{
             "dsIndex": 0,
             "name": e.friendly_name,
-            "group": bi["group"],
+            "group": int(choices.get("bi_group", bi["group"])),
             "sensorFunction": sf,
             "hardwiredFunction": sf,
             "updateInterval": bi["update_interval"],
@@ -249,7 +249,7 @@ def resolve_vdsd_plan(
             "name": e.friendly_name,
             "group": s["group"],
             "sensorType": st,
-            "sensorUsage": s["sensor_usage"],
+            "sensorUsage": int(choices.get("sensor_usage", s["sensor_usage"])),
             "min": sen_min,
             "max": sen_max,
             "resolution": sen_res,
