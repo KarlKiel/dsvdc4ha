@@ -39,11 +39,16 @@ def _build_entity_index(entry: ConfigEntry) -> dict[str, list[tuple[str, int]]]:
     return index
 
 
-async def _vanish_deleted_devices(coordinator: Any, entry: ConfigEntry) -> None:
+async def _vanish_deleted_devices(coordinator: HubCoordinator, entry: ConfigEntry) -> None:
     """Vanish devices that were removed from entry.subentries since last setup."""
+    if coordinator.api is None:
+        return
     current_ids = set(entry.subentries.keys())
     for entry_id in coordinator.api.registered_entry_ids - current_ids:
-        await coordinator.api.vanish_device(entry_id)
+        try:
+            await coordinator.api.vanish_device(entry_id)
+        except Exception:
+            _LOGGER.warning("Failed to vanish deleted device %s", entry_id, exc_info=True)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

@@ -302,6 +302,19 @@ async def test_vanish_deleted_devices_vanishes_diff():
 
 
 @pytest.mark.asyncio
+async def test_vanish_deleted_devices_noop_when_api_is_none():
+    """_vanish_deleted_devices does nothing when coordinator.api is None."""
+    from custom_components.dsvdc4ha import _vanish_deleted_devices
+
+    coordinator = MagicMock()
+    coordinator.api = None
+
+    entry = _make_entry([{"subentry_id": "sub1", "data": {}}])
+
+    await _vanish_deleted_devices(coordinator, entry)  # must not raise
+
+
+@pytest.mark.asyncio
 async def test_vanish_deleted_devices_noop_when_no_deletions():
     """_vanish_deleted_devices does nothing when entry matches api devices."""
     from custom_components.dsvdc4ha import _vanish_deleted_devices
