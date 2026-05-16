@@ -59,6 +59,10 @@ _LOGGER = logging.getLogger(__name__)
 
 selector = selector_module
 
+import uuid as _uuid
+
+_VDC_NS = _uuid.UUID("9888dd3d-b345-4109-b088-2673306d0c65")  # DsUidNamespace.VDC
+
 # ---------------------------------------------------------------------------
 # Explicit label dicts — sourced from pydsvdcapi enums.py inline comments
 # and docstrings (https://github.com/KarlKiel/pydsvdcapi)
@@ -996,17 +1000,17 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         assert mapping is not None
         entity_id = self._entity_id
         state = self.hass.states.get(entity_id)
-        friendly_name: str = (state.name if state else None) or entity_id
+        friendly_name: str = (state.name if state else None) or entity_id.split(".")[-1]
 
         pg = mapping["primary_group"]
         vdsd: dict[str, Any] = {
             "displayId": self._display_id,      # model/type name (e.g. "Occhio Lunanova")
             "primaryGroup": pg,
-            "model": self._display_id,
-            "vendorName": self._vendor_name,
+            "model": mapping["model"],
+            "vendorName": mapping["vendor_name"],
             "modelVersion": "1.0",
-            "modelUID": (self._vendor_name + self._display_id).replace(" ", ""),
-            "name": f"{self._device_name} — {friendly_name}",
+            "modelUID": mapping["model_uid"],
+            "name": friendly_name,
             "active": True,
             "identify_action": None,
             "firmwareUpdate_action": None,
@@ -1016,6 +1020,11 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             "sensors": [],
             "output": None,
         }
+
+        # Compute deterministic hardwareGuid from entity unique_id
+        ent_entry = er.async_get(self.hass).async_get(entity_id)
+        _unique_id = str(ent_entry.unique_id) if ent_entry else entity_id
+        vdsd["hardwareGuid"] = "uuid:" + str(_uuid.uuid5(_VDC_NS, _unique_id))
 
         # Binary input -------------------------------------------------------
         if "binary_input" in mapping:
