@@ -959,6 +959,29 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 ]))
             )
 
+        suc = sen.get("sensor_usage_choices")
+        if suc == "any":
+            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in [
+                        (0, "Generic (0)"),
+                        (1, "Room (1)"),
+                        (2, "Outdoor (2)"),
+                        (4, "Device Level (4)"),
+                        (5, "Device Level Individual (5)"),
+                        (6, "Device Level All (6)"),
+                    ]
+                ]))
+            )
+        elif suc:
+            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in suc
+                ]))
+            )
+
         if sen.get("min_max_user"):
             schema_dict[vol.Required("min", default=sen["min"])] = selector.NumberSelector(
                 selector.NumberSelectorConfig(mode="box")
@@ -1052,7 +1075,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "name": friendly_name,
                 "group": s["group"],
                 "sensorType": st,
-                "sensorUsage": s["sensor_usage"],
+                "sensorUsage": int(user_input.get("sensor_usage", s["sensor_usage"])),
                 "min": float(user_input.get("min", s["min"])),
                 "max": float(user_input.get("max", s["max"])),
                 "resolution": float(user_input.get("resolution", s["resolution"])),
