@@ -703,6 +703,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "sensor_type": 1,
             "sensor_type_choices": "any",  # full SensorType selector
             "sensor_usage": 0,
+            "sensor_usage_choices": "any",
             "min": 0.0, "max": 100.0, "resolution": 0.1,
             "min_max_user": True,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
@@ -728,6 +729,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 0, "sensor_usage": 1,
+            "sensor_usage_choices": [(1, "Room (1)"), (2, "Outdoor (2)")],
             "min": 0.0, "max": 500.0, "resolution": 1.0,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -800,6 +802,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 29, "sensor_usage": 4,
+            "sensor_usage_choices": [(4, "Device Level (4)"), (5, "Device Level Individual (5)"), (6, "Device Level All (6)")],
             "min": 0.0, "max": 1000.0, "resolution": 0.01,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -812,6 +815,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 31, "sensor_usage": 4,
+            "sensor_usage_choices": [(4, "Device Level (4)"), (5, "Device Level Individual (5)"), (6, "Device Level All (6)")],
             "min": 0.0, "max": 86400.0, "resolution": 1.0,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -850,6 +854,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "sensor_type": 0,
             "sensor_type_choices": [(0, "None / Generic (0)"), (7, "Gas Type (7)")],
             "sensor_usage": 0,
+            "sensor_usage_choices": [(0, "Generic (0)"), (1, "Room (1)"), (2, "Outdoor (2)"), (4, "Device Level (4)")],
             "min": 0.0, "max": 100.0, "resolution": 1.0,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -862,6 +867,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 2, "sensor_usage": 0,
+            "sensor_usage_choices": [(0, "Generic (0)"), (1, "Room (1)"), (2, "Outdoor (2)"), (4, "Device Level (4)")],
             "min": 0.0, "max": 100.0, "resolution": 0.5,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -874,6 +880,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 3, "sensor_usage": 0,
+            "sensor_usage_choices": [(0, "Generic (0)"), (1, "Room (1)"), (2, "Outdoor (2)"), (4, "Device Level (4)")],
             "min": 0.0, "max": 100000.0, "resolution": 1.0,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -886,6 +893,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 0, "sensor_usage": 0,
+            "sensor_usage_choices": [(0, "Generic (0)"), (1, "Room (1)"), (2, "Outdoor (2)"), (4, "Device Level (4)")],
             "min": 0.0, "max": 100.0, "resolution": 0.5,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -982,6 +990,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 0, "sensor_usage": 0,
+            "sensor_usage_choices": [(0, "Generic (0)"), (1, "Room (1)"), (2, "Outdoor (2)"), (4, "Device Level (4)")],
             "min": 0.0, "max": 60.0, "resolution": 0.1,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -994,6 +1003,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 1, "sensor_usage": 0,
+            "sensor_usage_choices": [(0, "Generic (0)"), (1, "Room (1)"), (2, "Outdoor (2)"), (4, "Device Level (4)")],
             "min": -40.0, "max": 85.0, "resolution": 0.1,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -1225,6 +1235,7 @@ def needs_user_input(mapping: dict[str, Any]) -> bool:
             comp.get("sensor_function_choices")
             or comp.get("group_choices")
             or comp.get("sensor_type_choices")
+            or comp.get("sensor_usage_choices")
             or comp.get("output_usage_choices")
             or comp.get("function_choices")
             or comp.get("min_max_user")
