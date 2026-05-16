@@ -12,7 +12,11 @@
       "Bash(git -C /home/arne/Development/dsvdc4ha add custom_components/dsvdc4ha/config_flow.py custom_components/dsvdc4ha/manifest.json tests/test_config_flow.py)",
       "Bash(git -C /home/arne/Development/dsvdc4ha log --oneline main..HEAD)",
       "Bash(git -C /home/arne/Development/dsvdc4ha diff HEAD custom_components/dsvdc4ha/config_flow.py)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Bash(git merge *)",
+      "Bash(.venv/bin/python -m pytest tests/ -x -q)",
+      "Bash(.venv/bin/python -m pytest tests/test_listeners.py -v -q)",
+      "Bash(.venv/bin/python -m pytest tests/test_api.py::test_vanish_without_session_queues_pending tests/test_api.py::test_flush_pending_vanish_sends_and_clears tests/test_api.py::test_flush_pending_vanish_skips_failed_and_continues -v)"
     ]
   }
 }

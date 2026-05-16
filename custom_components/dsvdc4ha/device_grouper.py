@@ -55,7 +55,7 @@ def _primary_entity_label(plan: VdsdPlan) -> str:
     return _GROUP_LABELS.get(plan.primary_group, f"Group {plan.primary_group}")
 
 
-def _assign_names(plans: list[VdsdPlan], device_name: str) -> None:
+def _assign_names(plans: list[VdsdPlan]) -> None:
     label_counts: dict[str, int] = {}
     for plan in plans:
         label = _primary_entity_label(plan)
@@ -65,10 +65,10 @@ def _assign_names(plans: list[VdsdPlan], device_name: str) -> None:
     for plan in plans:
         label = _primary_entity_label(plan)
         if label_counts[label] == 1:
-            plan.name = f"{device_name} — {label}"
+            plan.name = label
         else:
             label_seen[label] = label_seen.get(label, 0) + 1
-            plan.name = f"{device_name} — {label} {label_seen[label]}"
+            plan.name = f"{label} {label_seen[label]}"
 
 
 def compute_vdsd_plan(
@@ -149,7 +149,7 @@ def compute_vdsd_plan(
             plans.append(VdsdPlan(primary_group=8, name=""))
         plans[0].sensor_entities.extend(sensors)
 
-    _assign_names(plans, device_name)
+    _assign_names(plans)
     return plans, unsupported
 
 

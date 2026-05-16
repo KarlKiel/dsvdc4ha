@@ -26,6 +26,27 @@ _CHANNEL_TYPE_NAMES: dict[str, int] = {
     "POWER_LEVEL": 24,
 }
 
+# Reusable choice lists for binary_input.group_choices
+_BI_GROUP_ALL: list[tuple[int, str]] = [
+    (1, "Light (1)"), (2, "Shadow (2)"), (3, "Climate (3)"),
+    (4, "Audio (4)"), (5, "Video (5)"), (6, "Security (6)"),
+    (7, "Access (7)"), (8, "Joker (8)"),
+]
+_BI_GROUP_MOISTURE: list[tuple[int, str]] = [
+    (6, "Security (6)"), (3, "Climate (3)"), (8, "Joker (8)"),
+]
+# Reusable choice lists for sensor.sensor_usage_choices
+_SU_ROOM_OUTDOOR: list[tuple[int, str]] = [
+    (1, "Room (1)"), (2, "Outdoor (2)"),
+]
+_SU_DEVICE_LEVEL: list[tuple[int, str]] = [
+    (4, "Device Level (4)"), (5, "Device Last Run (5)"), (6, "Device Average (6)"),
+]
+_SU_GENERAL: list[tuple[int, str]] = [
+    (0, "Undefined (0)"), (1, "Room (1)"), (2, "Outdoor (2)"),
+    (4, "Device Level (4)"), (5, "Device Last Run (5)"), (6, "Device Average (6)"),
+]
+
 # ---------------------------------------------------------------------------
 # Mapping entries
 #
@@ -56,7 +77,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-binary-sensor-none",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 0, "group": 8, "input_usage": 0,
+            "sensor_function": 0,
+            "sensor_function_choices": "any",
+            "group": 8, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
         },
     },
@@ -86,8 +109,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-binary-sensor-carbon_monoxide",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 0, "group": 6, "input_usage": 1,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 0, "group": 6, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
@@ -98,8 +121,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "binary_input": {
             "sensor_function": 18,
             "sensor_function_choices": [(18, "Frost (18)"), (0, "Generic (0)")],
-            "group": 3, "input_usage": 2,
-            "input_type": 1, "update_interval": 1.0,
+            "group": 3, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 2, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
@@ -138,8 +161,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-binary-sensor-gas",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 0, "group": 6, "input_usage": 1,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 0, "group": 6, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
@@ -148,8 +171,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-binary-sensor-heat",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 11, "group": 3, "input_usage": 1,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 11, "group": 3, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
@@ -158,8 +181,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-binary-sensor-light",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 2, "group": 1, "input_usage": 1,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 2, "group": 1, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
@@ -178,10 +201,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-binary-sensor-moisture",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 0, "group": 6,
-            "group_choices": [(8, "Joker (8)"), (6, "Security (6)"), (3, "Climate (3)")],
-            "input_usage": 6,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 0, "group": 6, "group_choices": _BI_GROUP_MOISTURE,
+            "input_usage": 6, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
@@ -190,8 +211,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-binary-sensor-motion",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 5, "group": 1, "input_usage": 1,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 5, "group": 1, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
@@ -222,8 +243,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-binary-sensor-opening",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 0, "group": 8, "input_usage": 0,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 0, "group": 8, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 0, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
@@ -302,8 +323,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-binary-sensor-sound",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 0, "group": 8, "input_usage": 1,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 0, "group": 8, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
@@ -563,8 +584,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-event-motion",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 5, "group": 1, "input_usage": 1,
-            "input_type": 1, "update_interval": 1.0,
+            "sensor_function": 5, "group": 1, "group_choices": _BI_GROUP_ALL,
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
         },
     },
     # ── Fan ──────────────────────────────────────────────────────────────────
@@ -729,7 +750,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 0, "sensor_usage": 1,
-            "sensor_usage_choices": [(1, "Room (1)"), (2, "Outdoor (2)")],
+            "sensor_usage_choices": _SU_ROOM_OUTDOOR,
             "min": 0.0, "max": 500.0, "resolution": 1.0,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,

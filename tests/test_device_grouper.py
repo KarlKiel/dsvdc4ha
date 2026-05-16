@@ -186,8 +186,8 @@ def test_plan_naming_unique_groups():
     ]
     plans, _ = compute_vdsd_plan(entities, "My Device")
     names = {p.name for p in plans}
-    assert "My Device — Living Room Lamp" in names
-    assert "My Device — Bedroom Blind" in names
+    assert "Living Room Lamp" in names
+    assert "Bedroom Blind" in names
 
 
 def test_plan_naming_duplicate_entity_names_get_suffix():
@@ -197,8 +197,8 @@ def test_plan_naming_duplicate_entity_names_get_suffix():
     ]
     plans, _ = compute_vdsd_plan(entities, "My Device")
     names = [p.name for p in plans]
-    assert "My Device — Lamp 1" in names
-    assert "My Device — Lamp 2" in names
+    assert "Lamp 1" in names
+    assert "Lamp 2" in names
 
 
 def test_dual_component_entity_contributes_both_output_and_binary_input():
@@ -376,3 +376,85 @@ def test_resolve_vdsd_plan_channel_without_binding_stays_clean():
     channels = vdsd["output"]["channels"]
     assert "apply_expr" not in channels[0]
     assert "push_expr" not in channels[0]
+
+
+def test_resolve_bi_group_user_choice_applied():
+    """bi_group user choice must override the mapping's group in binary_inputs."""
+    mapping = {
+        "primary_group": 8,
+        "binary_input": {
+            "sensor_function": 5,
+            "group": 1,  # default Light
+            "group_choices": [(1, "Light (1)"), (6, "Security (6)"), (8, "Joker (8)")],
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
+        },
+    }
+    plan = VdsdPlan(
+        primary_group=8, name="Motion — Binary",
+        binary_input_entity=_entity("binary_sensor.motion", "binary_sensor", mapping),
+        user_choices={"binary_sensor.motion": {"bi_group": "6"}},
+    )
+    result = resolve_vdsd_plan(plan, "Device", "Vendor", "Model", {})
+    assert result["binary_inputs"][0]["group"] == 6
+
+
+def test_resolve_bi_group_uses_mapping_default_when_no_choice():
+    """Without user choice, resolve_vdsd_plan must use mapping's group value."""
+    mapping = {
+        "primary_group": 8,
+        "binary_input": {
+            "sensor_function": 5,
+            "group": 1,
+            "group_choices": [(1, "Light (1)"), (6, "Security (6)")],
+            "input_usage": 1, "input_type": 1, "update_interval": 1.0,
+        },
+    }
+    plan = VdsdPlan(
+        primary_group=8, name="Motion — Binary",
+        binary_input_entity=_entity("binary_sensor.motion", "binary_sensor", mapping),
+    )
+    result = resolve_vdsd_plan(plan, "Device", "Vendor", "Model", {})
+    assert result["binary_inputs"][0]["group"] == 1
+
+
+def test_resolve_sensor_usage_user_choice_applied():
+    """sensor_usage user choice must override mapping's sensor_usage in sensors."""
+    mapping = {
+        "primary_group": 8,
+        "sensor": {
+            "sensor_type": 1, "group": 0,
+            "sensor_usage": 0,  # default Undefined
+            "sensor_usage_choices": [(0, "Undefined (0)"), (1, "Room (1)"), (2, "Outdoor (2)")],
+            "min": -40.0, "max": 85.0, "resolution": 0.1,
+            "update_interval": 30.0, "alive_sign_interval": 120.0,
+            "min_push_interval": 2.0, "changes_only_interval": 0.0,
+        },
+    }
+    plan = VdsdPlan(
+        primary_group=8, name="Temp — Sensor",
+        sensor_entities=[_entity("sensor.temperature", "sensor", mapping)],
+        user_choices={"sensor.temperature": {"sensor_usage": "2"}},
+    )
+    result = resolve_vdsd_plan(plan, "Device", "Vendor", "Model", {})
+    assert result["sensors"][0]["sensorUsage"] == 2
+
+
+def test_resolve_sensor_usage_uses_mapping_default_when_no_choice():
+    """Without user choice, resolve_vdsd_plan must use mapping's sensor_usage value."""
+    mapping = {
+        "primary_group": 8,
+        "sensor": {
+            "sensor_type": 1, "group": 0,
+            "sensor_usage": 1,
+            "sensor_usage_choices": [(1, "Room (1)"), (2, "Outdoor (2)")],
+            "min": -40.0, "max": 85.0, "resolution": 0.1,
+            "update_interval": 30.0, "alive_sign_interval": 120.0,
+            "min_push_interval": 2.0, "changes_only_interval": 0.0,
+        },
+    }
+    plan = VdsdPlan(
+        primary_group=8, name="Temp — Sensor",
+        sensor_entities=[_entity("sensor.temperature", "sensor", mapping)],
+    )
+    result = resolve_vdsd_plan(plan, "Device", "Vendor", "Model", {})
+    assert result["sensors"][0]["sensorUsage"] == 1
