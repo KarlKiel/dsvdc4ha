@@ -946,6 +946,14 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 ]))
             )
 
+        if bi.get("group_choices"):
+            schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in bi["group_choices"]
+                ]))
+            )
+
         stc = sen.get("sensor_type_choices")
         if stc == "any":
             schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
@@ -1056,7 +1064,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             vdsd["binary_inputs"] = [{
                 "dsIndex": 0,
                 "name": friendly_name,
-                "group": bi["group"],
+                "group": int(user_input.get("bi_group", bi["group"])),
                 "sensorFunction": sf,
                 "hardwiredFunction": sf,
                 "updateInterval": bi["update_interval"],
@@ -1319,6 +1327,13 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                     for v, lbl in btn["group_choices"]
                 ]))
             )
+        if bi.get("group_choices"):
+            schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in bi["group_choices"]
+                ]))
+            )
         stc = sen.get("sensor_type_choices")
         if stc == "any":
             schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
@@ -1329,6 +1344,28 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 selector.SelectSelector(selector.SelectSelectorConfig(options=[
                     selector.SelectOptionDict(value=str(v), label=lbl)
                     for v, lbl in stc
+                ]))
+            )
+        suc = sen.get("sensor_usage_choices")
+        if suc == "any":
+            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in [
+                        (0, "Generic (0)"),
+                        (1, "Room (1)"),
+                        (2, "Outdoor (2)"),
+                        (4, "Device Level (4)"),
+                        (5, "Device Level Individual (5)"),
+                        (6, "Device Level All (6)"),
+                    ]
+                ]))
+            )
+        elif suc:
+            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in suc
                 ]))
             )
         state = self.hass.states.get(entity_info.entity_id)

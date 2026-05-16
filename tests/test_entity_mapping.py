@@ -30,6 +30,6 @@ def test_entity_mapping_matches_xlsx():
 
 @pytest.mark.skipif(not _OPENPYXL_AVAILABLE, reason="openpyxl not installed")
 def test_audit_reports_missing_entries():
-    """Missing entries are non-blocking; the list must not be empty (xlsx has unimplemented rows)."""
+    """Missing entries are non-blocking; verify the return type is a list."""
     result = run_audit()
     assert isinstance(result["missing_entries"], list)
