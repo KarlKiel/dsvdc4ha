@@ -35,6 +35,10 @@ _BI_GROUP_ALL: list[tuple[int, str]] = [
 _BI_GROUP_MOISTURE: list[tuple[int, str]] = [
     (6, "Security (6)"), (3, "Climate (3)"), (8, "Joker (8)"),
 ]
+# Reusable choice list for button.group_choices (Joker first = default pre-selection)
+_BTN_GROUP_CHOICES: list[tuple[int, str]] = [
+    (8, "Joker — App (8)"), (1, "Yellow — Light / Room (1)"),
+]
 # Reusable choice lists for sensor.sensor_usage_choices
 _SU_ROOM_OUTDOOR: list[tuple[int, str]] = [
     (1, "Room (1)"), (2, "Outdoor (2)"),
@@ -375,8 +379,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "button": {
             "button_type": 1,
-            "group": 1,
-            "function": 8,
+            "group": 8,
+            "group_choices": _BTN_GROUP_CHOICES,
+            "function": 15,
             "mode": 0,
             "supports_local_key_mode": True,
             "calls_present": True,
@@ -557,8 +562,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "button": {
             "button_type": 1,
-            "group": 1,
-            "function": 8,
+            "group": 8,
+            "group_choices": _BTN_GROUP_CHOICES,
+            "function": 15,
             "mode": 0,
             "supports_local_key_mode": False,
             "calls_present": False,
@@ -571,8 +577,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "button": {
             "button_type": 1,
-            "group": 8,   # JOKER — fixed
-            "function": 5,  # Room / Door Bell — fixed
+            "group": 8,
+            "function": 5,
             "mode": 0,
             "supports_local_key_mode": False,
             "calls_present": False,

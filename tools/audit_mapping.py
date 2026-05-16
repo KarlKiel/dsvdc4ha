@@ -109,6 +109,9 @@ def _parse_scalar(raw):
         return None
     if re.match(r"^USER\s*[—–-]\s*specify", s, re.IGNORECASE):
         return None
+    # Multi-choice or conditional defaults can't be reduced to a single expected value
+    if s.upper().startswith("USER") and len(re.findall(r"\(-?\d+\)", s)) > 1:
+        return None
     m = re.match(r"^USER\s*[—–-]\s*default\s*:\s*.+?\((-?\d+)\)", s, re.IGNORECASE)
     if m:
         return int(m.group(1))
