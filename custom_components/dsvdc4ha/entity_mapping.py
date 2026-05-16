@@ -178,7 +178,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-binary-sensor-moisture",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 0, "group": 8, "input_usage": 0,
+            "sensor_function": 0, "group": 8,
+            "group_choices": [(8, "Joker (8)"), (6, "Security (6)"), (3, "Climate (3)")],
+            "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
         },
     },
@@ -198,7 +200,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-binary-sensor-moving",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 0, "group": 8, "input_usage": 0,
+            "sensor_function": 5,
+            "sensor_function_choices": [(5, "Motion (5)"), (0, "Generic (0)")],
+            "group": 8, "input_usage": 1,
             "input_type": 1, "update_interval": 1.0,
         },
     },
@@ -258,7 +262,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-binary-sensor-problem",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 22, "group": 8, "input_usage": 0,
+            "sensor_function": 22, "group": 8, "input_usage": 4,
             "input_type": 1, "update_interval": 1.0,
         },
     },
@@ -268,7 +272,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-binary-sensor-running",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 0, "group": 8, "input_usage": 0,
+            "sensor_function": 0, "group": 8, "input_usage": 4,
             "input_type": 1, "update_interval": 1.0,
         },
     },
@@ -749,7 +753,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "sensor": {
             "sensor_type": 32, "sensor_usage": 4,
             "min": 0.0, "max": 100.0, "resolution": 0.5,
-            "update_interval": 30.0, "alive_sign_interval": 120.0,
+            "update_interval": 60.0, "alive_sign_interval": 240.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
         },
     },
