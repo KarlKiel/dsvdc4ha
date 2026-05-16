@@ -11,7 +11,7 @@ VDC_HOST_MODEL_UID = "KarlKiel's Home Assistant vDC-host"
 VDC_HOST_VENDOR_NAME = "KarlKiel"
 VDC_HOST_VENDOR_GUID = "vendorname:KarlKiel"
 
-VDC_NAME = "KarlKiel's Home Assistant DS vDC"
+VDC_NAME = "vDC for Home Assistant"
 VDC_MODEL = "KarlKiel's generic vDC @ Home Assistant"
 VDC_MODEL_UID = "KarlKiel's Home Assistant DS vDC"
 VDC_IMPLEMENTATION_ID = "x-KarlKiel-HomeAssistant-vDC"
