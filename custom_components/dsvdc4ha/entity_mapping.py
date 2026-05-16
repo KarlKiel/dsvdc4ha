@@ -73,6 +73,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     # ── Binary Sensor ───────────────────────────────────────────────────────
     {
         "domain": "binary_sensor", "device_class": None, "primary_group": 8,
+        "model": "HA Binary Sensor",
+        "model_uid": "ha-binary-sensor-none",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 0,
             "sensor_function_choices": "any",
@@ -82,6 +85,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "battery", "primary_group": 8,
+        "model": "HA Binary Sensor (battery)",
+        "model_uid": "ha-binary-sensor-battery",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 12, "group": 8, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
@@ -89,6 +95,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "battery_charging", "primary_group": 8,
+        "model": "HA Binary Sensor (battery_charging)",
+        "model_uid": "ha-binary-sensor-battery_charging",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 0, "group": 8, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
@@ -96,6 +105,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "carbon_monoxide", "primary_group": 8,
+        "model": "HA Binary Sensor (carbon_monoxide)",
+        "model_uid": "ha-binary-sensor-carbon_monoxide",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 0, "group": 6, "group_choices": _BI_GROUP_ALL,
             "input_usage": 1, "input_type": 1, "update_interval": 1.0,
@@ -103,6 +115,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "cold", "primary_group": 8,
+        "model": "HA Binary Sensor (cold)",
+        "model_uid": "ha-binary-sensor-cold",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 18,
             "sensor_function_choices": [(18, "Frost (18)"), (0, "Generic (0)")],
@@ -112,6 +127,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "connectivity", "primary_group": 8,
+        "model": "HA Binary Sensor (connectivity)",
+        "model_uid": "ha-binary-sensor-connectivity",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 23, "group": 8, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
@@ -119,6 +137,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "door", "primary_group": 8,
+        "model": "HA Binary Sensor (door)",
+        "model_uid": "ha-binary-sensor-door",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 14, "group": 7, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
@@ -126,6 +147,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "garage_door", "primary_group": 8,
+        "model": "HA Binary Sensor (garage_door)",
+        "model_uid": "ha-binary-sensor-garage_door",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 16, "group": 7, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
@@ -133,6 +157,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "gas", "primary_group": 8,
+        "model": "HA Binary Sensor (gas)",
+        "model_uid": "ha-binary-sensor-gas",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 0, "group": 6, "group_choices": _BI_GROUP_ALL,
             "input_usage": 1, "input_type": 1, "update_interval": 1.0,
@@ -140,6 +167,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "heat", "primary_group": 8,
+        "model": "HA Binary Sensor (heat)",
+        "model_uid": "ha-binary-sensor-heat",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 11, "group": 3, "group_choices": _BI_GROUP_ALL,
             "input_usage": 1, "input_type": 1, "update_interval": 1.0,
@@ -147,6 +177,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "light", "primary_group": 8,
+        "model": "HA Binary Sensor (light)",
+        "model_uid": "ha-binary-sensor-light",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 2, "group": 1, "group_choices": _BI_GROUP_ALL,
             "input_usage": 1, "input_type": 1, "update_interval": 1.0,
@@ -154,6 +187,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "lock", "primary_group": 8,
+        "model": "HA Binary Sensor (lock)",
+        "model_uid": "ha-binary-sensor-lock",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 14, "group": 7, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
@@ -161,13 +197,19 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "moisture", "primary_group": 8,
+        "model": "HA Binary Sensor (moisture)",
+        "model_uid": "ha-binary-sensor-moisture",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 0, "group": 6, "group_choices": _BI_GROUP_MOISTURE,
-            "input_usage": 0, "input_type": 1, "update_interval": 1.0,
+            "input_usage": 6, "input_type": 1, "update_interval": 1.0,
         },
     },
     {
         "domain": "binary_sensor", "device_class": "motion", "primary_group": 8,
+        "model": "HA Binary Sensor (motion)",
+        "model_uid": "ha-binary-sensor-motion",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 5, "group": 1, "group_choices": _BI_GROUP_ALL,
             "input_usage": 1, "input_type": 1, "update_interval": 1.0,
@@ -175,14 +217,21 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "moving", "primary_group": 8,
+        "model": "HA Binary Sensor (moving)",
+        "model_uid": "ha-binary-sensor-moving",
+        "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 5, "sensor_function_choices": "any",
-            "group": 8, "input_usage": 0,
+            "sensor_function": 5,
+            "sensor_function_choices": [(5, "Motion (5)"), (0, "Generic (0)")],
+            "group": 8, "input_usage": 1,
             "input_type": 1, "update_interval": 1.0,
         },
     },
     {
         "domain": "binary_sensor", "device_class": "occupancy", "primary_group": 8,
+        "model": "HA Binary Sensor (occupancy)",
+        "model_uid": "ha-binary-sensor-occupancy",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 1, "group": 1, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
@@ -190,6 +239,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "opening", "primary_group": 8,
+        "model": "HA Binary Sensor (opening)",
+        "model_uid": "ha-binary-sensor-opening",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 0, "group": 8, "group_choices": _BI_GROUP_ALL,
             "input_usage": 0, "input_type": 1, "update_interval": 1.0,
@@ -197,6 +249,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "plug", "primary_group": 8,
+        "model": "HA Binary Sensor (plug)",
+        "model_uid": "ha-binary-sensor-plug",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 0, "group": 8, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
@@ -204,6 +259,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "power", "primary_group": 8,
+        "model": "HA Binary Sensor (power)",
+        "model_uid": "ha-binary-sensor-power",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 0, "group": 8, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
@@ -211,6 +269,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "presence", "primary_group": 8,
+        "model": "HA Binary Sensor (presence)",
+        "model_uid": "ha-binary-sensor-presence",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 1, "group": 1, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
@@ -218,20 +279,29 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "problem", "primary_group": 8,
+        "model": "HA Binary Sensor (problem)",
+        "model_uid": "ha-binary-sensor-problem",
+        "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 22, "group": 8, "input_usage": 0,
+            "sensor_function": 22, "group": 8, "input_usage": 4,
             "input_type": 1, "update_interval": 1.0,
         },
     },
     {
         "domain": "binary_sensor", "device_class": "running", "primary_group": 8,
+        "model": "HA Binary Sensor (running)",
+        "model_uid": "ha-binary-sensor-running",
+        "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 0, "group": 8, "input_usage": 0,
+            "sensor_function": 0, "group": 8, "input_usage": 4,
             "input_type": 1, "update_interval": 1.0,
         },
     },
     {
         "domain": "binary_sensor", "device_class": "safety", "primary_group": 8,
+        "model": "HA Binary Sensor (safety)",
+        "model_uid": "ha-binary-sensor-safety",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 0, "group": 6, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
@@ -239,6 +309,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "smoke", "primary_group": 8,
+        "model": "HA Binary Sensor (smoke)",
+        "model_uid": "ha-binary-sensor-smoke",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 7, "group": 6, "input_usage": 1,
             "input_type": 1, "update_interval": 1.0,
@@ -246,6 +319,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "sound", "primary_group": 8,
+        "model": "HA Binary Sensor (sound)",
+        "model_uid": "ha-binary-sensor-sound",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 0, "group": 8, "group_choices": _BI_GROUP_ALL,
             "input_usage": 1, "input_type": 1, "update_interval": 1.0,
@@ -253,6 +329,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "tamper", "primary_group": 8,
+        "model": "HA Binary Sensor (tamper)",
+        "model_uid": "ha-binary-sensor-tamper",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 23, "group": 6, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
@@ -260,6 +339,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "update", "primary_group": 8,
+        "model": "HA Binary Sensor (update)",
+        "model_uid": "ha-binary-sensor-update",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 23, "group": 8, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
@@ -267,6 +349,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "vibration", "primary_group": 8,
+        "model": "HA Binary Sensor (vibration)",
+        "model_uid": "ha-binary-sensor-vibration",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 0, "group": 8, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
@@ -274,6 +359,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "binary_sensor", "device_class": "window", "primary_group": 8,
+        "model": "HA Binary Sensor (window)",
+        "model_uid": "ha-binary-sensor-window",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 13, "group": 7, "input_usage": 0,
             "input_type": 1, "update_interval": 1.0,
@@ -282,10 +370,13 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     # ── Button ──────────────────────────────────────────────────────────────
     {
         "domain": "button", "device_class": None, "primary_group": 8,
+        "model": "HA Button",
+        "model_uid": "ha-button-none",
+        "vendor_name": "Home Assistant",
         "button": {
             "button_type": 1,
-            "group": 8,
-            "function": 15,
+            "group": 1,
+            "function": 8,
             "mode": 0,
             "supports_local_key_mode": True,
             "calls_present": True,
@@ -294,8 +385,11 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     # ── Cover ────────────────────────────────────────────────────────────────
     {
         "domain": "cover", "device_class": "awning", "primary_group": 2,
+        "model": "HA Cover (awning)",
+        "model_uid": "ha-cover-awning",
+        "vendor_name": "Home Assistant",
         "output": {
-            "function": 2, "default_group": 2, "output_usage": 2,
+            "function": 2, "default_group": 65, "output_usage": 2,
             "variable_ramp": True, "mode": 2, "groups": [2],
             "channels": [{"channel_type": 7,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
@@ -304,6 +398,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "cover", "device_class": "blind", "primary_group": 2,
+        "model": "HA Cover (blind)",
+        "model_uid": "ha-cover-blind",
+        "vendor_name": "Home Assistant",
         "output": {
             "function": 2, "default_group": 2,
             "output_usage": 1,
@@ -340,6 +437,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "cover", "device_class": "curtain", "primary_group": 2,
+        "model": "HA Cover (curtain)",
+        "model_uid": "ha-cover-curtain",
+        "vendor_name": "Home Assistant",
         "output": {
             "function": 2, "default_group": 2, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [2],
@@ -350,8 +450,11 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "cover", "device_class": "damper", "primary_group": 3,
+        "model": "HA Cover (damper)",
+        "model_uid": "ha-cover-damper",
+        "vendor_name": "Home Assistant",
         "output": {
-            "function": 2, "default_group": 3, "output_usage": 1,
+            "function": 2, "default_group": 10, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [3],
             "channels": [{"channel_type": 14,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
@@ -360,6 +463,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "cover", "device_class": "door", "primary_group": 7,
+        "model": "HA Cover (door)",
+        "model_uid": "ha-cover-door",
+        "vendor_name": "Home Assistant",
         "output": {
             "function": 0, "default_group": 7, "output_usage": 2,
             "variable_ramp": False, "mode": 1, "groups": [7],
@@ -370,6 +476,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "cover", "device_class": "garage", "primary_group": 7,
+        "model": "HA Cover (garage)",
+        "model_uid": "ha-cover-garage",
+        "vendor_name": "Home Assistant",
         "output": {
             "function": 0, "default_group": 7, "output_usage": 2,
             "variable_ramp": False, "mode": 1, "groups": [7],
@@ -380,6 +489,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "cover", "device_class": "gate", "primary_group": 7,
+        "model": "HA Cover (gate)",
+        "model_uid": "ha-cover-gate",
+        "vendor_name": "Home Assistant",
         "output": {
             "function": 2,
             "function_choices": [(2, "Positional — supports position feedback (2)"), (0, "On/Off only (0)")],
@@ -392,6 +504,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "cover", "device_class": "shade", "primary_group": 2,
+        "model": "HA Cover (shade)",
+        "model_uid": "ha-cover-shade",
+        "vendor_name": "Home Assistant",
         "output": {
             "function": 2, "default_group": 2, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [2],
@@ -402,6 +517,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "cover", "device_class": "shutter", "primary_group": 2,
+        "model": "HA Cover (shutter)",
+        "model_uid": "ha-cover-shutter",
+        "vendor_name": "Home Assistant",
         "output": {
             "function": 2, "default_group": 2, "output_usage": 2,
             "variable_ramp": True, "mode": 2, "groups": [2],
@@ -417,11 +535,14 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "cover", "device_class": "window", "primary_group": 3,
+        "model": "HA Cover (window)",
+        "model_uid": "ha-cover-window",
+        "vendor_name": "Home Assistant",
         "output": {
             "function": 2,
             "function_choices": [(2, "Positional — supports position feedback (2)"), (0, "On/Off only (0)")],
-            "default_group": 3, "output_usage": 1,
-            "variable_ramp": True, "mode": 2, "groups": [3],
+            "default_group": 11, "output_usage": 1,
+            "variable_ramp": False, "mode": 2, "groups": [3],
             "channels": [{"channel_type": 8,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
                           "push_expr": "attrs.get('current_position',0)"}],  # SHADE_POSITION_INDOOR
@@ -431,10 +552,13 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     # ── Event ────────────────────────────────────────────────────────────────
     {
         "domain": "event", "device_class": "button", "primary_group": 8,
+        "model": "HA Event (button)",
+        "model_uid": "ha-event-button",
+        "vendor_name": "Home Assistant",
         "button": {
             "button_type": 1,
-            "group": 8,
-            "function": 15,
+            "group": 1,
+            "function": 8,
             "mode": 0,
             "supports_local_key_mode": False,
             "calls_present": False,
@@ -442,6 +566,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "event", "device_class": "doorbell", "primary_group": 8,
+        "model": "HA Event (doorbell)",
+        "model_uid": "ha-event-doorbell",
+        "vendor_name": "Home Assistant",
         "button": {
             "button_type": 1,
             "group": 8,   # JOKER — fixed
@@ -453,6 +580,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "event", "device_class": "motion", "primary_group": 8,
+        "model": "HA Event (motion)",
+        "model_uid": "ha-event-motion",
+        "vendor_name": "Home Assistant",
         "binary_input": {
             "sensor_function": 5, "group": 1, "group_choices": _BI_GROUP_ALL,
             "input_usage": 1, "input_type": 1, "update_interval": 1.0,
@@ -461,8 +591,11 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     # ── Fan ──────────────────────────────────────────────────────────────────
     {
         "domain": "fan", "device_class": None, "primary_group": 3,
+        "model": "HA Fan",
+        "model_uid": "ha-fan-none",
+        "vendor_name": "Home Assistant",
         "output": {
-            "function": 1, "default_group": 3, "output_usage": 1,
+            "function": 1, "default_group": 10, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [3],
             "channels": [
                 {"channel_type": 12,
@@ -477,9 +610,12 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     # ── Light ─────────────────────────────────────────────────────────────────
     {
         "domain": "light", "device_class": None, "primary_group": 1,
+        "model": "HA Light",
+        "model_uid": "ha-light-onoff",
+        "vendor_name": "Home Assistant",
         "output": {
             "function": 0, "default_group": 1, "output_usage": 1,
-            "variable_ramp": False, "mode": 1, "groups": [1],
+            "variable_ramp": True, "mode": 1, "groups": [1],
             "channels": [{"channel_type": 1,
                           "apply_expr": "{'domain':'light','service':'turn_on' if value>50 else 'turn_off','service_data':{}}",
                           "push_expr": "100.0 if entity.state=='on' else 0.0"}],  # BRIGHTNESS
@@ -487,6 +623,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "light", "device_class": "brightness", "primary_group": 1,
+        "model": "HA Light (brightness)",
+        "model_uid": "ha-light-brightness",
+        "vendor_name": "Home Assistant",
         "output": {
             "function": 1, "default_group": 1, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [1],
@@ -497,6 +636,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "light", "device_class": "color_temp", "primary_group": 1,
+        "model": "HA Light (color_temp)",
+        "model_uid": "ha-light-color_temp",
+        "vendor_name": "Home Assistant",
         "output": {
             "function": 3, "default_group": 1, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [1],
@@ -512,6 +654,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "light", "device_class": "rgb", "primary_group": 1,
+        "model": "HA Light (rgb)",
+        "model_uid": "ha-light-rgb",
+        "vendor_name": "Home Assistant",
         "output": {
             "function": 4, "default_group": 1, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [1],
@@ -540,8 +685,11 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     # ── Lock ──────────────────────────────────────────────────────────────────
     {
         "domain": "lock", "device_class": None, "primary_group": 8,
+        "model": "HA Lock",
+        "model_uid": "ha-lock-none",
+        "vendor_name": "Home Assistant",
         "output": {
-            "function": 127, "default_group": 8, "output_usage": 0,
+            "function": 127, "default_group": 8, "output_usage": 1,
             "variable_ramp": False, "mode": 1, "groups": [8],
             "channels": [{"channel_type": 19,
                           "apply_expr": "{'domain':'lock','service':'lock' if value==0 else 'unlock','service_data':{}}",
@@ -555,8 +703,11 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     # ── Number ────────────────────────────────────────────────────────────────
     {
         "domain": "number", "device_class": None, "primary_group": 8,
+        "model": "HA Number",
+        "model_uid": "ha-number-none",
+        "vendor_name": "Home Assistant",
         "output": {
-            "function": 2, "default_group": 8, "output_usage": 0,
+            "function": 2, "default_group": 8, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [8],
             "channels": [{"channel_type": 24,
                           "apply_expr": "{'domain':'number','service':'set_value','service_data':{'value':round(_denorm(value,float(attrs.get('min',0)),float(attrs.get('max',100))),2)}}",
@@ -566,6 +717,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     # ── Sensor ────────────────────────────────────────────────────────────────
     {
         "domain": "sensor", "device_class": None, "primary_group": 8,
+        "model": "HA Sensor",
+        "model_uid": "ha-sensor-none",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 1,
             "sensor_type_choices": "any",  # full SensorType selector
@@ -579,6 +733,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "apparent_power", "primary_group": 8,
+        "model": "HA Sensor (apparent_power)",
+        "model_uid": "ha-sensor-apparent_power",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 17, "sensor_usage": 4,
             "min": 0.0, "max": 10000.0, "resolution": 1.0,
@@ -588,6 +745,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "aqi", "primary_group": 8,
+        "model": "HA Sensor (aqi)",
+        "model_uid": "ha-sensor-aqi",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 0, "sensor_usage": 1,
             "sensor_usage_choices": _SU_ROOM_OUTDOOR,
@@ -598,6 +758,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "atmospheric_pressure", "primary_group": 8,
+        "model": "HA Sensor (atmospheric_pressure)",
+        "model_uid": "ha-sensor-atmospheric_pressure",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 18, "sensor_usage": 2,
             "min": 800.0, "max": 1100.0, "resolution": 0.1,
@@ -607,15 +770,21 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "battery", "primary_group": 8,
+        "model": "HA Sensor (battery)",
+        "model_uid": "ha-sensor-battery",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 32, "sensor_usage": 4,
             "min": 0.0, "max": 100.0, "resolution": 0.5,
-            "update_interval": 30.0, "alive_sign_interval": 120.0,
+            "update_interval": 60.0, "alive_sign_interval": 240.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
         },
     },
     {
         "domain": "sensor", "device_class": "carbon_dioxide", "primary_group": 8,
+        "model": "HA Sensor (carbon_dioxide)",
+        "model_uid": "ha-sensor-carbon_dioxide",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 22, "sensor_usage": 1,
             "min": 0.0, "max": 5000.0, "resolution": 1.0,
@@ -625,6 +794,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "carbon_monoxide", "primary_group": 8,
+        "model": "HA Sensor (carbon_monoxide)",
+        "model_uid": "ha-sensor-carbon_monoxide",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 5, "sensor_usage": 1,
             "min": 0.0, "max": 1000.0, "resolution": 0.1,
@@ -634,6 +806,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "current", "primary_group": 8,
+        "model": "HA Sensor (current)",
+        "model_uid": "ha-sensor-current",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 15, "sensor_usage": 4,
             "min": 0.0, "max": 100.0, "resolution": 0.01,
@@ -643,9 +818,12 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "distance", "primary_group": 8,
+        "model": "HA Sensor (distance)",
+        "model_uid": "ha-sensor-distance",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 29, "sensor_usage": 4,
-            "sensor_usage_choices": _SU_DEVICE_LEVEL,
+            "sensor_usage_choices": [(4, "Device Level (4)"), (5, "Device Level Individual (5)"), (6, "Device Level All (6)")],
             "min": 0.0, "max": 1000.0, "resolution": 0.01,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -653,9 +831,12 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "duration", "primary_group": 8,
+        "model": "HA Sensor (duration)",
+        "model_uid": "ha-sensor-duration",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 31, "sensor_usage": 4,
-            "sensor_usage_choices": _SU_DEVICE_LEVEL,
+            "sensor_usage_choices": [(4, "Device Level (4)"), (5, "Device Level Individual (5)"), (6, "Device Level All (6)")],
             "min": 0.0, "max": 86400.0, "resolution": 1.0,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -663,6 +844,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "energy", "primary_group": 8,
+        "model": "HA Sensor (energy)",
+        "model_uid": "ha-sensor-energy",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 16, "sensor_usage": 4,
             "min": 0.0, "max": 100000.0, "resolution": 0.1,
@@ -672,6 +856,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "frequency", "primary_group": 8,
+        "model": "HA Sensor (frequency)",
+        "model_uid": "ha-sensor-frequency",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 34, "sensor_usage": 4,
             "min": 0.0, "max": 1000.0, "resolution": 0.01,
@@ -681,11 +868,14 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "gas", "primary_group": 8,
+        "model": "HA Sensor (gas)",
+        "model_uid": "ha-sensor-gas",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 0,
             "sensor_type_choices": [(0, "None / Generic (0)"), (7, "Gas Type (7)")],
             "sensor_usage": 0,
-            "sensor_usage_choices": _SU_GENERAL,
+            "sensor_usage_choices": [(0, "Generic (0)"), (1, "Room (1)"), (2, "Outdoor (2)"), (4, "Device Level (4)")],
             "min": 0.0, "max": 100.0, "resolution": 1.0,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -693,9 +883,12 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "humidity", "primary_group": 8,
+        "model": "HA Sensor (humidity)",
+        "model_uid": "ha-sensor-humidity",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 2, "sensor_usage": 0,
-            "sensor_usage_choices": _SU_GENERAL,
+            "sensor_usage_choices": [(0, "Generic (0)"), (1, "Room (1)"), (2, "Outdoor (2)"), (4, "Device Level (4)")],
             "min": 0.0, "max": 100.0, "resolution": 0.5,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -703,9 +896,12 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "illuminance", "primary_group": 8,
+        "model": "HA Sensor (illuminance)",
+        "model_uid": "ha-sensor-illuminance",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 3, "sensor_usage": 0,
-            "sensor_usage_choices": _SU_GENERAL,
+            "sensor_usage_choices": [(0, "Generic (0)"), (1, "Room (1)"), (2, "Outdoor (2)"), (4, "Device Level (4)")],
             "min": 0.0, "max": 100000.0, "resolution": 1.0,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -713,9 +909,12 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "moisture", "primary_group": 8,
+        "model": "HA Sensor (moisture)",
+        "model_uid": "ha-sensor-moisture",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 0, "sensor_usage": 0,
-            "sensor_usage_choices": _SU_GENERAL,
+            "sensor_usage_choices": [(0, "Generic (0)"), (1, "Room (1)"), (2, "Outdoor (2)"), (4, "Device Level (4)")],
             "min": 0.0, "max": 100.0, "resolution": 0.5,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -723,6 +922,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "pm1", "primary_group": 8,
+        "model": "HA Sensor (pm1)",
+        "model_uid": "ha-sensor-pm1",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 10, "sensor_usage": 1,
             "min": 0.0, "max": 500.0, "resolution": 1.0,
@@ -732,6 +934,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "pm10", "primary_group": 8,
+        "model": "HA Sensor (pm10)",
+        "model_uid": "ha-sensor-pm10",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 8, "sensor_usage": 1,
             "min": 0.0, "max": 500.0, "resolution": 1.0,
@@ -741,6 +946,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "pm25", "primary_group": 8,
+        "model": "HA Sensor (pm25)",
+        "model_uid": "ha-sensor-pm25",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 9, "sensor_usage": 1,
             "min": 0.0, "max": 500.0, "resolution": 1.0,
@@ -750,6 +958,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "power", "primary_group": 8,
+        "model": "HA Sensor (power)",
+        "model_uid": "ha-sensor-power",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 14, "sensor_usage": 4,
             "min": 0.0, "max": 10000.0, "resolution": 1.0,
@@ -759,6 +970,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "power_factor", "primary_group": 8,
+        "model": "HA Sensor (power_factor)",
+        "model_uid": "ha-sensor-power_factor",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 32, "sensor_usage": 4,
             "min": 0.0, "max": 100.0, "resolution": 0.5,
@@ -768,6 +982,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "precipitation", "primary_group": 8,
+        "model": "HA Sensor (precipitation)",
+        "model_uid": "ha-sensor-precipitation",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 21, "sensor_usage": 2,
             "min": 0.0, "max": 200.0, "resolution": 0.1,
@@ -777,6 +994,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "sound_pressure", "primary_group": 8,
+        "model": "HA Sensor (sound_pressure)",
+        "model_uid": "ha-sensor-sound_pressure",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 20, "sensor_usage": 4,
             "min": 0.0, "max": 130.0, "resolution": 0.1,
@@ -786,9 +1006,12 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "speed", "primary_group": 8,
+        "model": "HA Sensor (speed)",
+        "model_uid": "ha-sensor-speed",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 0, "sensor_usage": 0,
-            "sensor_usage_choices": _SU_GENERAL,
+            "sensor_usage_choices": [(0, "Generic (0)"), (1, "Room (1)"), (2, "Outdoor (2)"), (4, "Device Level (4)")],
             "min": 0.0, "max": 60.0, "resolution": 0.1,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -796,9 +1019,12 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "temperature", "primary_group": 8,
+        "model": "HA Sensor (temperature)",
+        "model_uid": "ha-sensor-temperature",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 1, "sensor_usage": 0,
-            "sensor_usage_choices": _SU_GENERAL,
+            "sensor_usage_choices": [(0, "Generic (0)"), (1, "Room (1)"), (2, "Outdoor (2)"), (4, "Device Level (4)")],
             "min": -40.0, "max": 85.0, "resolution": 0.1,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -806,6 +1032,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "voltage", "primary_group": 8,
+        "model": "HA Sensor (voltage)",
+        "model_uid": "ha-sensor-voltage",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 4, "sensor_usage": 4,
             "min": 0.0, "max": 500.0, "resolution": 0.1,
@@ -815,6 +1044,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "water", "primary_group": 8,
+        "model": "HA Sensor (water)",
+        "model_uid": "ha-sensor-water",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 27, "sensor_usage": 4,
             "min": 0.0, "max": 10000.0, "resolution": 0.1,
@@ -824,6 +1056,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "weight", "primary_group": 8,
+        "model": "HA Sensor (weight)",
+        "model_uid": "ha-sensor-weight",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 30, "sensor_usage": 4,
             "min": 0.0, "max": 1000.0, "resolution": 0.1,
@@ -833,6 +1068,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "sensor", "device_class": "wind_speed", "primary_group": 8,
+        "model": "HA Sensor (wind_speed)",
+        "model_uid": "ha-sensor-wind_speed",
+        "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 13,
             "sensor_type_choices": [(13, "Wind Speed (13)"), (23, "Wind Gust Speed (23)")],
@@ -845,8 +1083,11 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     # ── Siren ────────────────────────────────────────────────────────────────
     {
         "domain": "siren", "device_class": None, "primary_group": 8,
+        "model": "HA Siren",
+        "model_uid": "ha-siren-none",
+        "vendor_name": "Home Assistant",
         "output": {
-            "function": 127, "default_group": 8, "output_usage": 0,
+            "function": 127, "default_group": 8, "output_usage": 1,
             "variable_ramp": False, "mode": 1, "groups": [8],
             "channels": [
                 {"channel_type": 19,
@@ -861,8 +1102,11 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     # ── Switch ───────────────────────────────────────────────────────────────
     {
         "domain": "switch", "device_class": None, "primary_group": 8,
+        "model": "HA Switch",
+        "model_uid": "ha-switch-none",
+        "vendor_name": "Home Assistant",
         "output": {
-            "function": 0, "default_group": 8, "output_usage": 0,
+            "function": 0, "default_group": 8, "output_usage": 1,
             "variable_ramp": False, "mode": 1, "groups": [8],
             "channels": [{"channel_type": 19,
                           "apply_expr": "{'domain':'switch','service':'turn_on' if value>=1 else 'turn_off','service_data':{}}",
@@ -871,8 +1115,11 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "switch", "device_class": "outlet", "primary_group": 8,
+        "model": "HA Switch (outlet)",
+        "model_uid": "ha-switch-outlet",
+        "vendor_name": "Home Assistant",
         "output": {
-            "function": 0, "default_group": 8, "output_usage": 0,
+            "function": 0, "default_group": 8, "output_usage": 1,
             "variable_ramp": False, "mode": 1, "groups": [8],
             "channels": [{"channel_type": 19,
                           "apply_expr": "{'domain':'switch','service':'turn_on' if value>=1 else 'turn_off','service_data':{}}",
@@ -881,8 +1128,11 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "switch", "device_class": "switch", "primary_group": 8,
+        "model": "HA Switch (switch)",
+        "model_uid": "ha-switch-switch",
+        "vendor_name": "Home Assistant",
         "output": {
-            "function": 0, "default_group": 8, "output_usage": 0,
+            "function": 0, "default_group": 8, "output_usage": 1,
             "variable_ramp": False, "mode": 1, "groups": [8],
             "channels": [{"channel_type": 19,
                           "apply_expr": "{'domain':'switch','service':'turn_on' if value>=1 else 'turn_off','service_data':{}}",
@@ -892,8 +1142,11 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     # ── Valve ────────────────────────────────────────────────────────────────
     {
         "domain": "valve", "device_class": None, "primary_group": 3,
+        "model": "HA Valve",
+        "model_uid": "ha-valve-none",
+        "vendor_name": "Home Assistant",
         "output": {
-            "function": 0, "default_group": 3, "output_usage": 0,
+            "function": 0, "default_group": 3, "output_usage": 1,
             "variable_ramp": False, "mode": 1, "groups": [3],
             "channels": [{"channel_type": 19,
                           "apply_expr": "{'domain':'valve','service':'open_valve' if value>=1 else 'close_valve','service_data':{}}",
@@ -902,8 +1155,11 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "valve", "device_class": "gas", "primary_group": 3,
+        "model": "HA Valve (gas)",
+        "model_uid": "ha-valve-gas",
+        "vendor_name": "Home Assistant",
         "output": {
-            "function": 0, "default_group": 3, "output_usage": 0,
+            "function": 0, "default_group": 3, "output_usage": 1,
             "variable_ramp": False, "mode": 1, "groups": [3],
             "channels": [{"channel_type": 19,
                           "apply_expr": "{'domain':'valve','service':'open_valve' if value>=1 else 'close_valve','service_data':{}}",
@@ -912,8 +1168,11 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "valve", "device_class": "water", "primary_group": 3,
+        "model": "HA Valve (water)",
+        "model_uid": "ha-valve-water",
+        "vendor_name": "Home Assistant",
         "output": {
-            "function": 2, "default_group": 3, "output_usage": 0,
+            "function": 2, "default_group": 3, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [3],
             "channels": [{"channel_type": 23,
                           "apply_expr": "{'domain':'valve','service':'set_valve_position','service_data':{'position':round(value)}}",
@@ -922,8 +1181,11 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     },
     {
         "domain": "valve", "device_class": "water_heater", "primary_group": 3,
+        "model": "HA Valve (water_heater)",
+        "model_uid": "ha-valve-water_heater",
+        "vendor_name": "Home Assistant",
         "output": {
-            "function": 2, "default_group": 3, "output_usage": 0,
+            "function": 2, "default_group": 3, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [3],
             "channels": [{"channel_type": 23,
                           "apply_expr": "{'domain':'valve','service':'set_valve_position','service_data':{'position':round(value)}}",

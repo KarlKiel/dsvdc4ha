@@ -84,7 +84,7 @@ def test_binary_sensor_moving_sensor_function_default_is_motion():
     m = _mapping("binary_sensor", "moving")
     bi = m["binary_input"]
     assert bi["sensor_function"] == 5, "moving default should be MOTION (5)"
-    assert bi.get("sensor_function_choices") == "any"
+    assert bi.get("sensor_function_choices") == [(5, "Motion (5)"), (0, "Generic (0)")]
 
 
 # --- Category C: sensor_usage choices ---
@@ -92,12 +92,12 @@ def test_binary_sensor_moving_sensor_function_default_is_motion():
     ("aqi", [1, 2]),
     ("distance", [4, 5, 6]),
     ("duration", [4, 5, 6]),
-    ("gas", [0, 1, 2, 4, 5, 6]),
-    ("humidity", [0, 1, 2, 4, 5, 6]),
-    ("illuminance", [0, 1, 2, 4, 5, 6]),
-    ("moisture", [0, 1, 2, 4, 5, 6]),
-    ("speed", [0, 1, 2, 4, 5, 6]),
-    ("temperature", [0, 1, 2, 4, 5, 6]),
+    ("gas", [0, 1, 2, 4]),
+    ("humidity", [0, 1, 2, 4]),
+    ("illuminance", [0, 1, 2, 4]),
+    ("moisture", [0, 1, 2, 4]),
+    ("speed", [0, 1, 2, 4]),
+    ("temperature", [0, 1, 2, 4]),
 ])
 def test_sensor_usage_choices_present(dc, expected_options_include):
     m = _mapping("sensor", dc)
