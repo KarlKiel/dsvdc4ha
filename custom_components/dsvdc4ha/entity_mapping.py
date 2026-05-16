@@ -178,9 +178,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-binary-sensor-moisture",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": 0, "group": 8,
+            "sensor_function": 0, "group": 6,
             "group_choices": [(8, "Joker (8)"), (6, "Security (6)"), (3, "Climate (3)")],
-            "input_usage": 0,
+            "input_usage": 6,
             "input_type": 1, "update_interval": 1.0,
         },
     },
@@ -354,8 +354,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "button": {
             "button_type": 1,
-            "group": 8,
-            "function": 15,
+            "group": 1,
+            "function": 8,
             "mode": 0,
             "supports_local_key_mode": True,
             "calls_present": True,
@@ -368,7 +368,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-cover-awning",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": 2, "default_group": 2, "output_usage": 2,
+            "function": 2, "default_group": 65, "output_usage": 2,
             "variable_ramp": True, "mode": 2, "groups": [2],
             "channels": [{"channel_type": 7,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
@@ -433,7 +433,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-cover-damper",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": 2, "default_group": 3, "output_usage": 1,
+            "function": 2, "default_group": 10, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [3],
             "channels": [{"channel_type": 14,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
@@ -520,11 +520,16 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": 2,
             "function_choices": [(2, "Positional — supports position feedback (2)"), (0, "On/Off only (0)")],
-            "default_group": 3, "output_usage": 1,
-            "variable_ramp": True, "mode": 2, "groups": [3],
-            "channels": [{"channel_type": 8,
-                          "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
-                          "push_expr": "attrs.get('current_position',0)"}],  # SHADE_POSITION_INDOOR
+            "default_group": 11, "output_usage": 1,
+            "variable_ramp": False, "mode": 2, "groups": [3],
+            "channels": [
+                {"channel_type": 8,
+                 "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
+                 "push_expr": "attrs.get('current_position',0)"},  # SHADE_POSITION_INDOOR
+                {"channel_type": "Define ch2 only if Cover allows tilting! SHADE_OPENING_ANGLE_INDOOR",
+                 "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
+                 "push_expr": "attrs.get('current_tilt_position',0)"},
+            ],
             "optional_tilt": True,               # user asked for second channel
         },
     },
@@ -536,8 +541,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "button": {
             "button_type": 1,
-            "group": 8,
-            "function": 15,
+            "group": 1,
+            "function": 8,
             "mode": 0,
             "supports_local_key_mode": False,
             "calls_present": False,
@@ -574,7 +579,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-fan-none",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": 1, "default_group": 3, "output_usage": 1,
+            "function": 1, "default_group": 10, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [3],
             "channels": [
                 {"channel_type": 12,
@@ -594,7 +599,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": 0, "default_group": 1, "output_usage": 1,
-            "variable_ramp": False, "mode": 1, "groups": [1],
+            "variable_ramp": True, "mode": 1, "groups": [1],
             "channels": [{"channel_type": 1,
                           "apply_expr": "{'domain':'light','service':'turn_on' if value>50 else 'turn_off','service_data':{}}",
                           "push_expr": "100.0 if entity.state=='on' else 0.0"}],  # BRIGHTNESS
@@ -668,7 +673,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-lock-none",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": 127, "default_group": 8, "output_usage": 0,
+            "function": 127, "default_group": 8, "output_usage": 1,
             "variable_ramp": False, "mode": 1, "groups": [8],
             "channels": [{"channel_type": 19,
                           "apply_expr": "{'domain':'lock','service':'lock' if value==0 else 'unlock','service_data':{}}",
@@ -686,7 +691,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-number-none",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": 2, "default_group": 8, "output_usage": 0,
+            "function": 2, "default_group": 8, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [8],
             "channels": [{"channel_type": 24,
                           "apply_expr": "{'domain':'number','service':'set_value','service_data':{'value':round(_denorm(value,float(attrs.get('min',0)),float(attrs.get('max',100))),2)}}",
@@ -801,7 +806,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-sensor-distance",
         "vendor_name": "Home Assistant",
         "sensor": {
-            "sensor_type": 29, "sensor_usage": 4,
+            "sensor_type": 29, "sensor_usage": "USER — DEVICE_LEVEL (4,5,6)",
             "sensor_usage_choices": [(4, "Device Level (4)"), (5, "Device Level Individual (5)"), (6, "Device Level All (6)")],
             "min": 0.0, "max": 1000.0, "resolution": 0.01,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
@@ -814,7 +819,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-sensor-duration",
         "vendor_name": "Home Assistant",
         "sensor": {
-            "sensor_type": 31, "sensor_usage": 4,
+            "sensor_type": 31, "sensor_usage": "USER — DEVICE_LEVEL (4,5,6)",
             "sensor_usage_choices": [(4, "Device Level (4)"), (5, "Device Level Individual (5)"), (6, "Device Level All (6)")],
             "min": 0.0, "max": 86400.0, "resolution": 1.0,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
@@ -1066,7 +1071,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-siren-none",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": 127, "default_group": 8, "output_usage": 0,
+            "function": 127, "default_group": 8, "output_usage": 1,
             "variable_ramp": False, "mode": 1, "groups": [8],
             "channels": [
                 {"channel_type": 19,
@@ -1085,7 +1090,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-switch-none",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": 0, "default_group": 8, "output_usage": 0,
+            "function": 0, "default_group": 8, "output_usage": 1,
             "variable_ramp": False, "mode": 1, "groups": [8],
             "channels": [{"channel_type": 19,
                           "apply_expr": "{'domain':'switch','service':'turn_on' if value>=1 else 'turn_off','service_data':{}}",
@@ -1098,7 +1103,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-switch-outlet",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": 0, "default_group": 8, "output_usage": 0,
+            "function": 0, "default_group": 8, "output_usage": 1,
             "variable_ramp": False, "mode": 1, "groups": [8],
             "channels": [{"channel_type": 19,
                           "apply_expr": "{'domain':'switch','service':'turn_on' if value>=1 else 'turn_off','service_data':{}}",
@@ -1111,7 +1116,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-switch-switch",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": 0, "default_group": 8, "output_usage": 0,
+            "function": 0, "default_group": 8, "output_usage": 1,
             "variable_ramp": False, "mode": 1, "groups": [8],
             "channels": [{"channel_type": 19,
                           "apply_expr": "{'domain':'switch','service':'turn_on' if value>=1 else 'turn_off','service_data':{}}",
@@ -1125,7 +1130,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-valve-none",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": 0, "default_group": 3, "output_usage": 0,
+            "function": 0, "default_group": 3, "output_usage": 1,
             "variable_ramp": False, "mode": 1, "groups": [3],
             "channels": [{"channel_type": 19,
                           "apply_expr": "{'domain':'valve','service':'open_valve' if value>=1 else 'close_valve','service_data':{}}",
@@ -1138,7 +1143,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-valve-gas",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": 0, "default_group": 3, "output_usage": 0,
+            "function": 0, "default_group": 3, "output_usage": 1,
             "variable_ramp": False, "mode": 1, "groups": [3],
             "channels": [{"channel_type": 19,
                           "apply_expr": "{'domain':'valve','service':'open_valve' if value>=1 else 'close_valve','service_data':{}}",
@@ -1151,7 +1156,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-valve-water",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": 2, "default_group": 3, "output_usage": 0,
+            "function": 2, "default_group": 3, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [3],
             "channels": [{"channel_type": 23,
                           "apply_expr": "{'domain':'valve','service':'set_valve_position','service_data':{'position':round(value)}}",
@@ -1164,7 +1169,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-valve-water_heater",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": 2, "default_group": 3, "output_usage": 0,
+            "function": 2, "default_group": 3, "output_usage": 1,
             "variable_ramp": True, "mode": 2, "groups": [3],
             "channels": [{"channel_type": 23,
                           "apply_expr": "{'domain':'valve','service':'set_valve_position','service_data':{'position':round(value)}}",
