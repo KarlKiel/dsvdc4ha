@@ -1,7 +1,9 @@
 """dSVDC Home Assistant integration."""
 from __future__ import annotations
 
+import json
 import logging
+import pathlib
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -14,6 +16,26 @@ from .const import DOMAIN, PLATFORMS
 from .coordinator import HubCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+_MANIFEST = json.loads((pathlib.Path(__file__).parent / "manifest.json").read_text())
+_PYDSVDCAPI_REQ: str = next(
+    r for r in _MANIFEST["requirements"] if r.startswith("pydsvdcapi")
+)
+
+
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Ensure the pinned pydsvdcapi version is installed before any entry setup."""
+    from homeassistant.util.package import install_package, is_installed
+
+    if not is_installed(_PYDSVDCAPI_REQ):
+        _LOGGER.info("Installing required package: %s", _PYDSVDCAPI_REQ)
+        success = await hass.async_add_executor_job(install_package, _PYDSVDCAPI_REQ)
+        if not success:
+            _LOGGER.error(
+                "Failed to install %s — the integration may not work correctly",
+                _PYDSVDCAPI_REQ,
+            )
+    return True
 
 
 def _entity_ids_in_vdsd(vdsd_data: dict[str, Any]) -> set[str]:
