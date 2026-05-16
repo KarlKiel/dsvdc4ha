@@ -264,6 +264,22 @@ No new conftest needed.
 
 ---
 
+## Section 7 — xlsx sync: name column
+
+The `name` column for every row currently reads `entity.friendly_name`. Update every data cell in that column to:
+
+```
+entity.friendly_name (fallback: entity_id.split(".")[-1])
+```
+
+This documents the agreed fallback behaviour in the source-of-truth document.
+
+**Constraint:** No other changes to `documents/ha_vdsd_mapping.xlsx` are allowed without explicit user confirmation.
+
+The update is done with openpyxl in a small standalone script run once during the implementation, then the modified xlsx is committed.
+
+---
+
 ## What is NOT in scope
 
 - Fixing `apply_expr` / `push_expr` channel converter expressions (they were not flagged as wrong by the audit)
