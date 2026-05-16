@@ -522,14 +522,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "function_choices": [(2, "Positional — supports position feedback (2)"), (0, "On/Off only (0)")],
             "default_group": 11, "output_usage": 1,
             "variable_ramp": False, "mode": 2, "groups": [3],
-            "channels": [
-                {"channel_type": 8,
-                 "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
-                 "push_expr": "attrs.get('current_position',0)"},  # SHADE_POSITION_INDOOR
-                {"channel_type": "Define ch2 only if Cover allows tilting! SHADE_OPENING_ANGLE_INDOOR",
-                 "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
-                 "push_expr": "attrs.get('current_tilt_position',0)"},
-            ],
+            "channels": [{"channel_type": 8,
+                          "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
+                          "push_expr": "attrs.get('current_position',0)"}],  # SHADE_POSITION_INDOOR
             "optional_tilt": True,               # user asked for second channel
         },
     },
@@ -806,7 +801,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-sensor-distance",
         "vendor_name": "Home Assistant",
         "sensor": {
-            "sensor_type": 29, "sensor_usage": "USER — DEVICE_LEVEL (4,5,6)",
+            "sensor_type": 29, "sensor_usage": 4,
             "sensor_usage_choices": [(4, "Device Level (4)"), (5, "Device Level Individual (5)"), (6, "Device Level All (6)")],
             "min": 0.0, "max": 1000.0, "resolution": 0.01,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
@@ -819,7 +814,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-sensor-duration",
         "vendor_name": "Home Assistant",
         "sensor": {
-            "sensor_type": 31, "sensor_usage": "USER — DEVICE_LEVEL (4,5,6)",
+            "sensor_type": 31, "sensor_usage": 4,
             "sensor_usage_choices": [(4, "Device Level (4)"), (5, "Device Level Individual (5)"), (6, "Device Level All (6)")],
             "min": 0.0, "max": 86400.0, "resolution": 1.0,
             "update_interval": 30.0, "alive_sign_interval": 120.0,

@@ -95,6 +95,7 @@ def _is_na(v) -> bool:
     return v is None or (isinstance(v, str) and (
         v.strip() in _NA_TOKENS
         or v.strip().lower().startswith("pydsvdcapi handled")
+        or v.strip().lower().startswith("define ")
     ))
 
 
@@ -123,6 +124,10 @@ def _parse_scalar(raw):
         return False
     if " or " in s.lower() and "depending" in s.lower():
         return None
+    # Handle comma-separated integers like "USER — DEVICE_LEVEL (4,5,6)" → take first
+    m = re.search(r"\((-?\d+)(?:,\s*-?\d+)+\)", s)
+    if m:
+        return int(m.group(1))
     m = re.search(r"\((-?\d+)\)", s)
     if m:
         return int(m.group(1))
