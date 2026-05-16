@@ -14,9 +14,11 @@ _REPO_ROOT = pathlib.Path(__file__).parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
 
 try:
-    import openpyxl
-except ImportError as e:
-    raise ImportError("openpyxl is required: pip install openpyxl") from e
+    import openpyxl as _openpyxl
+    _OPENPYXL_AVAILABLE = True
+except ImportError:
+    _OPENPYXL_AVAILABLE = False
+    _openpyxl = None
 
 import importlib.util as _ilu
 
@@ -141,11 +143,13 @@ def _build_mapping_index() -> dict[tuple, dict]:
 
 
 def run_audit(xlsx_path="documents/ha_vdsd_mapping.xlsx") -> dict:
+    if not _OPENPYXL_AVAILABLE:
+        raise ImportError("openpyxl is required: pip install openpyxl")
     xlsx_path = pathlib.Path(xlsx_path)
     if not xlsx_path.exists():
         raise FileNotFoundError(f"xlsx not found: {xlsx_path}")
 
-    wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
+    wb = _openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
     ws = wb.active
 
     mapping_idx = _build_mapping_index()
@@ -176,7 +180,8 @@ def run_audit(xlsx_path="documents/ha_vdsd_mapping.xlsx") -> dict:
             continue
         if domain in _SKIP_ENTITY_NONE and dc is None:
             continue
-        if dc is not None and any(frag in dc for frag in _SKIP_DC_FRAGMENTS):
+        _dc_raw_lower = dc_str.lower() if dc_str else ""
+        if any(frag in _dc_raw_lower for frag in _SKIP_DC_FRAGMENTS):
             continue
         if domain == "button" and dc in _SKIP_BTN_DC:
             continue
