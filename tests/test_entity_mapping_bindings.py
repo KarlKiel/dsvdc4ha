@@ -131,3 +131,19 @@ def test_needs_user_input_bi_group_choices():
 def test_needs_user_input_sf_any():
     m = _mapping("binary_sensor", None)
     assert needs_user_input(m)
+
+
+def test_channel_type_names_matches_enum():
+    from pydsvdcapi.enums import OutputChannelType
+    import importlib.util, pathlib, sys
+    spec = importlib.util.spec_from_file_location(
+        "entity_mapping",
+        pathlib.Path(__file__).parent.parent / "custom_components/dsvdc4ha/entity_mapping.py",
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    for name, val in mod._CHANNEL_TYPE_NAMES.items():
+        assert hasattr(OutputChannelType, name), f"Unknown channel type name: {name}"
+        assert OutputChannelType[name].value == val
+    for member in OutputChannelType:
+        assert member.name in mod._CHANNEL_TYPE_NAMES, f"Missing: {member.name}"

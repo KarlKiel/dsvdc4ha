@@ -3,28 +3,31 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydsvdcapi.enums import (
+    BinaryInputGroup,
+    BinaryInputType,
+    BinaryInputUsage,
+    ButtonFunction,
+    ButtonFunctionJoker,
+    ButtonGroup,
+    ButtonMode,
+    ButtonType,
+    ColorClass,
+    ColorGroup,
+    OutputChannelType,
+    OutputFunction,
+    OutputMode,
+    OutputUsage,
+    SensorGroup,
+    SensorType,
+    SensorUsage,
+)
+from pydsvdcapi.binary_input import INPUT_TYPE_DETECTS_CHANGES
+
 # ---------------------------------------------------------------------------
-# Channel type name → OutputChannelType integer (from pydsvdcapi)
+# Channel type name → OutputChannelType integer (derived from pydsvdcapi enum)
 # ---------------------------------------------------------------------------
-_CHANNEL_TYPE_NAMES: dict[str, int] = {
-    "BRIGHTNESS": 1,
-    "HUE": 2,
-    "SATURATION": 3,
-    "COLOR_TEMPERATURE": 4,
-    "CIE_X": 5,
-    "CIE_Y": 6,
-    "SHADE_POSITION_OUTSIDE": 7,
-    "SHADE_POSITION_INDOOR": 8,
-    "SHADE_OPENING_ANGLE_OUTSIDE": 9,
-    "SHADE_OPENING_ANGLE_INDOOR": 10,
-    "AIR_FLOW_INTENSITY": 12,
-    "AIR_FLOW_DIRECTION": 13,
-    "AIR_FLAP_POSITION": 14,
-    "AUDIO_VOLUME": 18,
-    "POWER_STATE": 19,
-    "WATER_FLOW_RATE": 23,
-    "POWER_LEVEL": 24,
-}
+_CHANNEL_TYPE_NAMES: dict[str, int] = {m.name: m.value for m in OutputChannelType}
 
 # Reusable choice lists for binary_input.group_choices
 _BI_GROUP_ALL: list[tuple[int, str]] = [
