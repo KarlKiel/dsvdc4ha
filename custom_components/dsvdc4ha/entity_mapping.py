@@ -923,7 +923,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": SensorType.NONE,
-            "sensor_type_choices": [(SensorType.NONE.value, "None / Generic (0)"), (7, "Gas Type (7)")],
+            "sensor_type_choices": [(SensorType.NONE.value, "None / Generic (0)"), (SensorType.GAS_TYPE.value, "Gas Type (7)")],
             "sensor_usage": SensorUsage.UNDEFINED,
             "sensor_usage_choices": [(SensorUsage.UNDEFINED.value, "Generic (0)"), (SensorUsage.ROOM.value, "Room (1)"), (SensorUsage.OUTDOOR.value, "Outdoor (2)"), (SensorUsage.DEVICE_LEVEL.value, "Device Level (4)")],
             "min": 0.0, "max": 100.0, "resolution": 1.0,
@@ -1123,7 +1123,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": SensorType.WIND_SPEED,
-            "sensor_type_choices": [(SensorType.WIND_SPEED.value, "Wind Speed (13)"), (23, "Wind Gust Speed (23)")],
+            "sensor_type_choices": [(SensorType.WIND_SPEED.value, "Wind Speed (13)"), (SensorType.WIND_GUST_SPEED.value, "Wind Gust Speed (23)")],
             "sensor_usage": SensorUsage.OUTDOOR,
             "min": 0.0, "max": 60.0, "resolution": 0.1,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
