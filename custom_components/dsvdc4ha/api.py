@@ -58,6 +58,89 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _add_button(vdsd: Vdsd, data: dict[str, Any]) -> None:
+    btn = ButtonInput(
+        vdsd=vdsd,
+        ds_index=data["dsIndex"],
+        name=data["name"],
+        button_type=ButtonType(data["buttonType"]),
+        button_element_id=ButtonElementID(data["buttonElementID"]),
+        group=data["group"],
+        function=data["function"],
+        mode=ButtonMode(data["mode"]),
+        channel=data.get("channel", 0),
+        supports_local_key_mode=data.get("supportsLocalKeyMode", False),
+        sets_local_priority=data.get("setsLocalPriority", False),
+        calls_present=data.get("callsPresent", True),
+        button_id=data.get("buttonID", 0),
+    )
+    vdsd.add_button_input(btn)
+
+
+def _add_binary_input(vdsd: Vdsd, data: dict[str, Any]) -> None:
+    bi = BinaryInput(
+        vdsd=vdsd,
+        ds_index=data["dsIndex"],
+        name=data["name"],
+        sensor_function=BinaryInputType(data["sensorFunction"]),
+        hardwired_function=BinaryInputType(data.get("hardwiredFunction", 0)),
+        group=data.get("group", 0),
+        update_interval=float(data.get("updateInterval", 0)),
+        input_type=data.get("inputType", 1),
+        input_usage=BinaryInputUsage(data.get("inputUsage", 0)),
+    )
+    vdsd.add_binary_input(bi)
+
+
+def _add_sensor(vdsd: Vdsd, data: dict[str, Any]) -> None:
+    si = SensorInput(
+        vdsd=vdsd,
+        ds_index=data["dsIndex"],
+        name=data["name"],
+        sensor_type=SensorType(data["sensorType"]),
+        sensor_usage=SensorUsage(data.get("sensorUsage", 0) or 1),
+        group=data.get("group", 0),
+        min_value=float(data["min"]),
+        max_value=float(data["max"]),
+        resolution=float(data["resolution"]),
+        update_interval=float(data.get("updateInterval", 0)),
+        alive_sign_interval=float(data.get("aliveSignInterval", 0)),
+        min_push_interval=float(data.get("minPushInterval", 2.0)),
+        changes_only_interval=float(data.get("changesOnlyInterval", 0)),
+    )
+    vdsd.add_sensor_input(si)
+
+
+def _add_output(vdsd: Vdsd, data: dict[str, Any]) -> None:
+    output = Output(
+        vdsd=vdsd,
+        name=data["name"],
+        function=OutputFunction(data["function"]),
+        output_usage=OutputUsage(data.get("outputUsage", 0)),
+        default_group=data["defaultGroup"],
+        active_group=data["activeGroup"],
+        groups=set(data["groups"]),
+        variable_ramp=data.get("variableRamp", False),
+        push_changes=True,
+        mode=OutputMode(data["mode"]) if data.get("mode") is not None else None,
+        on_threshold=data.get("onThreshold"),
+        min_brightness=data.get("minBrightness"),
+        max_power=data.get("maxPower"),
+    )
+    for ch_data in data.get("channels", []):
+        ds_index = ch_data["dsIndex"]
+        output.remove_channel(ds_index)
+        output.add_channel(
+            OutputChannelType(ch_data["channelType"]),
+            ds_index=ds_index,
+            name=ch_data.get("name"),
+            min_value=ch_data.get("min"),
+            max_value=ch_data.get("max"),
+            resolution=ch_data.get("resolution"),
+        )
+    vdsd.set_output(output)
+
+
 class DsvdcApi:
     """Thin wrapper around pydsvdcapi VdcHost + Vdc."""
 
@@ -400,13 +483,13 @@ class DsvdcApi:
             device_icon_name=data.get("icon_name") or VDC_DEVICE_ICON_NAME,
         )
         for btn_data in data.get("buttons", []):
-            self._add_button(vdsd, btn_data)
+            _add_button(vdsd, btn_data)
         for bi_data in data.get("binary_inputs", []):
-            self._add_binary_input(vdsd, bi_data)
+            _add_binary_input(vdsd, bi_data)
         for si_data in data.get("sensors", []):
-            self._add_sensor(vdsd, si_data)
+            _add_sensor(vdsd, si_data)
         if output_data := data.get("output"):
-            self._add_output(vdsd, output_data)
+            _add_output(vdsd, output_data)
         vdsd.derive_model_features()
         # Apply the user's explicit feature selection saved during config flow.
         # derive_model_features() above seeds the set; we then add optional
@@ -422,85 +505,6 @@ class DsvdcApi:
                 except ValueError:
                     _LOGGER.warning("Ignoring unsupported model feature %r stored in config (update device in config flow to remove it)", f)
         return vdsd
-
-    def _add_button(self, vdsd: Vdsd, data: dict[str, Any]) -> None:
-        btn = ButtonInput(
-            vdsd=vdsd,
-            ds_index=data["dsIndex"],
-            name=data["name"],
-            button_type=ButtonType(data["buttonType"]),
-            button_element_id=ButtonElementID(data["buttonElementID"]),
-            group=data["group"],
-            function=data["function"],
-            mode=ButtonMode(data["mode"]),
-            channel=data.get("channel", 0),
-            supports_local_key_mode=data.get("supportsLocalKeyMode", False),
-            sets_local_priority=data.get("setsLocalPriority", False),
-            calls_present=data.get("callsPresent", True),
-            button_id=data.get("buttonID", 0),
-        )
-        vdsd.add_button_input(btn)
-
-    def _add_binary_input(self, vdsd: Vdsd, data: dict[str, Any]) -> None:
-        bi = BinaryInput(
-            vdsd=vdsd,
-            ds_index=data["dsIndex"],
-            name=data["name"],
-            sensor_function=BinaryInputType(data["sensorFunction"]),
-            hardwired_function=BinaryInputType(data.get("hardwiredFunction", 0)),
-            group=data.get("group", 0),
-            update_interval=float(data.get("updateInterval", 0)),
-            input_type=data.get("inputType", 1),
-            input_usage=BinaryInputUsage(data.get("inputUsage", 0)),
-        )
-        vdsd.add_binary_input(bi)
-
-    def _add_sensor(self, vdsd: Vdsd, data: dict[str, Any]) -> None:
-        si = SensorInput(
-            vdsd=vdsd,
-            ds_index=data["dsIndex"],
-            name=data["name"],
-            sensor_type=SensorType(data["sensorType"]),
-            sensor_usage=SensorUsage(data.get("sensorUsage", 0) or 1),
-            group=data.get("group", 0),
-            min_value=float(data["min"]),
-            max_value=float(data["max"]),
-            resolution=float(data["resolution"]),
-            update_interval=float(data.get("updateInterval", 0)),
-            alive_sign_interval=float(data.get("aliveSignInterval", 0)),
-            min_push_interval=float(data.get("minPushInterval", 2.0)),
-            changes_only_interval=float(data.get("changesOnlyInterval", 0)),
-        )
-        vdsd.add_sensor_input(si)
-
-    def _add_output(self, vdsd: Vdsd, data: dict[str, Any]) -> None:
-        output = Output(
-            vdsd=vdsd,
-            name=data["name"],
-            function=OutputFunction(data["function"]),
-            output_usage=OutputUsage(data.get("outputUsage", 0)),
-            default_group=data["defaultGroup"],
-            active_group=data["activeGroup"],
-            groups=set(data["groups"]),
-            variable_ramp=data.get("variableRamp", False),
-            push_changes=True,
-            mode=OutputMode(data["mode"]) if data.get("mode") is not None else None,
-            on_threshold=data.get("onThreshold"),
-            min_brightness=data.get("minBrightness"),
-            max_power=data.get("maxPower"),
-        )
-        for ch_data in data.get("channels", []):
-            ds_index = ch_data["dsIndex"]
-            output.remove_channel(ds_index)
-            output.add_channel(
-                OutputChannelType(ch_data["channelType"]),
-                ds_index=ds_index,
-                name=ch_data.get("name"),
-                min_value=ch_data.get("min"),
-                max_value=ch_data.get("max"),
-                resolution=ch_data.get("resolution"),
-            )
-        vdsd.set_output(output)
 
     async def vanish_device(self, entry_id: str) -> None:
         """Vanish and remove a device from dS.

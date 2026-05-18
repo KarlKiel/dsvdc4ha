@@ -2,7 +2,7 @@
 from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from custom_components.dsvdc4ha.api import DsvdcApi
+from custom_components.dsvdc4ha.api import DsvdcApi, _add_output
 
 
 @pytest.mark.asyncio
@@ -355,7 +355,6 @@ def test_build_vdsd_uses_per_vdsd_icon_when_present():
 def test_positional_output_registers_both_channels():
     """Bug: POSITIONAL (function=2) outputs had 0 channels because OutputChannel
     objects were created but discarded — they don't self-register."""
-    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
     mock_vdsd = MagicMock()
     output_data = {
         "name": "test-blind",
@@ -368,7 +367,7 @@ def test_positional_output_registers_both_channels():
             {"dsIndex": 1, "channelType": 10},  # SHADE_ANGLE_INDOOR
         ],
     }
-    api._add_output(mock_vdsd, output_data)
+    _add_output(mock_vdsd, output_data)
     actual_output = mock_vdsd.set_output.call_args[0][0]
 
     ch0 = actual_output.get_channel(0)
@@ -383,7 +382,6 @@ def test_on_off_output_channel_type_replaced_correctly():
     """Bug: ON_OFF (function=0) auto-creates BRIGHTNESS (type=1) at dsIndex 0.
     When entity_mapping specifies POWER_STATE (type=19), apply_pending_channels
     builds {BRIGHTNESS: v} not {POWER_STATE: v} — dS→HA direction silently broken."""
-    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
     mock_vdsd = MagicMock()
     output_data = {
         "name": "test-door",
@@ -395,7 +393,7 @@ def test_on_off_output_channel_type_replaced_correctly():
             {"dsIndex": 0, "channelType": 19},  # POWER_STATE — not BRIGHTNESS
         ],
     }
-    api._add_output(mock_vdsd, output_data)
+    _add_output(mock_vdsd, output_data)
     actual_output = mock_vdsd.set_output.call_args[0][0]
 
     ch = actual_output.get_channel(0)
