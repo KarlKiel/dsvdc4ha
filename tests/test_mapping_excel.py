@@ -173,3 +173,76 @@ def test_generate_creates_lookups_sheet(tmp_path):
     first_col = [r[0].value for r in ws_lk.iter_rows(min_row=1, max_row=2)]
     assert "yes" in first_col
     wb.close()
+
+
+def test_audit_passes_on_freshly_generated_excel(tmp_path):
+    gen   = _load("generate_mapping_excel", "tools/generate_mapping_excel.py")
+    audit = _load("audit_mapping",          "tools/audit_mapping.py")
+
+    out = tmp_path / "mapping.xlsx"
+    gen.generate(output_path=out)
+
+    result = audit.run_audit(str(out))
+    assert result["discrepancies"] == [], (
+        "Unexpected discrepancies:\n" +
+        "\n".join(str(d) for d in result["discrepancies"])
+    )
+    assert result["missing_entries"] == []
+
+
+def test_audit_detects_wrong_value(tmp_path):
+    import openpyxl
+    gen   = _load("generate_mapping_excel", "tools/generate_mapping_excel.py")
+    audit = _load("audit_mapping",          "tools/audit_mapping.py")
+    schema = _load("excel_schema",          "tools/excel_schema.py")
+
+    out = tmp_path / "mapping.xlsx"
+    gen.generate(output_path=out)
+
+    # Corrupt binary_sensor/motion: change bi.sensor_function.VALUE from MOTION → SMOKE
+    wb = openpyxl.load_workbook(out)
+    ws = wb.active
+    sf_col = schema.HEADER_INDEX["bi.sensor_function.VALUE"] + 1  # 1-based
+    for row in ws.iter_rows(min_row=2):
+        if row[0].value == "binary_sensor" and row[1].value == "motion":
+            row[sf_col - 1].value = "SMOKE"
+            break
+    wb.save(out)
+
+    result = audit.run_audit(str(out))
+    assert any(
+        d["domain"] == "binary_sensor"
+        and d["device_class"] == "motion"
+        and d["field"] == "sensor_function"
+        for d in result["discrepancies"]
+    ), f"Expected discrepancy not in: {result['discrepancies']}"
+
+
+def test_audit_detects_wrong_user_flag(tmp_path):
+    import openpyxl
+    gen   = _load("generate_mapping_excel", "tools/generate_mapping_excel.py")
+    audit = _load("audit_mapping",          "tools/audit_mapping.py")
+    schema = _load("excel_schema",          "tools/excel_schema.py")
+
+    out = tmp_path / "mapping.xlsx"
+    gen.generate(output_path=out)
+
+    # Corrupt binary_sensor/door: change bi.group.USER from "no" to "yes"
+    # (door has no group_choices, so "yes" is wrong)
+    wb = openpyxl.load_workbook(out)
+    ws = wb.active
+    gu_col = schema.HEADER_INDEX["bi.group.USER"] + 1
+    for row in ws.iter_rows(min_row=2):
+        if row[0].value == "binary_sensor" and row[1].value == "door":
+            row[gu_col - 1].value = "yes"
+            break
+    wb.save(out)
+
+    result = audit.run_audit(str(out))
+    assert any(
+        d["domain"] == "binary_sensor"
+        and d["device_class"] == "door"
+        and "group" in d["field"]
+        and "USER" in d["field"]
+        for d in result["discrepancies"]
+    ), f"Expected USER discrepancy not in: {result['discrepancies']}"
