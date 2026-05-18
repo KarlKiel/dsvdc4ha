@@ -147,3 +147,42 @@ def test_channel_type_names_matches_enum():
         assert OutputChannelType[name].value == val
     for member in OutputChannelType:
         assert member.name in mod._CHANNEL_TYPE_NAMES, f"Missing: {member.name}"
+
+
+def test_choice_tuples_use_valid_enum_values():
+    """All (value, label) choice tuples must reference valid enum members."""
+    from pydsvdcapi.enums import BinaryInputGroup, ButtonGroup, SensorUsage
+    import importlib.util, pathlib
+    spec = importlib.util.spec_from_file_location(
+        "entity_mapping",
+        pathlib.Path(__file__).parent.parent / "custom_components/dsvdc4ha/entity_mapping.py",
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    bi_vals = {m.value for m in BinaryInputGroup}
+    for v, _ in mod._BI_GROUP_ALL:
+        assert v in bi_vals, f"_BI_GROUP_ALL invalid: {v}"
+    for v, _ in mod._BI_GROUP_MOISTURE:
+        assert v in bi_vals, f"_BI_GROUP_MOISTURE invalid: {v}"
+
+    btn_vals = {m.value for m in ButtonGroup}
+    for v, _ in mod._BTN_GROUP_CHOICES:
+        assert v in btn_vals, f"_BTN_GROUP_CHOICES invalid: {v}"
+
+    su_vals = {m.value for m in SensorUsage}
+    for lst_name in ("_SU_ROOM_OUTDOOR", "_SU_DEVICE_LEVEL", "_SU_GENERAL"):
+        for v, _ in getattr(mod, lst_name):
+            assert v in su_vals, f"{lst_name} invalid: {v}"
+
+    # Check inline choices in ENTITY_MAPPING sensor entries
+    wrong_labels = {"Device Level Individual", "Device Level All"}
+    for entry in mod.ENTITY_MAPPING:
+        sen = entry.get("sensor", {})
+        choices = sen.get("sensor_usage_choices", [])
+        if not isinstance(choices, list):
+            continue
+        for v, lbl in choices:
+            if isinstance(lbl, str):
+                for bad in wrong_labels:
+                    assert bad not in lbl, f"Wrong label in sensor_usage_choices: {lbl!r}"

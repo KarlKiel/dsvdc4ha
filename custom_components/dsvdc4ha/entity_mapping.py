@@ -31,27 +31,42 @@ _CHANNEL_TYPE_NAMES: dict[str, int] = {m.name: m.value for m in OutputChannelTyp
 
 # Reusable choice lists for binary_input.group_choices
 _BI_GROUP_ALL: list[tuple[int, str]] = [
-    (1, "Light (1)"), (2, "Shadow (2)"), (3, "Climate (3)"),
-    (4, "Audio (4)"), (5, "Video (5)"), (6, "Security (6)"),
-    (7, "Access (7)"), (8, "Joker (8)"),
+    (BinaryInputGroup.LIGHT.value,    "Light (1)"),
+    (BinaryInputGroup.SHADOW.value,   "Shadow (2)"),
+    (BinaryInputGroup.CLIMATE.value,  "Climate (3)"),
+    (BinaryInputGroup.AUDIO.value,    "Audio (4)"),
+    (BinaryInputGroup.VIDEO.value,    "Video (5)"),
+    (BinaryInputGroup.SECURITY.value, "Security (6)"),
+    (BinaryInputGroup.ACCESS.value,   "Access (7)"),
+    (BinaryInputGroup.JOKER.value,    "Joker (8)"),
 ]
 _BI_GROUP_MOISTURE: list[tuple[int, str]] = [
-    (6, "Security (6)"), (3, "Climate (3)"), (8, "Joker (8)"),
+    (BinaryInputGroup.SECURITY.value, "Security (6)"),
+    (BinaryInputGroup.CLIMATE.value,  "Climate (3)"),
+    (BinaryInputGroup.JOKER.value,    "Joker (8)"),
 ]
 # Reusable choice list for button.group_choices (Joker first = default pre-selection)
 _BTN_GROUP_CHOICES: list[tuple[int, str]] = [
-    (8, "Joker — App (8)"), (1, "Yellow — Light / Room (1)"),
+    (ButtonGroup.JOKER.value,  "Joker — App (8)"),
+    (ButtonGroup.LIGHT.value,  "Yellow — Light / Room (1)"),
 ]
 # Reusable choice lists for sensor.sensor_usage_choices
 _SU_ROOM_OUTDOOR: list[tuple[int, str]] = [
-    (1, "Room (1)"), (2, "Outdoor (2)"),
+    (SensorUsage.ROOM.value,    "Room (1)"),
+    (SensorUsage.OUTDOOR.value, "Outdoor (2)"),
 ]
 _SU_DEVICE_LEVEL: list[tuple[int, str]] = [
-    (4, "Device Level (4)"), (5, "Device Last Run (5)"), (6, "Device Average (6)"),
+    (SensorUsage.DEVICE_LEVEL.value,    "Device Level (4)"),
+    (SensorUsage.DEVICE_LAST_RUN.value, "Device Last Run (5)"),
+    (SensorUsage.DEVICE_AVERAGE.value,  "Device Average (6)"),
 ]
 _SU_GENERAL: list[tuple[int, str]] = [
-    (0, "Undefined (0)"), (1, "Room (1)"), (2, "Outdoor (2)"),
-    (4, "Device Level (4)"), (5, "Device Last Run (5)"), (6, "Device Average (6)"),
+    (SensorUsage.UNDEFINED.value,       "Undefined (0)"),
+    (SensorUsage.ROOM.value,            "Room (1)"),
+    (SensorUsage.OUTDOOR.value,         "Outdoor (2)"),
+    (SensorUsage.DEVICE_LEVEL.value,    "Device Level (4)"),
+    (SensorUsage.DEVICE_LAST_RUN.value, "Device Last Run (5)"),
+    (SensorUsage.DEVICE_AVERAGE.value,  "Device Average (6)"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -832,7 +847,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 29, "sensor_usage": 4,
-            "sensor_usage_choices": [(4, "Device Level (4)"), (5, "Device Level Individual (5)"), (6, "Device Level All (6)")],
+            "sensor_usage_choices": _SU_DEVICE_LEVEL,
             "min": 0.0, "max": 1000.0, "resolution": 0.01,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
@@ -845,7 +860,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "sensor": {
             "sensor_type": 31, "sensor_usage": 4,
-            "sensor_usage_choices": [(4, "Device Level (4)"), (5, "Device Level Individual (5)"), (6, "Device Level All (6)")],
+            "sensor_usage_choices": _SU_DEVICE_LEVEL,
             "min": 0.0, "max": 86400.0, "resolution": 1.0,
             "update_interval": 30.0, "alive_sign_interval": 120.0,
             "min_push_interval": 2.0, "changes_only_interval": 0.0, "group": 0,
