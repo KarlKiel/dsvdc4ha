@@ -143,6 +143,23 @@ def test_generate_writes_correct_enum_names(tmp_path):
     assert row_l[col_map["primary_group.USER"]] == "no"
 
 
+def test_generate_empty_entity_mapping(tmp_path):
+    gen = _load("generate_mapping_excel", "tools/generate_mapping_excel.py")
+    import openpyxl
+
+    out = tmp_path / "empty_mapping.xlsx"
+    gen.generate(entity_mapping=[], output_path=out)
+
+    assert out.exists(), "Output file should be created even for empty entity_mapping"
+    wb = openpyxl.load_workbook(out, read_only=True, data_only=True)
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+
+    assert len(rows) == 1, f"Expected 1 row (header only), got {len(rows)}"
+    assert rows[0][0] == "domain"
+
+
 def test_generate_creates_lookups_sheet(tmp_path):
     gen = _load("generate_mapping_excel", "tools/generate_mapping_excel.py")
     import openpyxl

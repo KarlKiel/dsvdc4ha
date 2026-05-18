@@ -83,18 +83,19 @@ def generate(
             ws.cell(row=row_idx, column=col_idx, value=extractor(entry))
 
     # DataValidation dropdowns — one DV per column that has an enum_key
-    for col_idx, (_, enum_key, _) in enumerate(COLUMNS, 1):
-        if enum_key is None:
-            continue
-        col_l = get_column_letter(col_idx)
-        dv = DataValidation(
-            type="list",
-            formula1=lookup_refs[enum_key],
-            allow_blank=True,
-            showErrorMessage=False,
-        )
-        dv.sqref = f"{col_l}2:{col_l}{n_rows + 1}"
-        ws.add_data_validation(dv)
+    if n_rows > 0:
+        for col_idx, (_, enum_key, _) in enumerate(COLUMNS, 1):
+            if enum_key is None:
+                continue
+            col_l = get_column_letter(col_idx)
+            dv = DataValidation(
+                type="list",
+                formula1=lookup_refs[enum_key],
+                allow_blank=True,
+                showErrorMessage=False,
+            )
+            dv.sqref = f"{col_l}2:{col_l}{max(n_rows + 1, 1000)}"
+            ws.add_data_validation(dv)
 
     # Column widths
     for col_idx, (header, _, _) in enumerate(COLUMNS, 1):
