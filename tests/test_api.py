@@ -554,3 +554,61 @@ async def test_vanish_device_removes_from_ever_announced():
     await api.vanish_device("sub1")
 
     assert "sub1" not in api._ever_announced
+
+
+def test_derive_model_features_for_config_binary_input():
+    """Binary input → akmsensor only; akminput and akmdelay must NOT appear."""
+    from custom_components.dsvdc4ha.api import derive_model_features_for_config
+    data = {
+        "primaryGroup": 1,
+        "buttons": [],
+        "binary_inputs": [
+            {"dsIndex": 0, "name": "bi", "sensorFunction": 0,
+             "group": 1, "inputUsage": 0},
+        ],
+        "sensors": [],
+        "output": None,
+    }
+    features = derive_model_features_for_config(data)
+    assert "akmsensor" in features
+    assert "akminput" not in features
+    assert "akmdelay" not in features
+
+
+def test_derive_model_features_for_config_no_components():
+    """vdSD with no components → no akmsensor, no pushbutton."""
+    from custom_components.dsvdc4ha.api import derive_model_features_for_config
+    data = {
+        "primaryGroup": 1,
+        "buttons": [],
+        "binary_inputs": [],
+        "sensors": [],
+        "output": None,
+    }
+    features = derive_model_features_for_config(data)
+    assert "akmsensor" not in features
+    assert "pushbutton" not in features
+
+
+def test_derive_model_features_for_config_button():
+    """Button present → pushbutton in feature set."""
+    from custom_components.dsvdc4ha.api import derive_model_features_for_config
+    from pydsvdcapi.enums import ButtonGroup
+    data = {
+        "primaryGroup": 1,
+        "buttons": [
+            {
+                "dsIndex": 0, "name": "btn",
+                "buttonType": 1,            # ButtonType.SINGLE_PRESS
+                "buttonElementID": 1,
+                "group": ButtonGroup.LIGHT.value,
+                "function": 0,
+                "mode": 0,
+            }
+        ],
+        "binary_inputs": [],
+        "sensors": [],
+        "output": None,
+    }
+    features = derive_model_features_for_config(data)
+    assert "pushbutton" in features
