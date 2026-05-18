@@ -1,14 +1,11 @@
-"""Audit ENTITY_MAPPING against the xlsx source of truth.
+"""Audit ENTITY_MAPPING against the generated ha_vdsd_mapping.xlsx.
 
 Usage:
     python tools/audit_mapping.py                    # use default xlsx path
     python tools/audit_mapping.py path/to/other.xlsx # override path
 """
 from __future__ import annotations
-
-import re
-import sys
-import pathlib
+import pathlib, sys
 
 _REPO_ROOT = pathlib.Path(__file__).parent.parent
 sys.path.insert(0, str(_REPO_ROOT))
@@ -20,137 +17,35 @@ except ImportError:
     _OPENPYXL_AVAILABLE = False
     _openpyxl = None
 
-import importlib.util as _ilu
+import importlib.util
+
+from tools.excel_schema import ENUM_CLASS, enum_value
+
 
 def _load_entity_mapping():
-    """Load entity_mapping.py directly, bypassing the HA-dependent package __init__."""
-    _spec = _ilu.spec_from_file_location(
+    spec = importlib.util.spec_from_file_location(
         "entity_mapping",
         _REPO_ROOT / "custom_components" / "dsvdc4ha" / "entity_mapping.py",
     )
-    _mod = _ilu.module_from_spec(_spec)
-    _spec.loader.exec_module(_mod)
-    return _mod
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
 
 _em = _load_entity_mapping()
 ENTITY_MAPPING = _em.ENTITY_MAPPING
-_CHANNEL_TYPE_NAMES = _em._CHANNEL_TYPE_NAMES
 
-COL_ENTITY     = 0
-COL_DC         = 1
-COL_NAME       = 5
-COL_MODEL      = 6
-COL_MODEL_UID  = 8
-COL_VENDOR     = 12
-COL_PG         = 18
-COL_OUT_FUNC   = 21
-COL_DEF_GRP    = 22
-COL_OUT_USAGE  = 23
-COL_VAR_RAMP   = 24
-COL_OUT_MODE   = 28
-_CH_BASE       = 44
-COL_BTN_TYPE   = 96
-COL_BTN_GRP    = 98
-COL_BTN_FUNC   = 99
-COL_BTN_MODE   = 100
-COL_INPUT_USAGE = 113
-COL_BIN_GRP    = 116
-COL_SF_SETTING = 117
-COL_SNS_TYPE   = 124
-COL_SNS_USAGE  = 125
-COL_SNS_MIN    = 126
-COL_SNS_MAX    = 127
-COL_SNS_RES    = 128
-COL_UPD_INT    = 129
-COL_ALIVE_INT  = 130
-COL_MIN_PUSH   = 132
-
-_CH_TYPE_COLS = [_CH_BASE + i * 8 for i in range(6)]
-
-_ENTITY_DOMAIN_MAP: dict[str, str] = {
-    "Binary Sensor": "binary_sensor",
-    "Button":        "button",
-    "Cover":         "cover",
-    "Event":         "event",
-    "Fan":           "fan",
-    "Light":         "light",
-    "Lock":          "lock",
-    "Number":        "number",
-    "Sensor":        "sensor",
-    "Siren":         "siren",
-    "Switch":        "switch",
-    "Valve":         "valve",
-    "Weather":       "weather",
-}
-
+_SKIP_DOMAINS      = {"weather"}
+_SKIP_ENTITY_NONE  = {"event"}
 _SKIP_DC_FRAGMENTS = {"(as button", "rgbw", "rgbww"}
-_SKIP_DOMAINS = {"weather"}
-_SKIP_ENTITY_NONE = {"event"}
-_SKIP_BTN_DC = {"identify", "restart", "update"}
-
-_NA_TOKENS = {"— not applicable —", "- not applicable -"}
-
-
-def _is_na(v) -> bool:
-    return v is None or (isinstance(v, str) and (
-        v.strip() in _NA_TOKENS
-        or v.strip().lower().startswith("pydsvdcapi handled")
-        or v.strip().lower().startswith("define ")
-    ))
-
-
-def _parse_scalar(raw):
-    if _is_na(raw):
-        return None
-    s = str(raw).strip()
-    if not s:
-        return None
-    if re.match(r"^USER\s*$", s, re.IGNORECASE):
-        return None
-    if re.match(r"^USER\s*[—–-]\s*specify", s, re.IGNORECASE):
-        return None
-    # Multi-choice or conditional defaults can't be reduced to a single expected value
-    if s.upper().startswith("USER") and len(re.findall(r"\(-?\d+\)", s)) > 1:
-        return None
-    m = re.match(r"^USER\s*[—–-]\s*default\s*:\s*.+?\((-?\d+)\)", s, re.IGNORECASE)
-    if m:
-        return int(m.group(1))
-    m = re.match(r"^USER\s*:\s*.+?\((-?\d+)\)", s, re.IGNORECASE)
-    if m:
-        return int(m.group(1))
-    m = re.match(r"^USER\s*[—–-]\s*.+?\((-?\d+)\)", s, re.IGNORECASE)
-    if m:
-        return int(m.group(1))
-    if s.lower() == "true":
-        return True
-    if s.lower() == "false":
-        return False
-    if " or " in s.lower() and "depending" in s.lower():
-        return None
-    # Handle comma-separated integers like "USER — DEVICE_LEVEL (4,5,6)" → take first
-    m = re.search(r"\((-?\d+)(?:,\s*-?\d+)+\)", s)
-    if m:
-        return int(m.group(1))
-    m = re.search(r"\((-?\d+)\)", s)
-    if m:
-        return int(m.group(1))
-    if s.upper() in _CHANNEL_TYPE_NAMES:
-        return _CHANNEL_TYPE_NAMES[s.upper()]
-    try:
-        f = float(s)
-        return int(f) if f == int(f) else f
-    except ValueError:
-        pass
-    if s.startswith('"') and s.endswith('"'):
-        return s[1:-1]
-    return s
+_SKIP_BTN_DC       = {"identify", "restart", "update"}
 
 
 def _build_mapping_index() -> dict[tuple, dict]:
     return {(e["domain"], e["device_class"]): e for e in ENTITY_MAPPING}
 
 
-def run_audit(xlsx_path="documents/ha_vdsd_mapping.xlsx") -> dict:
+def run_audit(xlsx_path: str = "documents/ha_vdsd_mapping.xlsx") -> dict:
     if not _OPENPYXL_AVAILABLE:
         raise ImportError("openpyxl is required: pip install openpyxl")
     xlsx_path = pathlib.Path(xlsx_path)
@@ -163,6 +58,7 @@ def run_audit(xlsx_path="documents/ha_vdsd_mapping.xlsx") -> dict:
     mapping_idx = _build_mapping_index()
     discrepancies: list[dict] = []
     missing_entries: list[dict] = []
+    col_map: dict[str, int] = {}  # header name → 0-based column index
 
     def _dis(domain, dc, component, field, expected, actual):
         discrepancies.append({
@@ -171,25 +67,30 @@ def run_audit(xlsx_path="documents/ha_vdsd_mapping.xlsx") -> dict:
             "expected": expected, "actual": actual,
         })
 
-    for row_idx, row in enumerate(ws.iter_rows(min_row=4, values_only=True), 4):
-        raw_entity = row[COL_ENTITY]
-        if raw_entity is None:
-            continue
-        raw_entity = str(raw_entity).strip()
-        domain = _ENTITY_DOMAIN_MAP.get(raw_entity)
-        if domain is None:
+    for row_idx, row in enumerate(ws.iter_rows(min_row=1, values_only=True), 1):
+        if row_idx == 1:
+            col_map = {
+                str(v).strip(): i
+                for i, v in enumerate(row)
+                if v is not None
+            }
             continue
 
-        raw_dc = row[COL_DC]
-        dc_str = str(raw_dc).strip() if raw_dc else None
-        dc = dc_str.lower().replace(" ", "_").replace("-", "_") if dc_str else None
+        def get(header):
+            idx = col_map.get(header)
+            return row[idx] if idx is not None and idx < len(row) else None
 
+        domain = str(get("domain") or "").strip()
+        dc_raw = get("device_class")
+        dc = None if (not dc_raw or str(dc_raw).strip() == "-") else str(dc_raw).strip()
+
+        if not domain:
+            continue
         if domain in _SKIP_DOMAINS:
             continue
         if domain in _SKIP_ENTITY_NONE and dc is None:
             continue
-        _dc_raw_lower = dc_str.lower() if dc_str else ""
-        if any(frag in _dc_raw_lower for frag in _SKIP_DC_FRAGMENTS):
+        if dc and any(frag in dc.lower() for frag in _SKIP_DC_FRAGMENTS):
             continue
         if domain == "button" and dc in _SKIP_BTN_DC:
             continue
@@ -199,59 +100,121 @@ def run_audit(xlsx_path="documents/ha_vdsd_mapping.xlsx") -> dict:
             missing_entries.append({"domain": domain, "device_class": dc, "xlsx_row": row_idx})
             continue
 
-        def chk(component, field, col, actual_val):
-            exp = _parse_scalar(row[col] if col < len(row) else None)
+        def chk_val(component, field, enum_key, header, actual):
+            raw = get(header)
+            if raw is None or str(raw).strip() == "-":
+                return
+            exp = enum_value(ENUM_CLASS[enum_key], str(raw).strip())
             if exp is None:
                 return
-            if actual_val != exp:
-                _dis(domain, dc, component, field, exp, actual_val)
+            if int(actual) != exp:
+                _dis(domain, dc, component, field, exp, actual)
 
-        chk("identity", "model", COL_MODEL, entry.get("model"))
-        chk("identity", "model_uid", COL_MODEL_UID, entry.get("model_uid"))
-        chk("identity", "vendor_name", COL_VENDOR, entry.get("vendor_name"))
+        def chk_user(component, field, header, has_choices: bool):
+            raw = get(header)
+            if raw is None:
+                return
+            expected = "yes" if has_choices else "no"
+            if str(raw).strip().lower() != expected:
+                _dis(domain, dc, component, f"{field}.USER", expected, str(raw).strip().lower())
 
-        if "binary_input" in entry:
-            bi = entry["binary_input"]
-            chk("binary_input", "sensor_function", COL_SF_SETTING, bi.get("sensor_function"))
-            chk("binary_input", "group", COL_BIN_GRP, bi.get("group"))
-            chk("binary_input", "input_usage", COL_INPUT_USAGE, bi.get("input_usage"))
+        # Identity
+        for field, header in [("model", "model"), ("model_uid", "model_uid"), ("vendor_name", "vendor_name")]:
+            raw = get(header)
+            if raw and str(raw).strip() not in ("-", ""):
+                exp = str(raw).strip()
+                actual = entry.get(field)
+                if actual != exp:
+                    _dis(domain, dc, "identity", field, exp, actual)
 
-        if "sensor" in entry:
-            s = entry["sensor"]
-            chk("sensor", "sensor_type", COL_SNS_TYPE, s.get("sensor_type"))
-            chk("sensor", "sensor_usage", COL_SNS_USAGE, s.get("sensor_usage"))
-            chk("sensor", "min", COL_SNS_MIN, s.get("min"))
-            chk("sensor", "max", COL_SNS_MAX, s.get("max"))
-            chk("sensor", "resolution", COL_SNS_RES, s.get("resolution"))
-            chk("sensor", "update_interval", COL_UPD_INT, s.get("update_interval"))
-            chk("sensor", "alive_sign_interval", COL_ALIVE_INT, s.get("alive_sign_interval"))
-            chk("sensor", "min_push_interval", COL_MIN_PUSH, s.get("min_push_interval"))
+        # primary_group
+        chk_val("vdsd", "primary_group", "ColorGroup", "primary_group.VALUE", entry.get("primary_group", 0))
 
-        if "output" in entry:
-            o = entry["output"]
-            chk("output", "function", COL_OUT_FUNC, o.get("function"))
-            chk("output", "default_group", COL_DEF_GRP, o.get("default_group"))
-            chk("output", "output_usage", COL_OUT_USAGE, o.get("output_usage"))
-            chk("output", "variable_ramp", COL_VAR_RAMP, o.get("variable_ramp"))
-            chk("output", "mode", COL_OUT_MODE, o.get("mode"))
-            channels = o.get("channels", [])
-            for ch_i, col in enumerate(_CH_TYPE_COLS):
-                exp_raw = row[col] if col < len(row) else None
-                if _is_na(exp_raw):
+        # binary_input
+        if bi := entry.get("binary_input"):
+            chk_val("binary_input", "sensor_function", "BinaryInputType",
+                    "bi.sensor_function.VALUE", bi.get("sensor_function", 0))
+            chk_user("binary_input", "sensor_function", "bi.sensor_function.USER",
+                     bool(bi.get("sensor_function_choices")))
+            chk_val("binary_input", "group", "BinaryInputGroup",
+                    "bi.group.VALUE", bi.get("group", 0))
+            chk_user("binary_input", "group", "bi.group.USER",
+                     bool(bi.get("group_choices")))
+            chk_val("binary_input", "input_usage", "BinaryInputUsage",
+                    "bi.input_usage.VALUE", bi.get("input_usage", 0))
+            chk_user("binary_input", "input_usage", "bi.input_usage.USER",
+                     bool(bi.get("input_usage_choices")))
+
+        # sensor
+        if s := entry.get("sensor"):
+            chk_val("sensor", "sensor_type", "SensorType",
+                    "sensor.sensor_type.VALUE", s.get("sensor_type", 0))
+            chk_user("sensor", "sensor_type", "sensor.sensor_type.USER",
+                     bool(s.get("sensor_type_choices")))
+            chk_val("sensor", "sensor_usage", "SensorUsage",
+                    "sensor.sensor_usage.VALUE", s.get("sensor_usage", 0))
+            chk_user("sensor", "sensor_usage", "sensor.sensor_usage.USER",
+                     bool(s.get("sensor_usage_choices")))
+            chk_val("sensor", "group", "SensorGroup",
+                    "sensor.group.VALUE", s.get("group", 0))
+            for field in ("min", "max", "resolution", "update_interval",
+                          "alive_sign_interval", "min_push_interval"):
+                raw = get(f"sensor.{field}")
+                if raw is not None and str(raw).strip() not in ("-", ""):
+                    try:
+                        exp = float(raw)
+                    except (ValueError, TypeError):
+                        continue
+                    actual = s.get(field)
+                    if actual is not None and abs(float(actual) - exp) > 1e-9:
+                        _dis(domain, dc, "sensor", field, exp, actual)
+            chk_user("sensor", "min_max", "sensor.min_max_user",
+                     bool(s.get("min_max_user")))
+
+        # output
+        if o := entry.get("output"):
+            chk_val("output", "function", "OutputFunction",
+                    "output.function.VALUE", o.get("function", 0))
+            chk_user("output", "function", "output.function.USER",
+                     bool(o.get("function_choices")))
+            chk_val("output", "output_usage", "OutputUsage",
+                    "output.output_usage.VALUE", o.get("output_usage", 0))
+            chk_user("output", "output_usage", "output.output_usage.USER",
+                     bool(o.get("output_usage_choices")))
+            chk_val("output", "mode", "OutputMode",
+                    "output.mode.VALUE", o.get("mode", 0))
+            if o.get("default_group") is not None:
+                chk_val("output", "default_group", "ColorClass",
+                        "output.default_group.VALUE", o.get("default_group"))
+            raw_vr = get("output.variable_ramp")
+            if raw_vr is not None:
+                exp_vr = str(raw_vr).strip().lower() == "yes"
+                if bool(o.get("variable_ramp")) != exp_vr:
+                    _dis(domain, dc, "output", "variable_ramp", exp_vr, o.get("variable_ramp"))
+            channels = o.get("channels") or []
+            for i in range(6):
+                raw_ct = get(f"output.ch{i}.channel_type.VALUE")
+                if raw_ct is None or str(raw_ct).strip() == "-":
                     break
-                exp_ct = _parse_scalar(exp_raw)
+                exp_ct = enum_value(ENUM_CLASS["OutputChannelType"], str(raw_ct).strip())
                 if exp_ct is None:
-                    break
-                actual_ct = channels[ch_i]["channel_type"] if ch_i < len(channels) else None
-                if actual_ct != exp_ct:
-                    _dis(domain, dc, "output", f"channels[{ch_i}].channel_type", exp_ct, actual_ct)
+                    continue
+                actual_ct = channels[i]["channel_type"] if i < len(channels) else None
+                if actual_ct is None or int(actual_ct) != exp_ct:
+                    _dis(domain, dc, "output", f"channels[{i}].channel_type", exp_ct, actual_ct)
 
-        if "button" in entry:
-            b = entry["button"]
-            chk("button", "button_type", COL_BTN_TYPE, b.get("button_type"))
-            chk("button", "group", COL_BTN_GRP, b.get("group"))
-            chk("button", "function", COL_BTN_FUNC, b.get("function"))
-            chk("button", "mode", COL_BTN_MODE, b.get("mode"))
+        # button
+        if b := entry.get("button"):
+            chk_val("button", "button_type", "ButtonType",
+                    "button.button_type.VALUE", b.get("button_type", 0))
+            chk_val("button", "group", "ButtonGroup",
+                    "button.group.VALUE", b.get("group", 0))
+            chk_user("button", "group", "button.group.USER",
+                     bool(b.get("group_choices")))
+            chk_val("button", "function", "ButtonFunctionJoker",
+                    "button.function.VALUE", b.get("function", 0))
+            chk_val("button", "mode", "ButtonMode",
+                    "button.mode.VALUE", b.get("mode", 0))
 
     wb.close()
     return {"discrepancies": discrepancies, "missing_entries": missing_entries}
@@ -279,11 +242,8 @@ def main(argv=None) -> int:
 
     if missing:
         print(f"\n⚠  {len(missing)} xlsx row(s) have no ENTITY_MAPPING entry (non-blocking):")
-        _print_table(
-            missing,
-            ["domain", "device_class", "xlsx_row"],
-            ["domain", "device_class", "xlsx_row"],
-        )
+        _print_table(missing, ["domain", "device_class", "xlsx_row"],
+                     ["domain", "device_class", "xlsx_row"])
 
     if discrepancies:
         print(f"\n✗  {len(discrepancies)} discrepancy(ies) found:")
@@ -294,10 +254,8 @@ def main(argv=None) -> int:
         )
         return 1
 
-    if missing:
-        print(f"\n✓  All checked fields match. ({len(missing)} missing entries reported above.)")
-    else:
-        print("\n✓  All checked fields match.")
+    msg = f"({len(missing)} missing entries reported above.)" if missing else ""
+    print(f"\n✓  All checked fields match. {msg}".rstrip())
     return 0
 
 
