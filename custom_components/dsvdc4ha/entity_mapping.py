@@ -29,6 +29,11 @@ from pydsvdcapi.binary_input import INPUT_TYPE_DETECTS_CHANGES
 # ---------------------------------------------------------------------------
 _CHANNEL_TYPE_NAMES: dict[str, int] = {m.name: m.value for m in OutputChannelType}
 
+# Reusable choice lists for UI selectors.
+# .value is used intentionally: config_flow passes these to SelectOptionDict as
+# str(v), and downstream code compares them as plain ints. Storing enum members
+# directly also works (IntEnum == int), but .value keeps the type annotation
+# explicit and avoids any str() surprises across Python versions.
 # Reusable choice lists for binary_input.group_choices
 _BI_GROUP_ALL: list[tuple[int, str]] = [
     (BinaryInputGroup.LIGHT.value,    "Light (1)"),
@@ -64,6 +69,7 @@ _SU_GENERAL: list[tuple[int, str]] = [
     (SensorUsage.UNDEFINED.value,       "Undefined (0)"),
     (SensorUsage.ROOM.value,            "Room (1)"),
     (SensorUsage.OUTDOOR.value,         "Outdoor (2)"),
+    # USER_INTERACTION (3) intentionally omitted — not a valid room/device sensor context
     (SensorUsage.DEVICE_LEVEL.value,    "Device Level (4)"),
     (SensorUsage.DEVICE_LAST_RUN.value, "Device Last Run (5)"),
     (SensorUsage.DEVICE_AVERAGE.value,  "Device Average (6)"),

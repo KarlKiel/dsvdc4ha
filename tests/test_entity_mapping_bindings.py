@@ -180,6 +180,9 @@ def test_choice_tuples_use_valid_enum_values():
     for entry in mod.ENTITY_MAPPING:
         sen = entry.get("sensor", {})
         choices = sen.get("sensor_usage_choices", [])
+        assert choices == "any" or isinstance(choices, list), (
+            f"sensor_usage_choices must be 'any' or a list, got {type(choices)}"
+        )
         if not isinstance(choices, list):
             continue
         for v, lbl in choices:
