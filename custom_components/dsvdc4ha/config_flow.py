@@ -33,6 +33,7 @@ from .api import (
     ButtonType,
     ColorClass,
     ColorGroup,
+    derive_model_features_for_config,
     FUNCTION_CHANNELS,
     OutputChannelType,
     OutputFunction,
@@ -467,110 +468,6 @@ _OPTIONAL_FEATURE_LABELS: dict[str, str] = {
     "apartmentapplication":                 "Apartment application integration (not tested)",
     "customactivityconfig":                 "Custom activity / app configuration (not tested)",
 }
-
-_TRANST_CHANNEL_TYPES: frozenset[int] = frozenset(set(range(1, 13)) | set(range(14, 19)) | set(range(22, 25)))
-_VENTILATION_CHANNEL_TYPES: frozenset[int] = frozenset({12, 13, 14, 15, 20, 21})
-
-
-def _compute_auto_features(
-    primary_group: int,
-    buttons: list[dict],
-    binary_inputs: list[dict],
-    sensors: list[dict],
-    output: dict | None,
-    has_identify: bool,
-) -> set[str]:
-    """Mirror pydsvdcapi Vdsd.derive_model_features() without building a real Vdsd."""
-    features: set[str] = set()
-    ch_types: set[int] = set()
-
-    if output is not None:
-        features.add("dontcare")
-        features.add("blink")
-        fn = int(output.get("function", 0))
-        ch_types = {int(ch["channelType"]) for ch in output.get("channels", [])}
-        has_blade = bool(ch_types & {9, 10})
-
-        if ch_types & _TRANST_CHANNEL_TYPES:
-            features.add("transt")
-
-        if primary_group == 2:  # GREY
-            features.add("shadeprops")
-            if fn == 2:  # POSITIONAL
-                features.add("shadeposition")
-                if has_blade:
-                    features.add("shadebladeang")
-                    features.add("motiontimefins")
-        else:
-            features.add("outvalue8")
-
-        if {2, 3} <= ch_types or {1, 4} <= ch_types:
-            features.add("outputchannels")
-
-        if fn in {1, 3, 4}:  # DIMMER / DIMMER_COLOR_TEMP / FULL_COLOR_DIMMER
-            features.add("dimtimeconfig")
-
-        if fn == 0:  # ON_OFF
-            features.add("outconfigswitch")
-            features.add("impulseconfig")
-
-        if primary_group == 3 and fn == 0:  # BLUE + ON_OFF
-            features.add("pwmvalue")
-
-        if 16 in ch_types:  # HEATING_POWER
-            features.add("pwmvalue")
-
-        if ch_types & _VENTILATION_CHANNEL_TYPES:
-            features.add("ventconfig")
-
-    sensor_types = {int(s["sensorType"]) for s in sensors}
-    if sensor_types & {14, 15, 16, 17}:
-        features.add("consumption")
-    if 1 in sensor_types and primary_group == 3:
-        features.add("temperatureoffset")
-
-    if binary_inputs:
-        features.add("akmsensor")
-
-    if buttons:
-        features.add("pushbutton")
-        features.add("pushbadvanced")
-        features.add("pushbdisabled")
-        for btn in buttons:
-            grp = int(btn.get("group", 1))
-            if grp != ButtonGroup.JOKER.value:
-                features.add("pushbarea")
-                if btn.get("supportsLocalKeyMode", False):
-                    features.add("pushbdevice")
-            else:
-                features.add("pushbsensor")
-                features.add("highlevel")
-
-    if primary_group == 3:  # BLUE
-        features.add("heatingprops")
-        features.add("heatinggroup")
-        if output is not None:
-            features.add("valvetype")
-            features.add("extendedvalvetypes")
-            if ch_types & _VENTILATION_CHANNEL_TYPES:
-                features.add("fcu")
-
-    if primary_group == 2 and output is not None:  # GREY
-        features.add("locationconfig")
-        features.add("operationlock")
-        if ch_types & {9, 10}:
-            features.add("windprotectionconfigblind")
-        else:
-            features.add("windprotectionconfigawning")
-
-    if primary_group == ColorGroup.BLACK.value:
-        features.add("jokerconfig")
-
-    if has_identify:
-        features.add("identification")
-
-    return features
-
 
 def _port_is_available(port: int) -> bool:
     """Return True if the TCP port can be bound on the local machine."""
@@ -1587,14 +1484,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             self._vdsds = [p.resolved_vdsd for p in self._vdsd_plans if p.resolved_vdsd]
             return await self.async_step_device_summary()
 
-        auto_features = _compute_auto_features(
-            primary_group=int(vdsd.get("primaryGroup", 1)),
-            buttons=vdsd.get("buttons", []),
-            binary_inputs=vdsd.get("binary_inputs", []),
-            sensors=vdsd.get("sensors", []),
-            output=vdsd.get("output"),
-            has_identify=bool(vdsd.get("identify_action")),
-        )
+        auto_features = derive_model_features_for_config(vdsd)
         options: list[selector.SelectOptionDict] = []
         for key, label in _AUTO_FEATURE_LABELS.items():
             options.append(selector.SelectOptionDict(value=key, label=label))
@@ -1749,14 +1639,13 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 return await self.async_step_entity_completion()
             return await self.async_step_device_summary()
 
-        auto_features = _compute_auto_features(
-            primary_group=int(self._current_vdsd.get("primaryGroup", 1)),
-            buttons=self._current_buttons,
-            binary_inputs=self._current_binary_inputs,
-            sensors=self._current_sensors,
-            output=self._current_output,
-            has_identify=bool(self._current_vdsd.get("identify_action")),
-        )
+        auto_features = derive_model_features_for_config({
+            "primaryGroup": self._current_vdsd.get("primaryGroup", 1),
+            "buttons": self._current_buttons,
+            "binary_inputs": self._current_binary_inputs,
+            "sensors": self._current_sensors,
+            "output": self._current_output,
+        })
 
         options: list[selector.SelectOptionDict] = []
         for key, label in _AUTO_FEATURE_LABELS.items():
