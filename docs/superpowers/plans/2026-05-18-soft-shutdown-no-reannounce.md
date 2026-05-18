@@ -8,7 +8,7 @@
 
 **Tech Stack:** pydsvdcapi (`VdcHost`, `Vdc`, `Device`), Python asyncio, zeroconf, pytest + unittest.mock.
 
-**Root Cause (for context):** `_deregister_zeroconf()` in `api.stop()` sends a TTL=0 mDNS goodbye packet before closing TCP. DSS interprets this as "VDC gone permanently" and removes all 20 devices from its lookup. 40 seconds later (HA restart time), VDC reconnects and re-announces everything from scratch. DSS has to re-process all devices, causing delay and brief sensor errors. If we skip the mDNS goodbye, DSS sees only the TCP drop, treats VDC as temporarily offline, keeps its lookup, and devices are immediately operational when TCP reconnects.
+**Root Cause (for context):** `_deregister_zeroconf()` in `api.stop()` sends a TTL=0 mDNS goodbye packet before closing TCP. DSS interprets this as "VDC gone permanently" and removes all 20 devices from its lookup. After HA restarts (~40 s), VDC reconnects and re-announces all 20 devices from scratch (first batch). Because DSS had to register them as *new* devices, it then triggers an internal `scanDevices` request ~66 seconds later, causing a second full re-announcement of all 20 devices. One device times out (`TIMEOUT SelectB_register_lookup_device`) during this second batch, leaving DSS in a degraded state. If we skip the mDNS goodbye, DSS sees only the TCP drop, treats VDC as temporarily offline, keeps its lookup, and devices are immediately operational when TCP reconnects — with no `scanDevices` cycle and no registration timeout.
 
 ---
 
