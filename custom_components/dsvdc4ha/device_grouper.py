@@ -200,7 +200,7 @@ def resolve_vdsd_plan(
             "hardwiredFunction": sf,
             "updateInterval": bi["update_interval"],
             "inputType": bi["input_type"],
-            "inputUsage": bi["input_usage"],
+            "inputUsage": int(choices.get("input_usage", bi["input_usage"])),
             "valueType": "boolean",
             "callback_entity": e.entity_id,
         }]
