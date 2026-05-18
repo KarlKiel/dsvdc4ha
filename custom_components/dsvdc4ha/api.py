@@ -417,7 +417,10 @@ class DsvdcApi:
             for f in auto_set - user_set:
                 vdsd.remove_model_feature(f)
             for f in user_set - auto_set:
-                vdsd.add_model_feature(f)
+                try:
+                    vdsd.add_model_feature(f)
+                except ValueError:
+                    _LOGGER.warning("Ignoring unsupported model feature %r stored in config (update device in config flow to remove it)", f)
         return vdsd
 
     def _add_button(self, vdsd: Vdsd, data: dict[str, Any]) -> None:
