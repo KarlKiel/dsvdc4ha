@@ -1029,14 +1029,6 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 ]))
             )
 
-        if bi.get("group_choices"):
-            schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in bi["group_choices"]
-                ]))
-            )
-
         if btn.get("group_choices"):
             schema_dict[vol.Required("group", default=str(btn["group"]))] = (
                 selector.SelectSelector(selector.SelectSelectorConfig(options=[
@@ -1050,6 +1042,14 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 selector.SelectSelector(selector.SelectSelectorConfig(options=[
                     selector.SelectOptionDict(value=str(v), label=lbl)
                     for v, lbl in bi["group_choices"]
+                ]))
+            )
+
+        if bi.get("input_usage_choices"):
+            schema_dict[vol.Required("input_usage", default=str(bi["input_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in bi["input_usage_choices"]
                 ]))
             )
 
@@ -1181,7 +1181,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "hardwiredFunction": sf,
                 "updateInterval": bi["update_interval"],
                 "inputType": bi["input_type"],
-                "inputUsage": bi["input_usage"],
+                "inputUsage": int(user_input.get("input_usage", bi["input_usage"])),
                 "valueType": "boolean",
                 "callback_entity": entity_id,
             }]
@@ -1438,13 +1438,6 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 ]))
             )
 
-        if bi.get("group_choices"):
-            schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in bi["group_choices"]
-                ]))
-            )
         if btn.get("group_choices"):
             schema_dict[vol.Required("group", default=str(btn["group"]))] = (
                 selector.SelectSelector(selector.SelectSelectorConfig(options=[
@@ -1457,6 +1450,13 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 selector.SelectSelector(selector.SelectSelectorConfig(options=[
                     selector.SelectOptionDict(value=str(v), label=lbl)
                     for v, lbl in bi["group_choices"]
+                ]))
+            )
+        if bi.get("input_usage_choices"):
+            schema_dict[vol.Required("input_usage", default=str(bi["input_usage"]))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=str(v), label=lbl)
+                    for v, lbl in bi["input_usage_choices"]
                 ]))
             )
         stc = sen.get("sensor_type_choices")
