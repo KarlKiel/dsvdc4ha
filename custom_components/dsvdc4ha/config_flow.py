@@ -442,8 +442,6 @@ _AUTO_FEATURE_LABELS: dict[str, str] = {
     "temperatureoffset":            "Temperature offset adjustment",
     "consumption":                  "Energy monitoring / consumption events menu",
     "akmsensor":                    "AKM sensor function dropdown",
-    "akminput":                     "AKM input behaviour dropdown",
-    "akmdelay":                     "AKM turn-on / turn-off delay dropdowns",
     "pushbutton":                   "Push button type dropdown",
     "pushbadvanced":                "Per-preset click-type config and local priority",
     "pushbdisabled":                "Dialog for disabling unused buttons",
@@ -533,8 +531,6 @@ def _compute_auto_features(
 
     if binary_inputs:
         features.add("akmsensor")
-        features.add("akminput")
-        features.add("akmdelay")
 
     if buttons:
         features.add("pushbutton")
