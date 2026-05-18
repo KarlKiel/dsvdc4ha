@@ -78,6 +78,7 @@ class DsvdcApi:
         self._vdc: Vdc | None = None
         self._devices: dict[str, Device] = {}  # entry_id → Device
         self._pending_vanish: dict[str, Device] = {}  # entry_id → Device awaiting session to vanish
+        self._ever_announced: set[str] = set()
 
     async def start(
         self,
@@ -102,12 +103,21 @@ class DsvdcApi:
         host, vdc = await asyncio.to_thread(self._build_host_and_vdc)
         self._host = host
         self._vdc = vdc
-        _orig_session_ready = host._on_session_ready
         _cb = on_session_ready
 
         async def _hooked(session) -> None:
             await self._flush_pending_vanish(session)
-            await _orig_session_ready(session)
+            # Always announce the VDC container so DSS knows it is connected.
+            await self._vdc.announce(session)
+            # Only announce devices DSS does not already have in its lookup.
+            for entry_id, device in list(self._devices.items()):
+                if entry_id not in self._ever_announced:
+                    try:
+                        count = await device.announce(session)
+                        if count > 0:
+                            self._ever_announced.add(entry_id)
+                    except Exception:
+                        _LOGGER.warning("Failed to announce device %s on session ready", entry_id, exc_info=True)
             if _cb is not None:
                 _cb()
 
@@ -354,11 +364,15 @@ class DsvdcApi:
         self._devices[entry_id] = device
 
     async def announce_device(self, entry_id: str) -> None:
-        """Announce a previously-added device to dS if a session is active."""
+        """Announce a device to DSS if not already known and a session is active."""
+        if entry_id in self._ever_announced:
+            return  # DSS already has this device; skip to avoid unnecessary disruption
         assert self._host is not None
         if device := self._devices.get(entry_id):
             if self._host.session is not None:
-                await device.announce(self._host.session)
+                count = await device.announce(self._host.session)
+                if count > 0:
+                    self._ever_announced.add(entry_id)
 
     def _build_vdsd(self, device: Device, idx: int, data: dict[str, Any]) -> Vdsd:
         vdsd = Vdsd(
@@ -485,6 +499,7 @@ class DsvdcApi:
         the Device is kept in _pending_vanish and flushed on the next
         session-ready event.
         """
+        self._ever_announced.discard(entry_id)
         if device := self._devices.pop(entry_id, None):
             if self._host and self._host.session:
                 await device.vanish(self._host.session)

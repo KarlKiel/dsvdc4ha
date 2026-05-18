@@ -217,7 +217,7 @@ async def test_api_announce_device_builds_vdsd():
         MockHost.return_value = mock_host
         MockVdc.return_value = MagicMock()
         mock_device = MagicMock()
-        mock_device.announce = AsyncMock()
+        mock_device.announce = AsyncMock(return_value=1)
         MockDevice.return_value = mock_device
         mock_vdsd = MagicMock()
         MockVdsd.return_value = mock_vdsd
@@ -456,3 +456,103 @@ async def test_flush_pending_vanish_skips_failed_and_continues():
 
     good_device.vanish.assert_awaited_once_with(mock_session)
     assert not api._pending_vanish  # both cleared
+
+
+@pytest.mark.asyncio
+async def test_session_ready_hook_skips_known_devices():
+    """_on_session_ready only announces devices NOT in _ever_announced."""
+    with patch("custom_components.dsvdc4ha.api.VdcHost") as MockHost, \
+         patch("custom_components.dsvdc4ha.api.Vdc"), \
+         patch("custom_components.dsvdc4ha.api.VdcCapabilities"):
+        mock_host_instance = MagicMock()
+        mock_host_instance.start = AsyncMock()
+        mock_host_instance._on_session_ready = AsyncMock()
+        mock_host_instance.session = None
+        MockHost.return_value = mock_host_instance
+
+        api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+        await api.start()
+
+        # Simulate two registered devices; "known" was announced before
+        mock_device_known = MagicMock()
+        mock_device_known.announce = AsyncMock(return_value=1)
+        mock_device_new = MagicMock()
+        mock_device_new.announce = AsyncMock(return_value=1)
+        api._devices["known"] = mock_device_known
+        api._devices["new"] = mock_device_new
+        api._ever_announced.add("known")
+
+        mock_vdc = MagicMock()
+        mock_vdc.announce = AsyncMock(return_value=True)
+        api._vdc = mock_vdc
+
+        mock_session = MagicMock()
+        # Trigger the installed hook
+        await mock_host_instance._on_session_ready(mock_session)
+
+        mock_vdc.announce.assert_awaited_once_with(mock_session)
+        mock_device_known.announce.assert_not_awaited()
+        mock_device_new.announce.assert_awaited_once_with(mock_session)
+        assert "new" in api._ever_announced
+
+
+@pytest.mark.asyncio
+async def test_session_ready_hook_adds_to_ever_announced():
+    """Newly announced devices are added to _ever_announced."""
+    with patch("custom_components.dsvdc4ha.api.VdcHost") as MockHost, \
+         patch("custom_components.dsvdc4ha.api.Vdc"), \
+         patch("custom_components.dsvdc4ha.api.VdcCapabilities"):
+        mock_host_instance = MagicMock()
+        mock_host_instance.start = AsyncMock()
+        mock_host_instance._on_session_ready = AsyncMock()
+        mock_host_instance.session = None
+        MockHost.return_value = mock_host_instance
+
+        api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+        await api.start()
+
+        mock_device = MagicMock()
+        mock_device.announce = AsyncMock(return_value=2)  # 2 vdSDs announced
+        api._devices["sub1"] = mock_device
+
+        mock_vdc = MagicMock()
+        mock_vdc.announce = AsyncMock(return_value=True)
+        api._vdc = mock_vdc
+
+        await mock_host_instance._on_session_ready(MagicMock())
+
+        assert "sub1" in api._ever_announced
+
+
+@pytest.mark.asyncio
+async def test_announce_device_skips_if_already_known():
+    """announce_device() is a no-op for entry_ids in _ever_announced."""
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+
+    mock_host = MagicMock()
+    mock_host.session = MagicMock()  # session active
+    api._host = mock_host
+
+    mock_device = MagicMock()
+    mock_device.announce = AsyncMock(return_value=1)
+    api._devices["sub1"] = mock_device
+    api._ever_announced.add("sub1")  # already known
+
+    await api.announce_device("sub1")
+
+    mock_device.announce.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_vanish_device_removes_from_ever_announced():
+    """vanish_device() removes the entry_id from _ever_announced."""
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+    api._vdc = MagicMock()
+    # No session — device queued for pending vanish, but _ever_announced cleared immediately
+    mock_device = MagicMock()
+    api._devices["sub1"] = mock_device
+    api._ever_announced.add("sub1")
+
+    await api.vanish_device("sub1")
+
+    assert "sub1" not in api._ever_announced
