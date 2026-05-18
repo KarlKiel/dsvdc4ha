@@ -405,3 +405,29 @@ async def test_subentry_listener_noop_when_coordinator_is_none():
 
     # Must not raise — no patches needed, coordinator is absent
     await _async_subentry_update_listener(hass, entry)
+
+
+@pytest.mark.asyncio
+async def test_async_remove_entry_uses_hard_stop():
+    """async_remove_entry passes deregister_mdns=True to api.stop()."""
+    from custom_components.dsvdc4ha import async_remove_entry
+
+    mock_api = MagicMock()
+    mock_api.vanish_device = AsyncMock()
+    mock_api.stop = AsyncMock()
+
+    mock_coordinator = MagicMock()
+    mock_coordinator.api = mock_api
+
+    mock_entry = MagicMock()
+    mock_entry.subentries = {"sub1": MagicMock(), "sub2": MagicMock()}
+
+    hass = MagicMock()
+    hass.data = {"dsvdc4ha": {"hub": mock_coordinator}}
+
+    await async_remove_entry(hass, mock_entry)
+
+    # vanish called for every subentry
+    assert mock_api.vanish_device.await_count == 2
+    # stop called with deregister_mdns=True
+    mock_api.stop.assert_awaited_once_with(deregister_mdns=True)

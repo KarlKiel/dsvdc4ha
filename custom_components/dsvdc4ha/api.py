@@ -78,6 +78,7 @@ class DsvdcApi:
         self._vdc: Vdc | None = None
         self._devices: dict[str, Device] = {}  # entry_id → Device
         self._pending_vanish: dict[str, Device] = {}  # entry_id → Device awaiting session to vanish
+        self._ever_announced: set[str] = set()
 
     async def start(
         self,
@@ -102,12 +103,28 @@ class DsvdcApi:
         host, vdc = await asyncio.to_thread(self._build_host_and_vdc)
         self._host = host
         self._vdc = vdc
-        _orig_session_ready = host._on_session_ready
         _cb = on_session_ready
 
         async def _hooked(session) -> None:
+            if self._vdc is None:
+                return
             await self._flush_pending_vanish(session)
-            await _orig_session_ready(session)
+            # Always announce the VDC container so DSS knows it is connected.
+            await self._vdc.announce(session)
+            # Announce unknown devices concurrently — DSS may not confirm any single
+            # announce until all pending announces are in flight; sequential would deadlock.
+            async def _announce_device(entry_id: str, device) -> None:
+                try:
+                    count = await device.announce(session)
+                    if count > 0:
+                        self._ever_announced.add(entry_id)
+                except Exception:
+                    _LOGGER.warning("Failed to announce device %s on session ready", entry_id, exc_info=True)
+
+            unknown = [(eid, dev) for eid, dev in self._devices.items()
+                       if eid not in self._ever_announced]
+            if unknown:
+                await asyncio.gather(*(_announce_device(eid, dev) for eid, dev in unknown))
             if _cb is not None:
                 _cb()
 
@@ -282,20 +299,34 @@ class DsvdcApi:
             "Registered Zeroconf service '%s' on port %d", service_name, host._port
         )
 
-    async def stop(self) -> None:
-        """Stop serving (does not vanish devices — call vanish_device first)."""
+    async def stop(self, *, deregister_mdns: bool = False) -> None:
+        """Stop serving.
+
+        When *deregister_mdns* is False (default, for restarts) the mDNS
+        service is left registered so DSS keeps devices in its lookup table.
+        Pass True when the integration entry is being permanently removed.
+        """
         if self._host:
-            await self._deregister_zeroconf(self._host)
-            # pydsvdcapi's stop() calls flush() synchronously — pre-save in a
-            # thread so stop() finds no pending timer and skips the blocking write.
+            if deregister_mdns:
+                await self._deregister_zeroconf(self._host)
+            else:
+                self._detach_zeroconf(self._host)
             await asyncio.to_thread(self._host.flush)
             await self._host.stop()
             self._host = None
             self._vdc = None
             _LOGGER.debug("VdcHost stopped")
 
+    def _detach_zeroconf(self, host: VdcHost) -> None:
+        """Keeps the mDNS advertisement alive so DSS does not drop devices from its
+        lookup — and prevents pydsvdcapi's unannounce() (called inside host.stop())
+        from calling async_close() on HA's shared Zeroconf.
+        """
+        host._zeroconf = None
+        host._service_info = None
+
     async def _deregister_zeroconf(self, host: VdcHost) -> None:
-        """Unregister DNS-SD from the shared Zeroconf instance.
+        """Unregister DNS-SD from the shared Zeroconf instance and detach.
 
         Clears host._zeroconf so that pydsvdcapi's unannounce() (called inside
         host.stop()) sees no zeroconf and becomes a no-op — preventing it from
@@ -340,11 +371,15 @@ class DsvdcApi:
         self._devices[entry_id] = device
 
     async def announce_device(self, entry_id: str) -> None:
-        """Announce a previously-added device to dS if a session is active."""
+        """Announce a device to DSS if not already known and a session is active."""
+        if entry_id in self._ever_announced:
+            return  # DSS already has this device; skip to avoid unnecessary disruption
         assert self._host is not None
         if device := self._devices.get(entry_id):
             if self._host.session is not None:
-                await device.announce(self._host.session)
+                count = await device.announce(self._host.session)
+                if count > 0:
+                    self._ever_announced.add(entry_id)
 
     def _build_vdsd(self, device: Device, idx: int, data: dict[str, Any]) -> Vdsd:
         vdsd = Vdsd(
@@ -471,6 +506,7 @@ class DsvdcApi:
         the Device is kept in _pending_vanish and flushed on the next
         session-ready event.
         """
+        self._ever_announced.discard(entry_id)
         if device := self._devices.pop(entry_id, None):
             if self._host and self._host.session:
                 await device.vanish(self._host.session)

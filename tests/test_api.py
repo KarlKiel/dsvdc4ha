@@ -75,11 +75,12 @@ async def test_api_stop_deregisters_shared_zeroconf():
         mock_host_instance._dsuid = "AABBCCDDEEFF0011223344556677889900"
         mock_host_instance._zeroconf = None
         mock_host_instance._service_info = None
+        mock_host_instance._on_session_ready = AsyncMock()
         MockHost.return_value = mock_host_instance
 
         api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp/test_state")
         await api.start(zeroconf=mock_zeroconf)
-        await api.stop()
+        await api.stop(deregister_mdns=True)
 
         mock_host_instance.start.assert_awaited_once_with(announce=False)
         mock_zeroconf.async_register_service.assert_awaited_once()
@@ -87,6 +88,92 @@ async def test_api_stop_deregisters_shared_zeroconf():
         # _register_zeroconf and once in _deregister_zeroconf during stop()
         assert mock_zeroconf.async_unregister_service.await_count == 2
         mock_zeroconf.async_close.assert_not_called()
+        mock_host_instance.stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_api_soft_stop_does_not_unregister_zeroconf():
+    """api.stop() (default) nulls zeroconf reference but does NOT unregister the service."""
+    mock_sock = MagicMock()
+    mock_sock.__enter__ = MagicMock(return_value=mock_sock)
+    mock_sock.__exit__ = MagicMock(return_value=False)
+    mock_sock.getsockname.return_value = ("192.168.1.100", 0)
+
+    with patch("custom_components.dsvdc4ha.api.VdcHost") as MockHost, \
+         patch("custom_components.dsvdc4ha.api.Vdc"), \
+         patch("custom_components.dsvdc4ha.api.VdcCapabilities"), \
+         patch("custom_components.dsvdc4ha.api.socket.gethostname", return_value="testhostname"), \
+         patch("custom_components.dsvdc4ha.api.socket.socket", return_value=mock_sock), \
+         patch("custom_components.dsvdc4ha.api.socket.inet_aton", return_value=b"\xc0\xa8\x01\x64"):
+        mock_zeroconf = MagicMock()
+        mock_zeroconf.async_register_service = AsyncMock()
+        mock_zeroconf.async_unregister_service = AsyncMock()
+
+        mock_host_instance = MagicMock()
+        mock_host_instance.name = "TestVdcHost"
+        mock_host_instance.start = AsyncMock()
+        mock_host_instance.stop = AsyncMock()
+        mock_host_instance.flush = MagicMock()
+        mock_host_instance._port = 9090
+        mock_host_instance._dsuid = "AABBCCDDEEFF0011223344556677889900"
+        mock_host_instance._zeroconf = None
+        mock_host_instance._service_info = None
+        mock_host_instance._on_session_ready = AsyncMock()
+        MockHost.return_value = mock_host_instance
+
+        api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp/test_state")
+        await api.start(zeroconf=mock_zeroconf)
+
+        # After _register_zeroconf the pre-unregister call is already done; reset the counter.
+        mock_zeroconf.async_unregister_service.reset_mock()
+
+        await api.stop()  # soft stop — default deregister_mdns=False
+
+        mock_zeroconf.async_unregister_service.assert_not_awaited()
+        # host._zeroconf must be None so pydsvdcapi's unannounce() is a no-op
+        assert mock_host_instance._zeroconf is None
+        assert mock_host_instance._service_info is None
+        mock_host_instance.stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_api_hard_stop_unregisters_zeroconf():
+    """api.stop(deregister_mdns=True) unregisters the mDNS service before closing TCP."""
+    mock_sock = MagicMock()
+    mock_sock.__enter__ = MagicMock(return_value=mock_sock)
+    mock_sock.__exit__ = MagicMock(return_value=False)
+    mock_sock.getsockname.return_value = ("192.168.1.100", 0)
+
+    with patch("custom_components.dsvdc4ha.api.VdcHost") as MockHost, \
+         patch("custom_components.dsvdc4ha.api.Vdc"), \
+         patch("custom_components.dsvdc4ha.api.VdcCapabilities"), \
+         patch("custom_components.dsvdc4ha.api.socket.gethostname", return_value="testhostname"), \
+         patch("custom_components.dsvdc4ha.api.socket.socket", return_value=mock_sock), \
+         patch("custom_components.dsvdc4ha.api.socket.inet_aton", return_value=b"\xc0\xa8\x01\x64"):
+        mock_zeroconf = MagicMock()
+        mock_zeroconf.async_register_service = AsyncMock()
+        mock_zeroconf.async_unregister_service = AsyncMock()
+
+        mock_host_instance = MagicMock()
+        mock_host_instance.name = "TestVdcHost"
+        mock_host_instance.start = AsyncMock()
+        mock_host_instance.stop = AsyncMock()
+        mock_host_instance.flush = MagicMock()
+        mock_host_instance._port = 9090
+        mock_host_instance._dsuid = "AABBCCDDEEFF0011223344556677889900"
+        mock_host_instance._zeroconf = None
+        mock_host_instance._service_info = None
+        mock_host_instance._on_session_ready = AsyncMock()
+        MockHost.return_value = mock_host_instance
+
+        api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp/test_state")
+        await api.start(zeroconf=mock_zeroconf)
+
+        mock_zeroconf.async_unregister_service.reset_mock()
+
+        await api.stop(deregister_mdns=True)  # hard stop
+
+        mock_zeroconf.async_unregister_service.assert_awaited_once()
         mock_host_instance.stop.assert_awaited_once()
 
 
@@ -130,7 +217,7 @@ async def test_api_announce_device_builds_vdsd():
         MockHost.return_value = mock_host
         MockVdc.return_value = MagicMock()
         mock_device = MagicMock()
-        mock_device.announce = AsyncMock()
+        mock_device.announce = AsyncMock(return_value=1)
         MockDevice.return_value = mock_device
         mock_vdsd = MagicMock()
         MockVdsd.return_value = mock_vdsd
@@ -369,3 +456,103 @@ async def test_flush_pending_vanish_skips_failed_and_continues():
 
     good_device.vanish.assert_awaited_once_with(mock_session)
     assert not api._pending_vanish  # both cleared
+
+
+@pytest.mark.asyncio
+async def test_session_ready_hook_skips_known_devices():
+    """_on_session_ready only announces devices NOT in _ever_announced."""
+    with patch("custom_components.dsvdc4ha.api.VdcHost") as MockHost, \
+         patch("custom_components.dsvdc4ha.api.Vdc"), \
+         patch("custom_components.dsvdc4ha.api.VdcCapabilities"):
+        mock_host_instance = MagicMock()
+        mock_host_instance.start = AsyncMock()
+        mock_host_instance._on_session_ready = AsyncMock()
+        mock_host_instance.session = None
+        MockHost.return_value = mock_host_instance
+
+        api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+        await api.start()
+
+        # Simulate two registered devices; "known" was announced before
+        mock_device_known = MagicMock()
+        mock_device_known.announce = AsyncMock(return_value=1)
+        mock_device_new = MagicMock()
+        mock_device_new.announce = AsyncMock(return_value=1)
+        api._devices["known"] = mock_device_known
+        api._devices["new"] = mock_device_new
+        api._ever_announced.add("known")
+
+        mock_vdc = MagicMock()
+        mock_vdc.announce = AsyncMock(return_value=True)
+        api._vdc = mock_vdc
+
+        mock_session = MagicMock()
+        # Trigger the installed hook
+        await mock_host_instance._on_session_ready(mock_session)
+
+        mock_vdc.announce.assert_awaited_once_with(mock_session)
+        mock_device_known.announce.assert_not_awaited()
+        mock_device_new.announce.assert_awaited_once_with(mock_session)
+        assert "new" in api._ever_announced
+
+
+@pytest.mark.asyncio
+async def test_session_ready_hook_adds_to_ever_announced():
+    """Newly announced devices are added to _ever_announced."""
+    with patch("custom_components.dsvdc4ha.api.VdcHost") as MockHost, \
+         patch("custom_components.dsvdc4ha.api.Vdc"), \
+         patch("custom_components.dsvdc4ha.api.VdcCapabilities"):
+        mock_host_instance = MagicMock()
+        mock_host_instance.start = AsyncMock()
+        mock_host_instance._on_session_ready = AsyncMock()
+        mock_host_instance.session = None
+        MockHost.return_value = mock_host_instance
+
+        api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+        await api.start()
+
+        mock_device = MagicMock()
+        mock_device.announce = AsyncMock(return_value=2)  # 2 vdSDs announced
+        api._devices["sub1"] = mock_device
+
+        mock_vdc = MagicMock()
+        mock_vdc.announce = AsyncMock(return_value=True)
+        api._vdc = mock_vdc
+
+        await mock_host_instance._on_session_ready(MagicMock())
+
+        assert "sub1" in api._ever_announced
+
+
+@pytest.mark.asyncio
+async def test_announce_device_skips_if_already_known():
+    """announce_device() is a no-op for entry_ids in _ever_announced."""
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+
+    mock_host = MagicMock()
+    mock_host.session = MagicMock()  # session active
+    api._host = mock_host
+
+    mock_device = MagicMock()
+    mock_device.announce = AsyncMock(return_value=1)
+    api._devices["sub1"] = mock_device
+    api._ever_announced.add("sub1")  # already known
+
+    await api.announce_device("sub1")
+
+    mock_device.announce.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_vanish_device_removes_from_ever_announced():
+    """vanish_device() removes the entry_id from _ever_announced."""
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+    api._vdc = MagicMock()
+    # No session — device queued for pending vanish, but _ever_announced cleared immediately
+    mock_device = MagicMock()
+    api._devices["sub1"] = mock_device
+    api._ever_announced.add("sub1")
+
+    await api.vanish_device("sub1")
+
+    assert "sub1" not in api._ever_announced
