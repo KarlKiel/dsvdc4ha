@@ -567,7 +567,7 @@ def _compute_auto_features(
         else:
             features.add("windprotectionconfigawning")
 
-    if primary_group == 8:  # BLACK
+    if primary_group == ColorGroup.BLACK.value:
         features.add("jokerconfig")
 
     if has_identify:
