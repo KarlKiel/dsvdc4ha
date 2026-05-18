@@ -135,7 +135,7 @@ def test_needs_user_input_sf_any():
 
 def test_channel_type_names_matches_enum():
     from pydsvdcapi.enums import OutputChannelType
-    import importlib.util, pathlib, sys
+    import importlib.util, pathlib
     spec = importlib.util.spec_from_file_location(
         "entity_mapping",
         pathlib.Path(__file__).parent.parent / "custom_components/dsvdc4ha/entity_mapping.py",
