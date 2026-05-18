@@ -148,7 +148,9 @@ class _PreviewDevice:
     Device attributes are accessed during feature derivation, so a class with
     a single valid DsUid attribute is sufficient.
     """
-    dsuid: DsUid = DsUid.random()
+
+    def __init__(self) -> None:
+        self.dsuid: DsUid = DsUid.random()
 
     def _schedule_auto_save(self) -> None:
         """No-op: preview devices are ephemeral and never persisted."""

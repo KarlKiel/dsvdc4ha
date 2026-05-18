@@ -2,7 +2,7 @@
 from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from custom_components.dsvdc4ha.api import DsvdcApi, _add_output
+from custom_components.dsvdc4ha.api import DsvdcApi, _add_output, derive_model_features_for_config
 
 
 @pytest.mark.asyncio
@@ -558,7 +558,6 @@ async def test_vanish_device_removes_from_ever_announced():
 
 def test_derive_model_features_for_config_binary_input():
     """Binary input → akmsensor only; akminput and akmdelay must NOT appear."""
-    from custom_components.dsvdc4ha.api import derive_model_features_for_config
     data = {
         "primaryGroup": 1,
         "buttons": [],
@@ -577,7 +576,6 @@ def test_derive_model_features_for_config_binary_input():
 
 def test_derive_model_features_for_config_no_components():
     """vdSD with no components → no akmsensor, no pushbutton."""
-    from custom_components.dsvdc4ha.api import derive_model_features_for_config
     data = {
         "primaryGroup": 1,
         "buttons": [],
@@ -592,7 +590,6 @@ def test_derive_model_features_for_config_no_components():
 
 def test_derive_model_features_for_config_button():
     """Button present → pushbutton in feature set."""
-    from custom_components.dsvdc4ha.api import derive_model_features_for_config
     from pydsvdcapi.enums import ButtonGroup
     data = {
         "primaryGroup": 1,
