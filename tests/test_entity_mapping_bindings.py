@@ -189,3 +189,88 @@ def test_choice_tuples_use_valid_enum_values():
             if isinstance(lbl, str):
                 for bad in wrong_labels:
                     assert bad not in lbl, f"Wrong label in sensor_usage_choices: {lbl!r}"
+
+
+def test_all_enum_fields_are_valid_enum_members():
+    """Every integer field in ENTITY_MAPPING must be a valid member of its enum."""
+    from pydsvdcapi.enums import (
+        BinaryInputGroup, BinaryInputType, BinaryInputUsage,
+        ButtonFunctionJoker, ButtonGroup, ButtonMode, ButtonType,
+        ColorClass, ColorGroup,
+        OutputChannelType, OutputFunction, OutputMode, OutputUsage,
+        SensorGroup, SensorType, SensorUsage,
+    )
+    import importlib.util, pathlib
+    spec = importlib.util.spec_from_file_location(
+        "entity_mapping",
+        pathlib.Path(__file__).parent.parent / "custom_components/dsvdc4ha/entity_mapping.py",
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    _bi_type_vals  = {m.value for m in BinaryInputType}
+    _bi_grp_vals   = {m.value for m in BinaryInputGroup}
+    _bi_usage_vals = {m.value for m in BinaryInputUsage}
+    _st_vals       = {m.value for m in SensorType}
+    _su_vals       = {m.value for m in SensorUsage}
+    _sg_vals       = {m.value for m in SensorGroup}
+    _btn_type_vals = {m.value for m in ButtonType}
+    _btn_grp_vals  = {m.value for m in ButtonGroup}
+    _btn_func_vals = {m.value for m in ButtonFunctionJoker}
+    _btn_mode_vals = {m.value for m in ButtonMode}
+    _of_vals       = {m.value for m in OutputFunction}
+    _ou_vals       = {m.value for m in OutputUsage}
+    _om_vals       = {m.value for m in OutputMode}
+    _cc_vals       = {m.value for m in ColorClass}
+    _cg_vals       = {m.value for m in ColorGroup}
+    _oct_vals      = {m.value for m in OutputChannelType}
+
+    for entry in mod.ENTITY_MAPPING:
+        key = f"{entry['domain']}/{entry.get('device_class')}"
+
+        pg = entry.get("primary_group")
+        if pg is not None:
+            assert pg in _cg_vals, f"{key}: primary_group={pg} not in ColorGroup"
+
+        if bi := entry.get("binary_input"):
+            assert bi["sensor_function"] in _bi_type_vals,  f"{key}: binary_input.sensor_function invalid"
+            assert bi["group"]            in _bi_grp_vals,   f"{key}: binary_input.group invalid"
+            assert bi["input_usage"]      in _bi_usage_vals, f"{key}: binary_input.input_usage invalid"
+
+        if s := entry.get("sensor"):
+            assert s["sensor_type"]  in _st_vals, f"{key}: sensor.sensor_type invalid"
+            assert s["sensor_usage"] in _su_vals, f"{key}: sensor.sensor_usage invalid"
+            assert s["group"]        in _sg_vals, f"{key}: sensor.group invalid"
+
+        if o := entry.get("output"):
+            assert o["function"]      in _of_vals, f"{key}: output.function invalid"
+            assert o["output_usage"]  in _ou_vals, f"{key}: output.output_usage invalid"
+            assert o.get("mode", OutputMode.DISABLED) in _om_vals, f"{key}: output.mode invalid"
+            dg = o.get("default_group")
+            if dg is not None:
+                assert dg in _cc_vals, f"{key}: output.default_group={dg} not in ColorClass"
+            for i, ch in enumerate(o.get("channels", [])):
+                ct = ch.get("channel_type")
+                if ct is not None:
+                    assert ct in _oct_vals, f"{key}: channels[{i}].channel_type={ct} invalid"
+
+        if b := entry.get("button"):
+            assert b["button_type"] in _btn_type_vals, f"{key}: button.button_type invalid"
+            assert b["group"]       in _btn_grp_vals,  f"{key}: button.group invalid"
+            assert b["function"]    in _btn_func_vals, f"{key}: button.function invalid (expect ButtonFunctionJoker since group=JOKER)"
+            assert b.get("mode", ButtonMode.STANDARD) in _btn_mode_vals, f"{key}: button.mode invalid"
+
+
+def test_compute_auto_features_uses_enum_for_joker():
+    """_compute_auto_features must use ButtonGroup.JOKER, not a hardcoded 8."""
+    import ast, pathlib
+    src = (pathlib.Path(__file__).parent.parent / "custom_components/dsvdc4ha/config_flow.py").read_text()
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Compare):
+            for comp in node.comparators:
+                if isinstance(comp, ast.Constant) and comp.value == 8:
+                    if isinstance(node.left, ast.Name) and node.left.id == "grp":
+                        raise AssertionError(
+                            f"Line {node.lineno}: hardcoded 8 in grp comparison — use ButtonGroup.JOKER"
+                        )
