@@ -106,18 +106,25 @@ class DsvdcApi:
         _cb = on_session_ready
 
         async def _hooked(session) -> None:
+            if self._vdc is None:
+                return
             await self._flush_pending_vanish(session)
             # Always announce the VDC container so DSS knows it is connected.
             await self._vdc.announce(session)
-            # Only announce devices DSS does not already have in its lookup.
-            for entry_id, device in list(self._devices.items()):
-                if entry_id not in self._ever_announced:
-                    try:
-                        count = await device.announce(session)
-                        if count > 0:
-                            self._ever_announced.add(entry_id)
-                    except Exception:
-                        _LOGGER.warning("Failed to announce device %s on session ready", entry_id, exc_info=True)
+            # Announce unknown devices concurrently — DSS may not confirm any single
+            # announce until all pending announces are in flight; sequential would deadlock.
+            async def _announce_device(entry_id: str, device) -> None:
+                try:
+                    count = await device.announce(session)
+                    if count > 0:
+                        self._ever_announced.add(entry_id)
+                except Exception:
+                    _LOGGER.warning("Failed to announce device %s on session ready", entry_id, exc_info=True)
+
+            unknown = [(eid, dev) for eid, dev in self._devices.items()
+                       if eid not in self._ever_announced]
+            if unknown:
+                await asyncio.gather(*(_announce_device(eid, dev) for eid, dev in unknown))
             if _cb is not None:
                 _cb()
 
