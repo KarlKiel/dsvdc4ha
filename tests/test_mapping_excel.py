@@ -76,3 +76,83 @@ def test_schema_extractors_on_known_entry():
     # cover/awning has no ch1 → "-"
     _, _, ch1 = col_map["output.ch1.channel_type.VALUE"]
     assert ch1(entry_a) == "-"
+
+
+def test_generate_creates_file_with_correct_shape(tmp_path):
+    gen = _load("generate_mapping_excel", "tools/generate_mapping_excel.py")
+    schema = _load("excel_schema", "tools/excel_schema.py")
+    from custom_components.dsvdc4ha.entity_mapping import ENTITY_MAPPING
+    import openpyxl
+
+    out = tmp_path / "mapping.xlsx"
+    gen.generate(output_path=out)
+
+    wb = openpyxl.load_workbook(out, read_only=True, data_only=True)
+    ws = wb.active
+    rows = list(ws.iter_rows(values_only=True))
+    wb.close()
+
+    assert len(rows) == len(ENTITY_MAPPING) + 1  # header + data rows
+    assert rows[0][0] == "domain"
+    assert rows[0][1] == "device_class"
+    assert len(rows[0]) == len(schema.COLUMNS)
+
+
+def test_generate_writes_correct_enum_names(tmp_path):
+    gen = _load("generate_mapping_excel", "tools/generate_mapping_excel.py")
+    schema = _load("excel_schema", "tools/excel_schema.py")
+    import openpyxl
+
+    out = tmp_path / "mapping.xlsx"
+    gen.generate(output_path=out)
+
+    wb = openpyxl.load_workbook(out, read_only=True, data_only=True)
+    ws = wb.active
+    header_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True))
+    col_map = {v: i for i, v in enumerate(header_row) if v}
+
+    rows = {
+        (r[col_map["domain"]], r[col_map["device_class"]]): r
+        for r in ws.iter_rows(min_row=2, values_only=True)
+    }
+    wb.close()
+
+    # binary_sensor/None: sensor_function_choices="any" → USER=yes, VALUE=GENERIC
+    row = rows[("binary_sensor", "-")]
+    assert row[col_map["bi.sensor_function.USER"]] == "yes"
+    assert row[col_map["bi.sensor_function.VALUE"]] == "GENERIC"
+    assert row[col_map["bi.input_usage.USER"]] == "yes"
+    assert row[col_map["bi.input_usage.VALUE"]] == "UNDEFINED"
+
+    # binary_sensor/motion: no sensor_function_choices → USER=no, VALUE=MOTION
+    row_m = rows[("binary_sensor", "motion")]
+    assert row_m[col_map["bi.sensor_function.USER"]] == "no"
+    assert row_m[col_map["bi.sensor_function.VALUE"]] == "MOTION"
+
+    # cover/awning: ch0=SHADE_POSITION_OUTSIDE, ch1=-
+    row_a = rows[("cover", "awning")]
+    assert row_a[col_map["output.ch0.channel_type.VALUE"]] == "SHADE_POSITION_OUTSIDE"
+    assert row_a[col_map["output.ch1.channel_type.VALUE"]] == "-"
+
+    # sensor/temperature: sensor_usage_choices → USER=yes
+    row_t = rows[("sensor", "temperature")]
+    assert row_t[col_map["sensor.sensor_usage.USER"]] == "yes"
+
+    # light/None: primary_group.USER always "no"
+    row_l = rows[("light", "-")]
+    assert row_l[col_map["primary_group.USER"]] == "no"
+
+
+def test_generate_creates_lookups_sheet(tmp_path):
+    gen = _load("generate_mapping_excel", "tools/generate_mapping_excel.py")
+    import openpyxl
+
+    out = tmp_path / "mapping.xlsx"
+    gen.generate(output_path=out)
+
+    wb = openpyxl.load_workbook(out, read_only=True)
+    assert "_lookups" in wb.sheetnames
+    ws_lk = wb["_lookups"]
+    first_col = [r[0].value for r in ws_lk.iter_rows(min_row=1, max_row=2)]
+    assert "yes" in first_col
+    wb.close()
