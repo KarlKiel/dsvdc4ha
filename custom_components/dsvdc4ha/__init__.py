@@ -68,7 +68,7 @@ async def _backfill_missing_icons(hass: HomeAssistant, entry: ConfigEntry) -> No
     for subentry in entry.subentries.values():
         vdsds = list(subentry.data.get("vdsds", []))
         updated = False
-        for vdsd in vdsds:
+        for i, vdsd in enumerate(vdsds):
             if vdsd.get("icon_data_b64"):
                 continue
             for eid in _entity_ids_in_vdsd(vdsd):
@@ -79,7 +79,7 @@ async def _backfill_missing_icons(hass: HomeAssistant, entry: ConfigEntry) -> No
                 device_class = state.attributes.get("device_class")
                 b64 = bundled_icon_b64_for(domain, device_class)
                 if b64:
-                    vdsd["icon_data_b64"] = b64
+                    vdsds[i] = {**vdsd, "icon_data_b64": b64}
                     updated = True
                     break
         if updated:
