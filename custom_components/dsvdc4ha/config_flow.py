@@ -50,6 +50,7 @@ from .const import (
     DOMAIN,
     ENTRY_TYPE_HUB,
 )
+from ._icon_utils import MDI_DOMAIN_ICONS, bundled_icon_b64
 from .device_grouper import (
     EntityInfo as _EntityInfo,
     VdsdPlan,
@@ -651,8 +652,6 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 # ---------------------------------------------------------------------------
 # MDI icon resolution helpers
 # ---------------------------------------------------------------------------
-
-from ._icon_utils import MDI_DOMAIN_ICONS, bundled_icon_b64
 
 _MDI_SVG_CACHE: dict[str, bytes] = {}
 
