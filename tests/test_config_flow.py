@@ -1144,7 +1144,7 @@ async def test_entity_picker_preserves_device_info_on_second_pick():
 
     from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
     mapping = get_entity_mapping("switch", None)
-    with patch("custom_components.dsvdc4ha.config_flow.get_entity_mapping", return_value=mapping), \
+    with patch("custom_components.dsvdc4ha.config_flow.resolve_entity_mapping", return_value=mapping), \
          patch("custom_components.dsvdc4ha.config_flow.needs_user_input", return_value=False), \
          patch.object(flow, "_build_entity_vdsd_and_continue",
                       new=AsyncMock(return_value={"type": "form", "step_id": "entity_user_input"})):
@@ -1336,3 +1336,135 @@ async def test_resolve_entity_icon_returns_none_when_cairosvg_and_bundled_both_u
 
     assert icon_name == "switch_kitchen"
     assert b64 is None
+
+
+# ── Light entity picker tests (resolve_entity_mapping integration) ────────────
+
+@pytest.mark.asyncio
+async def test_entity_picker_light_full_color_yields_6_channels():
+    """Picking a full-color light derives FULL_COLOR_DIMMER with 6 channels."""
+    from unittest.mock import patch as _patch, AsyncMock as _AsyncMock
+    from pydsvdcapi.enums import OutputFunction
+
+    flow = _make_subentry_flow()
+
+    state = MagicMock()
+    state.name = "RGB Lamp"
+    state.attributes = {
+        "device_class": None,
+        "supported_color_modes": ["hs", "color_temp"],
+        "brightness": 128,
+        "hs_color": (180.0, 50.0),
+        "color_temp": 370,
+        "xy_color": (0.3, 0.3),
+    }
+    flow.hass.states.get.return_value = state
+
+    mock_ent_reg = MagicMock()
+    mock_ent_entry = MagicMock()
+    mock_ent_entry.unique_id = "light_rgb_unique"
+    mock_ent_entry.device_id = None
+    mock_ent_reg.async_get.return_value = mock_ent_entry
+
+    with (
+        _patch("custom_components.dsvdc4ha.config_flow.er.async_get",
+               return_value=mock_ent_reg),
+        _patch("custom_components.dsvdc4ha.config_flow.dr.async_get",
+               return_value=MagicMock()),
+        _patch.object(flow, "_resolve_entity_icon",
+                      new=_AsyncMock(return_value=("light_rgb", None))),
+        _patch.object(flow, "async_step_model_features",
+                      new=_AsyncMock(return_value={"type": "form", "step_id": "model_features"})),
+    ):
+        await flow.async_step_entity_picker({"entity_id": "light.rgb_lamp"})
+
+    assert flow._entity_mapping is not None
+    assert flow._entity_mapping["output"]["function"] == OutputFunction.FULL_COLOR_DIMMER
+    assert len(flow._entity_mapping["output"]["channels"]) == 6
+
+
+@pytest.mark.asyncio
+async def test_entity_picker_light_dimmer_yields_1_channel():
+    """Picking a brightness-only light derives DIMMER with 1 channel."""
+    from unittest.mock import patch as _patch, AsyncMock as _AsyncMock
+    from pydsvdcapi.enums import OutputFunction
+
+    flow = _make_subentry_flow()
+
+    state = MagicMock()
+    state.name = "Dim Lamp"
+    state.attributes = {
+        "device_class": None,
+        "supported_color_modes": ["brightness"],
+        "brightness": 200,
+    }
+    flow.hass.states.get.return_value = state
+
+    mock_ent_reg = MagicMock()
+    mock_ent_entry = MagicMock()
+    mock_ent_entry.unique_id = "light_dim_unique"
+    mock_ent_entry.device_id = None
+    mock_ent_reg.async_get.return_value = mock_ent_entry
+
+    with (
+        _patch("custom_components.dsvdc4ha.config_flow.er.async_get",
+               return_value=mock_ent_reg),
+        _patch("custom_components.dsvdc4ha.config_flow.dr.async_get",
+               return_value=MagicMock()),
+        _patch.object(flow, "_resolve_entity_icon",
+                      new=_AsyncMock(return_value=("light_dim", None))),
+        _patch.object(flow, "async_step_model_features",
+                      new=_AsyncMock(return_value={"type": "form", "step_id": "model_features"})),
+    ):
+        await flow.async_step_entity_picker({"entity_id": "light.dim_lamp"})
+
+    assert flow._entity_mapping["output"]["function"] == OutputFunction.DIMMER
+    assert len(flow._entity_mapping["output"]["channels"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_entity_picker_light_apply_all_expr_stored_in_vdsd():
+    """apply_all_expr from the derived mapping is stored in the built vdSD output dict."""
+    from unittest.mock import patch as _patch, AsyncMock as _AsyncMock
+    from custom_components.dsvdc4ha.entity_mapping import resolve_entity_mapping
+
+    flow = _make_subentry_flow()
+
+    state = MagicMock()
+    state.name = "Full Lamp"
+    state.attributes = {
+        "device_class": None,
+        "supported_color_modes": ["hs"],
+        "brightness": 128,
+        "hs_color": (0.0, 0.0),
+        "color_temp": 370,
+        "xy_color": (0.3127, 0.3290),
+    }
+    flow.hass.states.get.return_value = state
+
+    mock_ent_reg = MagicMock()
+    mock_ent_entry = MagicMock()
+    mock_ent_entry.unique_id = "light_full_unique"
+    mock_ent_entry.device_id = None
+    mock_ent_reg.async_get.return_value = mock_ent_entry
+
+    mapping = resolve_entity_mapping("light.full", state, "light", None)
+    flow._entity_id = "light.full"
+    flow._entity_mapping = mapping
+    flow._display_id = "Light"
+
+    with (
+        _patch("custom_components.dsvdc4ha.config_flow.er.async_get",
+               return_value=mock_ent_reg),
+        _patch("custom_components.dsvdc4ha.config_flow.dr.async_get",
+               return_value=MagicMock()),
+        _patch.object(flow, "_resolve_entity_icon",
+                      new=_AsyncMock(return_value=("light_full", None))),
+        _patch.object(flow, "async_step_model_features",
+                      new=_AsyncMock(return_value={"type": "form", "step_id": "model_features"})),
+    ):
+        await flow._build_entity_vdsd_and_continue({})
+
+    output = flow._current_vdsd.get("output") if flow._current_vdsd else None
+    assert output is not None
+    assert "apply_all_expr" in output, "apply_all_expr must be stored in vdSD output"
