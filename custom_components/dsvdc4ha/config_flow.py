@@ -652,23 +652,7 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 # MDI icon resolution helpers
 # ---------------------------------------------------------------------------
 
-_MDI_DOMAIN_ICONS: dict[str, str] = {
-    "light": "lightbulb",
-    "switch": "toggle-switch-variant",
-    "cover": "window-shutter",
-    "cover.awning": "awning",
-    "cover.blind": "blinds",
-    "cover.curtain": "curtains",
-    "cover.door": "door",
-    "cover.garage": "garage",
-    "cover.gate": "gate",
-    "cover.shutter": "window-shutter",
-    "binary_sensor": "radiobox-blank",
-    "sensor": "eye",
-    "event": "calendar-star",
-    "number": "ray-vertex",
-    "lock": "lock",
-}
+from ._icon_utils import MDI_DOMAIN_ICONS, bundled_icon_b64
 
 _MDI_SVG_CACHE: dict[str, bytes] = {}
 
@@ -681,10 +665,10 @@ def _mdi_icon_name_for(state: Any, entity_id: str) -> str | None:
     domain = entity_id.split(".")[0]
     device_class: str | None = state.attributes.get("device_class")
     if device_class:
-        result = _MDI_DOMAIN_ICONS.get(f"{domain}.{device_class}")
+        result = MDI_DOMAIN_ICONS.get(f"{domain}.{device_class}")
         if result:
             return result
-    return _MDI_DOMAIN_ICONS.get(domain)
+    return MDI_DOMAIN_ICONS.get(domain)
 
 
 async def _fetch_mdi_icon_b64(hass: Any, icon_slug: str) -> str | None:
@@ -803,12 +787,14 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             except Exception:
                 _LOGGER.debug("Failed to resolve icon for %s from entity_picture", entity_id, exc_info=True)
 
-        # Path 2: MDI icon (explicit attribute or domain/device_class fallback)
+        # Path 2: MDI icon — CDN+cairosvg first, bundled PNG fallback
         mdi_name = _mdi_icon_name_for(state, entity_id)
         if mdi_name is None:
             return icon_name, None
 
         b64 = await _fetch_mdi_icon_b64(self.hass, mdi_name)
+        if b64 is None:
+            b64 = bundled_icon_b64(mdi_name)
         return icon_name, b64
 
     async def async_step_user(self, user_input: dict | None = None):
