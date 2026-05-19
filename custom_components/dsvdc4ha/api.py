@@ -165,7 +165,8 @@ def derive_model_features_for_config(vdsd_data: dict[str, Any]) -> set[str]:
 
     *vdsd_data* keys used:
       primaryGroup (int), buttons (list), binary_inputs (list),
-      sensors (list), output (dict | None).
+      sensors (list), output (dict | None),
+      identify_action (any truthy value → adds "identification" feature).
     """
     vdsd = Vdsd(
         device=_PreviewDevice(),
