@@ -429,31 +429,15 @@ class DsvdcApi:
             "Registered Zeroconf service '%s' on port %d", service_name, host._port
         )
 
-    async def stop(self, *, deregister_mdns: bool = False) -> None:
-        """Stop serving.
-
-        When *deregister_mdns* is False (default, for restarts) the mDNS
-        service is left registered so DSS keeps devices in its lookup table.
-        Pass True when the integration entry is being permanently removed.
-        """
+    async def stop(self) -> None:
+        """Stop serving and send mDNS goodbye so DSS removes devices from its lookup."""
         if self._host:
-            if deregister_mdns:
-                await self._deregister_zeroconf(self._host)
-            else:
-                self._detach_zeroconf(self._host)
+            await self._deregister_zeroconf(self._host)
             await asyncio.to_thread(self._host.flush)
             await self._host.stop()
             self._host = None
             self._vdc = None
             _LOGGER.debug("VdcHost stopped")
-
-    def _detach_zeroconf(self, host: VdcHost) -> None:
-        """Keeps the mDNS advertisement alive so DSS does not drop devices from its
-        lookup — and prevents pydsvdcapi's unannounce() (called inside host.stop())
-        from calling async_close() on HA's shared Zeroconf.
-        """
-        host._zeroconf = None
-        host._service_info = None
 
     async def _deregister_zeroconf(self, host: VdcHost) -> None:
         """Unregister DNS-SD from the shared Zeroconf instance and detach.

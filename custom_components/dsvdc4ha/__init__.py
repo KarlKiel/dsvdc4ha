@@ -243,4 +243,4 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     if hub:
         for subentry in entry.subentries.values():
             await hub.api.vanish_device(subentry.subentry_id)
-        await hub.api.stop(deregister_mdns=True)
+        await hub.api.stop()

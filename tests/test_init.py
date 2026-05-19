@@ -528,8 +528,8 @@ async def test_backfill_missing_icons_skips_if_no_entity_state():
 
 
 @pytest.mark.asyncio
-async def test_async_remove_entry_uses_hard_stop():
-    """async_remove_entry passes deregister_mdns=True to api.stop()."""
+async def test_async_remove_entry_stops_api():
+    """async_remove_entry vanishes all subentries and stops the API."""
     from custom_components.dsvdc4ha import async_remove_entry
 
     mock_api = MagicMock()
@@ -549,5 +549,4 @@ async def test_async_remove_entry_uses_hard_stop():
 
     # vanish called for every subentry
     assert mock_api.vanish_device.await_count == 2
-    # stop called with deregister_mdns=True
-    mock_api.stop.assert_awaited_once_with(deregister_mdns=True)
+    mock_api.stop.assert_awaited_once_with()
