@@ -620,7 +620,11 @@ async def test_device_model_features_cycles_and_routes_to_device_summary():
     plan1.resolved_vdsd = {
         "primaryGroup": 1, "displayId": "M", "name": "Device — Light",
         "buttons": [], "binary_inputs": [], "sensors": [],
-        "output": {"function": 3, "channels": []},
+        "output": {
+            "name": "output", "function": 3,
+            "defaultGroup": 1, "activeGroup": 1, "groups": [1],
+            "channels": [],
+        },
         "identify_action": None,
     }
     plan2 = _make_vdsd_plan("light.b")

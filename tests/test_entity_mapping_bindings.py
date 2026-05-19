@@ -261,16 +261,3 @@ def test_all_enum_fields_are_valid_enum_members():
             assert b.get("mode", ButtonMode.STANDARD) in _btn_mode_vals, f"{key}: button.mode invalid"
 
 
-def test_compute_auto_features_uses_enum_for_joker():
-    """_compute_auto_features must use ButtonGroup.JOKER, not a hardcoded 8."""
-    import ast, pathlib
-    src = (pathlib.Path(__file__).parent.parent / "custom_components/dsvdc4ha/config_flow.py").read_text()
-    tree = ast.parse(src)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Compare):
-            for comp in node.comparators:
-                if isinstance(comp, ast.Constant) and comp.value == 8:
-                    if isinstance(node.left, ast.Name) and node.left.id == "grp":
-                        raise AssertionError(
-                            f"Line {node.lineno}: hardcoded 8 in grp comparison — use ButtonGroup.JOKER"
-                        )

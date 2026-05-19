@@ -2,7 +2,7 @@
 from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from custom_components.dsvdc4ha.api import DsvdcApi
+from custom_components.dsvdc4ha.api import DsvdcApi, _add_output, derive_model_features_for_config
 
 
 @pytest.mark.asyncio
@@ -355,7 +355,6 @@ def test_build_vdsd_uses_per_vdsd_icon_when_present():
 def test_positional_output_registers_both_channels():
     """Bug: POSITIONAL (function=2) outputs had 0 channels because OutputChannel
     objects were created but discarded — they don't self-register."""
-    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
     mock_vdsd = MagicMock()
     output_data = {
         "name": "test-blind",
@@ -368,7 +367,7 @@ def test_positional_output_registers_both_channels():
             {"dsIndex": 1, "channelType": 10},  # SHADE_ANGLE_INDOOR
         ],
     }
-    api._add_output(mock_vdsd, output_data)
+    _add_output(mock_vdsd, output_data)
     actual_output = mock_vdsd.set_output.call_args[0][0]
 
     ch0 = actual_output.get_channel(0)
@@ -383,7 +382,6 @@ def test_on_off_output_channel_type_replaced_correctly():
     """Bug: ON_OFF (function=0) auto-creates BRIGHTNESS (type=1) at dsIndex 0.
     When entity_mapping specifies POWER_STATE (type=19), apply_pending_channels
     builds {BRIGHTNESS: v} not {POWER_STATE: v} — dS→HA direction silently broken."""
-    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
     mock_vdsd = MagicMock()
     output_data = {
         "name": "test-door",
@@ -395,7 +393,7 @@ def test_on_off_output_channel_type_replaced_correctly():
             {"dsIndex": 0, "channelType": 19},  # POWER_STATE — not BRIGHTNESS
         ],
     }
-    api._add_output(mock_vdsd, output_data)
+    _add_output(mock_vdsd, output_data)
     actual_output = mock_vdsd.set_output.call_args[0][0]
 
     ch = actual_output.get_channel(0)
@@ -556,3 +554,85 @@ async def test_vanish_device_removes_from_ever_announced():
     await api.vanish_device("sub1")
 
     assert "sub1" not in api._ever_announced
+
+
+def test_derive_model_features_for_config_binary_input():
+    """Binary input → akmsensor only; akminput and akmdelay must NOT appear."""
+    data = {
+        "primaryGroup": 1,
+        "buttons": [],
+        "binary_inputs": [
+            {"dsIndex": 0, "name": "bi", "sensorFunction": 0,
+             "group": 1, "inputUsage": 0},
+        ],
+        "sensors": [],
+        "output": None,
+    }
+    features = derive_model_features_for_config(data)
+    assert "akmsensor" in features
+    assert "akminput" not in features
+    assert "akmdelay" not in features
+
+
+def test_derive_model_features_for_config_no_components():
+    """vdSD with no components → no akmsensor, no pushbutton."""
+    data = {
+        "primaryGroup": 1,
+        "buttons": [],
+        "binary_inputs": [],
+        "sensors": [],
+        "output": None,
+    }
+    features = derive_model_features_for_config(data)
+    assert "akmsensor" not in features
+    assert "pushbutton" not in features
+
+
+def test_derive_model_features_for_config_button():
+    """Button present → pushbutton in feature set."""
+    from pydsvdcapi.enums import ButtonGroup
+    data = {
+        "primaryGroup": 1,
+        "buttons": [
+            {
+                "dsIndex": 0, "name": "btn",
+                "buttonType": 1,            # ButtonType.SINGLE_PRESS
+                "buttonElementID": 1,
+                "group": ButtonGroup.LIGHT.value,
+                "function": 0,
+                "mode": 0,
+            }
+        ],
+        "binary_inputs": [],
+        "sensors": [],
+        "output": None,
+    }
+    features = derive_model_features_for_config(data)
+    assert "pushbutton" in features
+
+
+def test_derive_model_features_for_config_identify_action():
+    """identify_action truthy → 'identification' in features."""
+    data = {
+        "primaryGroup": 1,
+        "buttons": [],
+        "binary_inputs": [],
+        "sensors": [],
+        "output": None,
+        "identify_action": "some_action",
+    }
+    features = derive_model_features_for_config(data)
+    assert "identification" in features
+
+
+def test_derive_model_features_for_config_no_identify_action():
+    """identify_action absent → 'identification' not in features."""
+    data = {
+        "primaryGroup": 1,
+        "buttons": [],
+        "binary_inputs": [],
+        "sensors": [],
+        "output": None,
+    }
+    features = derive_model_features_for_config(data)
+    assert "identification" not in features
