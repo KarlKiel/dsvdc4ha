@@ -408,6 +408,126 @@ async def test_subentry_listener_noop_when_coordinator_is_none():
 
 
 @pytest.mark.asyncio
+async def test_backfill_missing_icons_fills_from_entity_state():
+    """backfill fills icon_data_b64 from entity state when it is missing."""
+    from custom_components.dsvdc4ha import _backfill_missing_icons
+
+    vdsd = _vdsd_with_binary_input("binary_sensor.mylight")
+    # Ensure no icon is set initially
+    vdsd.pop("icon_data_b64", None)
+
+    subentry = MagicMock()
+    subentry.subentry_id = "sub1"
+    subentry.data = {"vdsds": [vdsd]}
+
+    entry = MagicMock()
+    entry.subentries = {"sub1": subentry}
+
+    state = MagicMock()
+    state.attributes = {"device_class": None}
+
+    hass = MagicMock()
+    hass.states.get.return_value = state
+    hass.config_entries.async_update_subentry = MagicMock()
+
+    with patch(
+        "custom_components.dsvdc4ha.bundled_icon_b64_for",
+        return_value="FAKEBASE64",
+    ):
+        await _backfill_missing_icons(hass, entry)
+
+    hass.config_entries.async_update_subentry.assert_called_once()
+    call_kwargs = hass.config_entries.async_update_subentry.call_args
+    assert call_kwargs.kwargs["data"]["vdsds"][0]["icon_data_b64"] == "FAKEBASE64"
+
+
+@pytest.mark.asyncio
+async def test_backfill_missing_icons_skips_if_icon_already_set():
+    """backfill does NOT call async_update_subentry when icon_data_b64 is already set."""
+    from custom_components.dsvdc4ha import _backfill_missing_icons
+
+    vdsd = _vdsd_with_binary_input("binary_sensor.mylight")
+    vdsd["icon_data_b64"] = "EXISTING"
+
+    subentry = MagicMock()
+    subentry.subentry_id = "sub1"
+    subentry.data = {"vdsds": [vdsd]}
+
+    entry = MagicMock()
+    entry.subentries = {"sub1": subentry}
+
+    hass = MagicMock()
+    hass.config_entries.async_update_subentry = MagicMock()
+
+    with patch(
+        "custom_components.dsvdc4ha.bundled_icon_b64_for",
+        return_value="FAKEBASE64",
+    ):
+        await _backfill_missing_icons(hass, entry)
+
+    hass.config_entries.async_update_subentry.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_backfill_missing_icons_skips_if_no_icon_available():
+    """backfill does NOT call async_update_subentry when bundled_icon_b64_for returns None."""
+    from custom_components.dsvdc4ha import _backfill_missing_icons
+
+    vdsd = _vdsd_with_binary_input("binary_sensor.mylight")
+    vdsd.pop("icon_data_b64", None)
+
+    subentry = MagicMock()
+    subentry.subentry_id = "sub1"
+    subentry.data = {"vdsds": [vdsd]}
+
+    entry = MagicMock()
+    entry.subentries = {"sub1": subentry}
+
+    state = MagicMock()
+    state.attributes = {"device_class": None}
+
+    hass = MagicMock()
+    hass.states.get.return_value = state
+    hass.config_entries.async_update_subentry = MagicMock()
+
+    with patch(
+        "custom_components.dsvdc4ha.bundled_icon_b64_for",
+        return_value=None,
+    ):
+        await _backfill_missing_icons(hass, entry)
+
+    hass.config_entries.async_update_subentry.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_backfill_missing_icons_skips_if_no_entity_state():
+    """backfill does NOT call async_update_subentry when hass.states.get returns None."""
+    from custom_components.dsvdc4ha import _backfill_missing_icons
+
+    vdsd = _vdsd_with_binary_input("binary_sensor.mylight")
+    vdsd.pop("icon_data_b64", None)
+
+    subentry = MagicMock()
+    subentry.subentry_id = "sub1"
+    subentry.data = {"vdsds": [vdsd]}
+
+    entry = MagicMock()
+    entry.subentries = {"sub1": subentry}
+
+    hass = MagicMock()
+    hass.states.get.return_value = None
+    hass.config_entries.async_update_subentry = MagicMock()
+
+    with patch(
+        "custom_components.dsvdc4ha.bundled_icon_b64_for",
+        return_value="FAKEBASE64",
+    ):
+        await _backfill_missing_icons(hass, entry)
+
+    hass.config_entries.async_update_subentry.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_async_remove_entry_uses_hard_stop():
     """async_remove_entry passes deregister_mdns=True to api.stop()."""
     from custom_components.dsvdc4ha import async_remove_entry

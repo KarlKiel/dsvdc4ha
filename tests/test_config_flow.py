@@ -976,7 +976,7 @@ async def test_resolve_entity_icon_uses_domain_fallback_when_no_explicit_icon():
 
 @pytest.mark.asyncio
 async def test_resolve_entity_icon_returns_none_when_mdi_cdn_unreachable():
-    """_resolve_entity_icon returns None gracefully when the MDI CDN fetch fails."""
+    """_resolve_entity_icon returns None when CDN fetch fails and no bundled icon exists."""
     from custom_components.dsvdc4ha.config_flow import _MDI_SVG_CACHE
 
     _MDI_SVG_CACHE.clear()
@@ -991,7 +991,8 @@ async def test_resolve_entity_icon_returns_none_when_mdi_cdn_unreachable():
 
     with patch("custom_components.dsvdc4ha.config_flow.async_get_clientsession",
                return_value=mock_session):
-        icon_name, b64 = await flow._resolve_entity_icon("switch.kitchen")
+        with patch("custom_components.dsvdc4ha.config_flow.bundled_icon_b64", return_value=None):
+            icon_name, b64 = await flow._resolve_entity_icon("switch.kitchen")
 
     assert icon_name == "switch_kitchen"
     assert b64 is None
@@ -1296,3 +1297,42 @@ async def test_entity_user_input_form_shows_sensor_function_for_binary_sensor_no
     assert result["step_id"] == "entity_user_input"
     schema_keys = {k.schema if hasattr(k, "schema") else k for k in result["data_schema"].schema.keys()}
     assert "sensor_function" in schema_keys, "sensor_function field missing from form schema"
+
+
+@pytest.mark.asyncio
+async def test_resolve_entity_icon_falls_back_to_bundled_when_cairosvg_unavailable(tmp_path):
+    """When _cairosvg is None (libcairo missing), bundled PNG is used as fallback."""
+    import base64
+    # switch domain → toggle-switch-variant slug
+    fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
+    (tmp_path / "toggle-switch-variant.png").write_bytes(fake_png)
+
+    flow = _make_switch_flow()
+    state = MagicMock()
+    state.attributes = {}  # no explicit mdi: icon → switch domain fallback
+    flow.hass.states.get.return_value = state
+
+    with patch("custom_components.dsvdc4ha.config_flow._cairosvg", None):
+        with patch("custom_components.dsvdc4ha._icon_utils.ICONS_DIR", tmp_path):
+            icon_name, b64 = await flow._resolve_entity_icon("switch.kitchen")
+
+    assert icon_name == "switch_kitchen"
+    assert b64 is not None
+    assert base64.b64decode(b64) == fake_png
+
+
+@pytest.mark.asyncio
+async def test_resolve_entity_icon_returns_none_when_cairosvg_and_bundled_both_unavailable(tmp_path):
+    """Returns (name, None) when cairosvg unavailable and no bundled icon file exists."""
+    flow = _make_switch_flow()
+    state = MagicMock()
+    state.attributes = {}
+    flow.hass.states.get.return_value = state
+
+    # tmp_path is empty — no bundled PNG
+    with patch("custom_components.dsvdc4ha.config_flow._cairosvg", None):
+        with patch("custom_components.dsvdc4ha._icon_utils.ICONS_DIR", tmp_path):
+            icon_name, b64 = await flow._resolve_entity_icon("switch.kitchen")
+
+    assert icon_name == "switch_kitchen"
+    assert b64 is None
