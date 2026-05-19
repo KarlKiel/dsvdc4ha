@@ -332,3 +332,167 @@ async def test_apply_expr_multi_channel_single_callback():
     assert hass.services.async_call.await_count == 2
     call1 = hass.services.async_call.call_args_list[1]
     assert call1.kwargs["service_data"] == {"hs_color": (180.0, 50)}
+
+
+# ── _light_apply unit tests ──────────────────────────────────────────────────
+
+from custom_components.dsvdc4ha.listeners import _light_apply
+
+
+def test_light_apply_brightness_only():
+    result = _light_apply({1: 50.0}, {})
+    assert result["service"] == "turn_on"
+    assert result["service_data"]["brightness"] == round(50.0 * 2.55)
+    assert "hs_color" not in result["service_data"]
+    assert "color_temp" not in result["service_data"]
+
+
+def test_light_apply_brightness_zero_turns_off():
+    result = _light_apply({1: 0.0}, {})
+    assert result["service"] == "turn_off"
+    assert result["service_data"] == {}
+
+
+def test_light_apply_brightness_negative_turns_off():
+    assert _light_apply({1: -1.0}, {})["service"] == "turn_off"
+
+
+def test_light_apply_hs_both():
+    result = _light_apply({2: 180.0, 3: 75.0}, {})
+    assert result["service"] == "turn_on"
+    assert result["service_data"]["hs_color"] == (180.0, 75.0)
+
+
+def test_light_apply_hue_only_uses_current_sat_from_attrs():
+    result = _light_apply({2: 200.0}, {"hs_color": (45.0, 90.0)})
+    assert result["service_data"]["hs_color"] == (200.0, 90.0)
+
+
+def test_light_apply_sat_only_uses_current_hue_from_attrs():
+    result = _light_apply({3: 50.0}, {"hs_color": (45.0, 90.0)})
+    assert result["service_data"]["hs_color"] == (45.0, 50.0)
+
+
+def test_light_apply_ct_only():
+    result = _light_apply({4: 370.0}, {})
+    assert result["service"] == "turn_on"
+    assert result["service_data"]["color_temp"] == 370
+
+
+def test_light_apply_brightness_and_ct():
+    result = _light_apply({1: 80.0, 4: 300.0}, {})
+    assert result["service_data"]["brightness"] == round(80.0 * 2.55)
+    assert result["service_data"]["color_temp"] == 300
+
+
+def test_light_apply_brightness_and_hs():
+    result = _light_apply({1: 60.0, 2: 120.0, 3: 80.0}, {})
+    assert result["service_data"]["brightness"] == round(60.0 * 2.55)
+    assert result["service_data"]["hs_color"] == (120.0, 80.0)
+
+
+def test_light_apply_cie_priority_over_hs():
+    attrs = {"xy_color": (0.3127, 0.3290), "hs_color": (45.0, 90.0)}
+    result = _light_apply({2: 180.0, 3: 75.0, 5: 3127.0, 6: 3290.0}, attrs)
+    assert "xy_color" in result["service_data"]
+    assert "hs_color" not in result["service_data"]
+    assert result["service_data"]["xy_color"] == (round(3127.0 / 10000, 4), round(3290.0 / 10000, 4))
+
+
+def test_light_apply_cie_partial_uses_attrs():
+    attrs = {"xy_color": (0.3127, 0.3290)}
+    result = _light_apply({5: 2000.0}, attrs)
+    assert "xy_color" in result["service_data"]
+    assert result["service_data"]["xy_color"][0] == round(2000.0 / 10000, 4)
+    assert result["service_data"]["xy_color"][1] == round(0.3290, 4)
+
+
+def test_light_apply_empty_channel_updates():
+    result = _light_apply({}, {})
+    assert result["service"] == "turn_on"
+    assert result["service_data"] == {}
+
+
+@pytest.mark.asyncio
+async def test_apply_all_expr_callback_fires_once():
+    """apply_all_expr registers ONE callback; async_call called exactly once per DS scene."""
+    hass = MagicMock()
+    hass.services = MagicMock()
+    hass.services.async_call = AsyncMock()
+    hass.states = MagicMock()
+    hass.states.get.return_value = None
+
+    api = MagicMock()
+    mock_device = MagicMock()
+    mock_vdsd = MagicMock()
+    mock_output = MagicMock()
+    mock_output.get_channel.return_value = MagicMock()
+    mock_vdsd.output = mock_output
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api.get_device.return_value = mock_device
+
+    captured = []
+    api.set_channel_applied_callback.side_effect = lambda out, cb: captured.append(cb)
+
+    channels_data = [
+        {"dsIndex": 0, "channelType": 1, "read_entity": "light.rgb",
+         "push_expr": "round(attrs.get('brightness', 0) / 2.55, 1)"},
+        {"dsIndex": 1, "channelType": 2, "read_entity": "light.rgb",
+         "push_expr": "attrs.get('hs_color', (0, 0))[0]"},
+    ]
+    output_data = {
+        "channels": channels_data,
+        "apply_all_expr": "_light_apply(channel_updates, attrs)",
+    }
+
+    with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
+               return_value=lambda: None):
+        setup_output_listeners(hass, api, "entry1", [{"output": output_data}])
+
+    assert len(captured) == 1, "Expected exactly one callback registered"
+
+    await captured[0](mock_output, {1: 80.0, 2: 180.0})
+
+    assert hass.services.async_call.await_count == 1
+    call_kwargs = hass.services.async_call.call_args.kwargs
+    assert call_kwargs["domain"] == "light"
+    assert call_kwargs["service"] == "turn_on"
+
+
+@pytest.mark.asyncio
+async def test_apply_all_expr_does_not_affect_per_channel_path():
+    """Outputs without apply_all_expr still use the existing per-channel expr path."""
+    hass = MagicMock()
+    hass.services = MagicMock()
+    hass.services.async_call = AsyncMock()
+
+    api = MagicMock()
+    mock_device = MagicMock()
+    mock_vdsd = MagicMock()
+    mock_output = MagicMock()
+    mock_output.get_channel.return_value = MagicMock()
+    mock_vdsd.output = mock_output
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api.get_device.return_value = mock_device
+
+    captured = []
+    api.set_channel_applied_callback.side_effect = lambda out, cb: captured.append(cb)
+
+    channels_data = [
+        {"dsIndex": 0, "channelType": 19, "read_entity": "switch.test",
+         "apply_expr": "{'domain':'switch','service':'turn_on' if value>=1 else 'turn_off','service_data':{}}",
+         "push_expr": "1 if entity.state == 'on' else 0"},
+    ]
+    output_data = {"channels": channels_data}  # no apply_all_expr
+
+    with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
+               return_value=lambda: None):
+        setup_output_listeners(hass, api, "entry1", [{"output": output_data}])
+
+    assert len(captured) == 1
+
+    state = MagicMock()
+    state.state = "on"
+    hass.states.get.return_value = state
+    await captured[0](mock_output, {19: 1.0})
+    assert hass.services.async_call.await_count == 1

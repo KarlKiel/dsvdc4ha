@@ -1,7 +1,7 @@
 """Static mapping from HA entity types / device_classes to dS vdSD configuration."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 
 from pydsvdcapi.enums import (
     BinaryInputGroup,
@@ -103,6 +103,148 @@ _SU_GENERAL: list[tuple[int, str]] = [
 #     channels_by_usage    → {usage_int: [channel_defs]}  (cover/blind)
 #     optional_tilt: True  → user is asked whether to add a tilt channel
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Light capability tier builders
+# ---------------------------------------------------------------------------
+
+def _onoff_output(entity_id: str) -> dict:
+    return {
+        "function": OutputFunction.ON_OFF,
+        "default_group": ColorClass.LIGHTS,
+        "output_usage": OutputUsage.ROOM,
+        "variable_ramp": True,
+        "mode": OutputMode.BINARY,
+        "groups": [1],
+        "apply_all_expr": "_light_apply(channel_updates, attrs)",
+        "channels": [
+            {
+                "channel_type": OutputChannelType.BRIGHTNESS,
+                "name": "Brightness",
+                "read_entity": entity_id,
+                "push_expr": "100.0 if entity.state == 'on' else 0.0",
+            }
+        ],
+    }
+
+
+def _dimmer_output(entity_id: str) -> dict:
+    return {
+        "function": OutputFunction.DIMMER,
+        "default_group": ColorClass.LIGHTS,
+        "output_usage": OutputUsage.ROOM,
+        "variable_ramp": True,
+        "mode": OutputMode.GRADUAL,
+        "groups": [1],
+        "apply_all_expr": "_light_apply(channel_updates, attrs)",
+        "channels": [
+            {
+                "channel_type": OutputChannelType.BRIGHTNESS,
+                "name": "Brightness",
+                "read_entity": entity_id,
+                "push_expr": "round(attrs.get('brightness', 0) / 2.55, 1)",
+            }
+        ],
+    }
+
+
+def _color_temp_dimmer_output(entity_id: str) -> dict:
+    return {
+        "function": OutputFunction.DIMMER_COLOR_TEMP,
+        "default_group": ColorClass.LIGHTS,
+        "output_usage": OutputUsage.ROOM,
+        "variable_ramp": True,
+        "mode": OutputMode.GRADUAL,
+        "groups": [1],
+        "apply_all_expr": "_light_apply(channel_updates, attrs)",
+        "channels": [
+            {
+                "channel_type": OutputChannelType.BRIGHTNESS,
+                "name": "Brightness",
+                "read_entity": entity_id,
+                "push_expr": "round(attrs.get('brightness', 0) / 2.55, 1)",
+            },
+            {
+                "channel_type": OutputChannelType.COLOR_TEMPERATURE,
+                "name": "Color Temperature",
+                "read_entity": entity_id,
+                "push_expr": "float(attrs.get('color_temp') or 370)",
+            },
+        ],
+    }
+
+
+def _full_color_dimmer_output(entity_id: str) -> dict:
+    return {
+        "function": OutputFunction.FULL_COLOR_DIMMER,
+        "default_group": ColorClass.LIGHTS,
+        "output_usage": OutputUsage.ROOM,
+        "variable_ramp": True,
+        "mode": OutputMode.GRADUAL,
+        "groups": [1],
+        "apply_all_expr": "_light_apply(channel_updates, attrs)",
+        "channels": [
+            {
+                "channel_type": OutputChannelType.BRIGHTNESS,
+                "name": "Brightness",
+                "read_entity": entity_id,
+                "push_expr": "round(attrs.get('brightness', 0) / 2.55, 1)",
+            },
+            {
+                "channel_type": OutputChannelType.HUE,
+                "name": "Hue",
+                "read_entity": entity_id,
+                "push_expr": "attrs.get('hs_color', (0, 0))[0] if attrs.get('color_mode') in ('hs', 'rgb', 'rgbw', 'rgbww', 'xy') else 0.0",
+            },
+            {
+                "channel_type": OutputChannelType.SATURATION,
+                "name": "Saturation",
+                "read_entity": entity_id,
+                "push_expr": "attrs.get('hs_color', (0, 100))[1] if attrs.get('color_mode') in ('hs', 'rgb', 'rgbw', 'rgbww', 'xy') else 0.0",
+            },
+            {
+                "channel_type": OutputChannelType.COLOR_TEMPERATURE,
+                "name": "Color Temperature",
+                "read_entity": entity_id,
+                "push_expr": "float(attrs.get('color_temp') or 370)",
+            },
+            {
+                "channel_type": OutputChannelType.CIE_X,
+                "name": "CIE X",
+                "read_entity": entity_id,
+                "push_expr": "round(attrs.get('xy_color', (0.3127, 0.3290))[0] * 10000, 1)",
+            },
+            {
+                "channel_type": OutputChannelType.CIE_Y,
+                "name": "CIE Y",
+                "read_entity": entity_id,
+                "push_expr": "round(attrs.get('xy_color', (0.3127, 0.3290))[1] * 10000, 1)",
+            },
+        ],
+    }
+
+
+def _derive_light_output_config(entity_id: str, state) -> dict:
+    """Return the per-tier output config for a light entity based on supported_color_modes."""
+    attrs = state.attributes if state else {}
+    supported = set(attrs.get("supported_color_modes") or [])
+
+    # Unavailable or unknown state: use full-color as the safest fallback
+    if not state or not supported:
+        return {"model": "HA Light (Full Color)", "model_uid": "ha-light-full-color",
+                "output": _full_color_dimmer_output(entity_id)}
+    if supported & {"hs", "xy", "rgb", "rgbw", "rgbww"}:
+        return {"model": "HA Light (Full Color)", "model_uid": "ha-light-full-color",
+                "output": _full_color_dimmer_output(entity_id)}
+    if "color_temp" in supported:
+        return {"model": "HA Light (Color Temp)", "model_uid": "ha-light-color-temp",
+                "output": _color_temp_dimmer_output(entity_id)}
+    if "brightness" in supported or "white" in supported:
+        return {"model": "HA Light (Dimmer)", "model_uid": "ha-light-dimmer",
+                "output": _dimmer_output(entity_id)}
+    return {"model": "HA Light (On/Off)", "model_uid": "ha-light-onoff",
+            "output": _onoff_output(entity_id)}
+
 
 ENTITY_MAPPING: list[dict[str, Any]] = [
     # ── Binary Sensor ───────────────────────────────────────────────────────
@@ -661,76 +803,9 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
     {
         "domain": "light", "device_class": None, "primary_group": ColorGroup.YELLOW,
         "model": "HA Light",
-        "model_uid": "ha-light-onoff",
+        "model_uid": "ha-light",
         "vendor_name": "Home Assistant",
-        "output": {
-            "function": OutputFunction.ON_OFF, "default_group": ColorClass.LIGHTS, "output_usage": OutputUsage.ROOM,
-            "variable_ramp": True, "mode": OutputMode.BINARY, "groups": [1],
-            "channels": [{"channel_type": OutputChannelType.BRIGHTNESS,
-                          "apply_expr": "{'domain':'light','service':'turn_on' if value>50 else 'turn_off','service_data':{}}",
-                          "push_expr": "100.0 if entity.state=='on' else 0.0"}],  # BRIGHTNESS
-        },
-    },
-    {
-        "domain": "light", "device_class": "brightness", "primary_group": ColorGroup.YELLOW,
-        "model": "HA Light (brightness)",
-        "model_uid": "ha-light-brightness",
-        "vendor_name": "Home Assistant",
-        "output": {
-            "function": OutputFunction.DIMMER, "default_group": ColorClass.LIGHTS, "output_usage": OutputUsage.ROOM,
-            "variable_ramp": True, "mode": OutputMode.GRADUAL, "groups": [1],
-            "channels": [{"channel_type": OutputChannelType.BRIGHTNESS,
-                          "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'brightness':round(value*2.55)}}",
-                          "push_expr": "round(attrs.get('brightness',0)/2.55,1)"}],
-        },
-    },
-    {
-        "domain": "light", "device_class": "color_temp", "primary_group": ColorGroup.YELLOW,
-        "model": "HA Light (color_temp)",
-        "model_uid": "ha-light-color_temp",
-        "vendor_name": "Home Assistant",
-        "output": {
-            "function": OutputFunction.DIMMER_COLOR_TEMP, "default_group": ColorClass.LIGHTS, "output_usage": OutputUsage.ROOM,
-            "variable_ramp": True, "mode": OutputMode.GRADUAL, "groups": [1],
-            "channels": [
-                {"channel_type": OutputChannelType.BRIGHTNESS,
-                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'brightness':round(value*2.55)}}",
-                 "push_expr": "round(attrs.get('brightness',0)/2.55,1)"},
-                {"channel_type": OutputChannelType.COLOR_TEMPERATURE,
-                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'color_temp':round(value)}}",
-                 "push_expr": "attrs.get('color_temp',370)"},
-            ],
-        },
-    },
-    {
-        "domain": "light", "device_class": "rgb", "primary_group": ColorGroup.YELLOW,
-        "model": "HA Light (rgb)",
-        "model_uid": "ha-light-rgb",
-        "vendor_name": "Home Assistant",
-        "output": {
-            "function": OutputFunction.FULL_COLOR_DIMMER, "default_group": ColorClass.LIGHTS, "output_usage": OutputUsage.ROOM,
-            "variable_ramp": True, "mode": OutputMode.GRADUAL, "groups": [1],
-            "channels": [
-                {"channel_type": OutputChannelType.BRIGHTNESS,
-                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'brightness':round(value*2.55)}}",
-                 "push_expr": "round(attrs.get('brightness',0)/2.55,1)"},
-                {"channel_type": OutputChannelType.HUE,
-                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'hs_color':(value,attrs.get('hs_color',(0,100))[1])}}",
-                 "push_expr": "attrs.get('hs_color',(0,0))[0]"},
-                {"channel_type": OutputChannelType.SATURATION,
-                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'hs_color':(attrs.get('hs_color',(0,100))[0],value)}}",
-                 "push_expr": "attrs.get('hs_color',(0,100))[1]"},
-                {"channel_type": OutputChannelType.COLOR_TEMPERATURE,
-                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'color_temp':round(value)}}",
-                 "push_expr": "attrs.get('color_temp',370)"},
-                {"channel_type": OutputChannelType.CIE_X,
-                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'xy_color':(round(value/10000,4),attrs.get('xy_color',(0.3127,0.3290))[1])}}",
-                 "push_expr": "round(attrs.get('xy_color',(0.3127,0.3290))[0]*10000,1)"},
-                {"channel_type": OutputChannelType.CIE_Y,
-                 "apply_expr": "{'domain':'light','service':'turn_on','service_data':{'xy_color':(attrs.get('xy_color',(0.3127,0.3290))[0],round(value/10000,4))}}",
-                 "push_expr": "round(attrs.get('xy_color',(0.3127,0.3290))[1]*10000,1)"},
-            ],
-        },
+        "derive_fn": _derive_light_output_config,
     },
     # ── Lock ──────────────────────────────────────────────────────────────────
     {
@@ -1296,6 +1371,27 @@ def get_entity_mapping(domain: str, device_class: str | None) -> dict[str, Any] 
         # Fall back to None device_class if the specific one isn't mapped
         entry = _MAPPING_INDEX.get((domain, None))
     return entry
+
+
+def resolve_entity_mapping(
+    entity_id: str,
+    state,
+    domain: str,
+    device_class: str | None,
+) -> dict[str, Any] | None:
+    """Return the fully resolved mapping, calling derive_fn when present.
+
+    derive_fn is called only at config time; the result is merged over the base
+    entry. The returned dict contains no callables — safe to serialise.
+    """
+    mapping = get_entity_mapping(domain, device_class)
+    if mapping is None:
+        return None
+    derive_fn = mapping.get("derive_fn")
+    if derive_fn is None:
+        return mapping
+    derived = derive_fn(entity_id, state)
+    return {k: v for k, v in {**mapping, **derived}.items() if k != "derive_fn"}
 
 
 def needs_user_input(mapping: dict[str, Any]) -> bool:

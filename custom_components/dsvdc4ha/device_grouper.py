@@ -303,6 +303,7 @@ def resolve_vdsd_plan(
             "mode": mode,
             "onThreshold": _OUTPUT_ON_THRESHOLD,
             "channels": channels,
+            **({"apply_all_expr": o["apply_all_expr"]} if o.get("apply_all_expr") else {}),
         }
 
     return vdsd

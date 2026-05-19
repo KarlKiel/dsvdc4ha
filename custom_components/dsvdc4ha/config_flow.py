@@ -60,7 +60,7 @@ from .device_grouper import (
 from .entity_mapping import (
     CHANNEL_TYPE_LABELS as _CHANNEL_TYPE_LABELS,
     SUPPORTED_DOMAINS,
-    get_entity_mapping,
+    resolve_entity_mapping,
     needs_user_input,
 )
 
@@ -838,7 +838,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             else:
                 domain = entity_id.split(".")[0]
                 device_class: str | None = state.attributes.get("device_class")
-                mapping = get_entity_mapping(domain, device_class)
+                mapping = resolve_entity_mapping(entity_id, state, domain, device_class)
                 if mapping is None:
                     errors["entity_id"] = "entity_not_supported"
                 else:
@@ -1139,6 +1139,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "mode": mode,
                 "onThreshold": 50,
                 "channels": channels,
+                **({"apply_all_expr": o["apply_all_expr"]} if o.get("apply_all_expr") else {}),
             }
 
         # Resolve entity icon and store in vdSD dict
@@ -1156,7 +1157,8 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         self._current_channels = vdsd["output"]["channels"] if vdsd["output"] else []
 
         if vdsd["output"] and self._current_channels:
-            all_auto = all(ch.get("apply_expr") for ch in self._current_channels)
+            apply_all = vdsd["output"].get("apply_all_expr")
+            all_auto = apply_all is not None or all(ch.get("apply_expr") for ch in self._current_channels)
             if not all_auto:
                 return await self.async_step_entity_channel_mapping()
         return await self.async_step_model_features()
@@ -1221,7 +1223,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                     if state
                     else (entry.device_class or entry.original_device_class)
                 )
-                mapping = get_entity_mapping(domain, device_class)
+                mapping = resolve_entity_mapping(entry.entity_id, state, domain, device_class)
                 cat = entry.entity_category
                 cat_str = cat.value if cat is not None else None
                 entity_info = _EntityInfo(

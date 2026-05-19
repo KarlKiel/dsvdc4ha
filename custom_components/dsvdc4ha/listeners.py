@@ -14,6 +14,39 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+def _light_apply(channel_updates: dict, attrs: dict) -> dict:
+    """Translate simultaneous DS channel_updates into one light.turn_on/off call."""
+    brightness = channel_updates.get(1)   # BRIGHTNESS  0–100 %
+    hue        = channel_updates.get(2)   # HUE         0–360 °
+    sat        = channel_updates.get(3)   # SATURATION  0–100 %
+    ct         = channel_updates.get(4)   # COLOR_TEMP  100–1000 mired
+    cie_x      = channel_updates.get(5)   # CIE_X       0–10000
+    cie_y      = channel_updates.get(6)   # CIE_Y       0–10000
+
+    if brightness is not None and brightness <= 0:
+        return {"domain": "light", "service": "turn_off", "service_data": {}}
+
+    sd: dict = {}
+    if brightness is not None:
+        sd["brightness"] = round(brightness * 2.55)
+
+    # Color priority: CIE XY > HS > CT
+    if cie_x is not None or cie_y is not None:
+        x = (cie_x if cie_x is not None
+             else attrs.get("xy_color", (0.3127, 0.3290))[0] * 10000) / 10000
+        y = (cie_y if cie_y is not None
+             else attrs.get("xy_color", (0.3127, 0.3290))[1] * 10000) / 10000
+        sd["xy_color"] = (round(x, 4), round(y, 4))
+    elif hue is not None or sat is not None:
+        h = hue if hue is not None else attrs.get("hs_color", (0, 0))[0]
+        s = sat if sat is not None else attrs.get("hs_color", (0, 100))[1]
+        sd["hs_color"] = (h, s)
+    elif ct is not None:
+        sd["color_temp"] = round(ct)
+
+    return {"domain": "light", "service": "turn_on", "service_data": sd}
+
+
 _SAFE_EVAL_CONTEXT: dict = {
     "__builtins__": {},
     "round": round,
@@ -24,6 +57,7 @@ _SAFE_EVAL_CONTEXT: dict = {
     "max": max,
     "_norm": lambda v, lo, hi: 0.0 if hi == lo else round((v - lo) / (hi - lo) * 100, 1),
     "_denorm": lambda v, lo, hi: lo + v / 100 * (hi - lo),
+    "_light_apply": _light_apply,
 }
 
 
@@ -41,6 +75,17 @@ def _eval_apply(expr: str, value: float, state) -> dict:
     ctx["value"] = value
     ctx["entity"] = state
     ctx["attrs"] = state.attributes if state else {}
+    return eval(expr, ctx)  # noqa: S307
+
+
+def _eval_apply_all(expr: str, channel_updates: dict, state) -> dict:
+    """Evaluate an apply_all_expr with channel_updates and current state in context."""
+    ctx = {
+        **_SAFE_EVAL_CONTEXT,
+        "channel_updates": channel_updates,
+        "entity": state,
+        "attrs": state.attributes if state else {},
+    }
     return eval(expr, ctx)  # noqa: S307
 
 
@@ -297,6 +342,7 @@ def setup_output_listeners(
                     )
 
         # Write side: one callback per output handles all channels
+        apply_all_expr: str | None = output_data.get("apply_all_expr")
         expr_bindings: list[tuple[int, str, str | None]] = []
         static_action: dict | None = None
         for ch_data in output_data.get("channels", []):
@@ -307,7 +353,26 @@ def setup_output_listeners(
             elif ch_data.get("write_action"):
                 static_action = ch_data["write_action"]
 
-        if expr_bindings:
+        if apply_all_expr:
+            re_id: str | None = next(
+                (ch.get("read_entity") for ch in output_data.get("channels", [])
+                 if ch.get("read_entity")),
+                None,
+            )
+            async def _on_channel_applied_all(
+                _out,
+                channel_updates: dict,
+                _expr: str = apply_all_expr,
+                _re_id: str | None = re_id,
+            ) -> None:
+                state = hass.states.get(_re_id) if _re_id else None
+                try:
+                    action = _eval_apply_all(_expr, channel_updates, state)
+                    await hass.services.async_call(**action, blocking=False)
+                except Exception:
+                    _LOGGER.warning("apply_all_expr eval failed: %s", _expr, exc_info=True)
+            api.set_channel_applied_callback(output, _on_channel_applied_all)
+        elif expr_bindings:
             async def _on_channel_applied_expr(
                 _out,
                 channel_updates: dict,
