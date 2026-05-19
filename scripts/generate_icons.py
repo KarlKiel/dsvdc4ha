@@ -2,7 +2,7 @@
 """One-time script: download MDI SVGs from CDN and render to 16x16 PNGs.
 
 Run from the repo root with:
-    source .venv/bin/activate
+    source .venv/bin/activate && pip install aiohttp cairosvg
     python scripts/generate_icons.py
 """
 import asyncio
@@ -12,11 +12,10 @@ from pathlib import Path
 import aiohttp
 import cairosvg
 
-ICONS_DIR = Path(__file__).parent.parent / "custom_components/dsvdc4ha/icons"
 CDN_BASE = "https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg"
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from custom_components.dsvdc4ha._icon_utils import MDI_DOMAIN_ICONS
+from custom_components.dsvdc4ha._icon_utils import MDI_DOMAIN_ICONS, ICONS_DIR
 
 
 async def main() -> None:
