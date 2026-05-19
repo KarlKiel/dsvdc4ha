@@ -12,6 +12,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
+from ._icon_utils import bundled_icon_b64_for
 from .const import DOMAIN, PLATFORMS
 from .coordinator import HubCoordinator
 
@@ -62,6 +63,31 @@ def _build_entity_index(entry: ConfigEntry) -> dict[str, list[tuple[str, int]]]:
     return index
 
 
+async def _backfill_missing_icons(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Backfill icon_data_b64 for vdSDs that have no icon stored."""
+    for subentry in entry.subentries.values():
+        vdsds = list(subentry.data.get("vdsds", []))
+        updated = False
+        for vdsd in vdsds:
+            if vdsd.get("icon_data_b64"):
+                continue
+            for eid in _entity_ids_in_vdsd(vdsd):
+                state = hass.states.get(eid)
+                if state is None:
+                    continue
+                domain = eid.split(".")[0]
+                device_class = state.attributes.get("device_class")
+                b64 = bundled_icon_b64_for(domain, device_class)
+                if b64:
+                    vdsd["icon_data_b64"] = b64
+                    updated = True
+                    break
+        if updated:
+            hass.config_entries.async_update_subentry(
+                entry, subentry, data={**subentry.data, "vdsds": vdsds}
+            )
+
+
 async def _vanish_deleted_devices(coordinator: HubCoordinator, entry: ConfigEntry) -> None:
     """Vanish devices that were removed from entry.subentries since last setup."""
     if coordinator.api is None:
@@ -96,6 +122,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Order matters: add_device first (builds the object graph), then wire up
     # HA→dS listeners, then seed current HA state so pydsvdcapi's
     # _wait_for_initial_values() is satisfied before announce() is awaited.
+    await _backfill_missing_icons(hass, entry)
     from .listeners import setup_input_listeners, setup_output_listeners, seed_initial_values
     for subentry in entry.subentries.values():
         vdsds = subentry.data.get("vdsds", [])
