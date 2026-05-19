@@ -609,3 +609,30 @@ def test_derive_model_features_for_config_button():
     }
     features = derive_model_features_for_config(data)
     assert "pushbutton" in features
+
+
+def test_derive_model_features_for_config_identify_action():
+    """identify_action truthy → 'identification' in features."""
+    data = {
+        "primaryGroup": 1,
+        "buttons": [],
+        "binary_inputs": [],
+        "sensors": [],
+        "output": None,
+        "identify_action": "some_action",
+    }
+    features = derive_model_features_for_config(data)
+    assert "identification" in features
+
+
+def test_derive_model_features_for_config_no_identify_action():
+    """identify_action absent → 'identification' not in features."""
+    data = {
+        "primaryGroup": 1,
+        "buttons": [],
+        "binary_inputs": [],
+        "sensors": [],
+        "output": None,
+    }
+    features = derive_model_features_for_config(data)
+    assert "identification" not in features

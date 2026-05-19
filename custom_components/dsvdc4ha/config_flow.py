@@ -1645,6 +1645,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             "binary_inputs": self._current_binary_inputs,
             "sensors": self._current_sensors,
             "output": self._current_output,
+            "identify_action": self._current_vdsd.get("identify_action"),
         })
 
         options: list[selector.SelectOptionDict] = []

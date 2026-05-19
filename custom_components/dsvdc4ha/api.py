@@ -181,6 +181,8 @@ def derive_model_features_for_config(vdsd_data: dict[str, Any]) -> set[str]:
         _add_sensor(vdsd, si_data)
     if output_data := vdsd_data.get("output"):
         _add_output(vdsd, output_data)
+    if vdsd_data.get("identify_action"):
+        vdsd.on_identify = lambda _: None  # no-op — only triggers "identification" feature derivation
     vdsd.derive_model_features()
     return set(vdsd.model_features)
 
