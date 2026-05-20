@@ -282,7 +282,7 @@ async def test_apply_expr_calls_ha_service():
     hass.services.async_call.assert_awaited_once_with(
         domain="cover",
         service="set_cover_position",
-        service_data={"position": 75},
+        service_data={"position": 75, "entity_id": "cover.blind"},
         blocking=False,
     )
 
@@ -325,13 +325,13 @@ async def test_apply_expr_multi_channel_single_callback():
     await captured_callbacks[0](mock_output, {1: 100.0})
     assert hass.services.async_call.await_count == 1
     call0 = hass.services.async_call.call_args_list[0]
-    assert call0.kwargs["service_data"] == {"brightness": 255}
+    assert call0.kwargs["service_data"] == {"brightness": 255, "entity_id": "light.rgb"}
 
     # Fire channel type 2 (hue), value=180
     await captured_callbacks[0](mock_output, {2: 180.0})
     assert hass.services.async_call.await_count == 2
     call1 = hass.services.async_call.call_args_list[1]
-    assert call1.kwargs["service_data"] == {"hs_color": (180.0, 50)}
+    assert call1.kwargs["service_data"] == {"hs_color": (180.0, 50), "entity_id": "light.rgb"}
 
 
 # ── _light_apply unit tests ──────────────────────────────────────────────────
@@ -457,6 +457,85 @@ async def test_apply_all_expr_callback_fires_once():
     call_kwargs = hass.services.async_call.call_args.kwargs
     assert call_kwargs["domain"] == "light"
     assert call_kwargs["service"] == "turn_on"
+    assert call_kwargs["service_data"].get("entity_id") == "light.rgb"
+
+
+@pytest.mark.asyncio
+async def test_apply_expr_injects_entity_id():
+    """apply_expr callback injects read_entity as entity_id into service_data."""
+    hass = MagicMock()
+    hass.services = MagicMock()
+    hass.services.async_call = AsyncMock()
+    hass.states.get.return_value = None
+    api = MagicMock()
+    mock_device = MagicMock()
+    mock_vdsd = MagicMock()
+    mock_output = MagicMock()
+    mock_output.get_channel.return_value = MagicMock()
+    mock_vdsd.output = mock_output
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api.get_device.return_value = mock_device
+    captured = []
+    api.set_channel_applied_callback.side_effect = lambda out, cb: captured.append(cb)
+
+    channels_data = [{"dsIndex": 0, "channelType": 8,
+                      "read_entity": "cover.blind",
+                      "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}"}]
+    with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
+               return_value=lambda: None):
+        setup_output_listeners(hass, api, "entry1", [{"output": {"channels": channels_data}}])
+
+    await captured[0](mock_output, {8: 25.0})
+
+    sd = hass.services.async_call.call_args.kwargs["service_data"]
+    assert sd["entity_id"] == "cover.blind"
+    assert sd["position"] == 75
+
+
+@pytest.mark.asyncio
+async def test_apply_all_expr_injects_entity_id():
+    """apply_all_expr callback injects read_entity as entity_id into service_data."""
+    hass = MagicMock()
+    hass.services = MagicMock()
+    hass.services.async_call = AsyncMock()
+    hass.states.get.return_value = None
+    api = MagicMock()
+    mock_device = MagicMock()
+    mock_vdsd = MagicMock()
+    mock_output = MagicMock()
+    mock_output.get_channel.return_value = MagicMock()
+    mock_vdsd.output = mock_output
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api.get_device.return_value = mock_device
+    captured = []
+    api.set_channel_applied_callback.side_effect = lambda out, cb: captured.append(cb)
+
+    channels_data = [{"dsIndex": 0, "channelType": 1, "read_entity": "light.bedroom",
+                      "push_expr": "100.0 if entity.state == 'on' else 0.0"}]
+    output_data = {"channels": channels_data,
+                   "apply_all_expr": "_light_apply(channel_updates, attrs)"}
+    with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
+               return_value=lambda: None):
+        setup_output_listeners(hass, api, "entry1", [{"output": output_data}])
+
+    await captured[0](mock_output, {1: 80.0})
+
+    sd = hass.services.async_call.call_args.kwargs["service_data"]
+    assert sd.get("entity_id") == "light.bedroom"
+
+
+def test_light_apply_none_xy_color_in_attrs():
+    """_light_apply does not crash when xy_color attr is None."""
+    result = _light_apply({5: 3127.0}, {"xy_color": None})
+    assert result["service"] == "turn_on"
+    assert "xy_color" in result["service_data"]
+
+
+def test_light_apply_none_hs_color_in_attrs():
+    """_light_apply does not crash when hs_color attr is None."""
+    result = _light_apply({2: 180.0}, {"hs_color": None})
+    assert result["service"] == "turn_on"
+    assert result["service_data"]["hs_color"][0] == 180.0
 
 
 @pytest.mark.asyncio

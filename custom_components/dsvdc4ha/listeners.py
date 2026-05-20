@@ -32,14 +32,14 @@ def _light_apply(channel_updates: dict, attrs: dict) -> dict:
 
     # Color priority: CIE XY > HS > CT
     if cie_x is not None or cie_y is not None:
-        x = (cie_x if cie_x is not None
-             else attrs.get("xy_color", (0.3127, 0.3290))[0] * 10000) / 10000
-        y = (cie_y if cie_y is not None
-             else attrs.get("xy_color", (0.3127, 0.3290))[1] * 10000) / 10000
+        _xy = (attrs.get("xy_color") or (0.3127, 0.3290))
+        x = (cie_x if cie_x is not None else _xy[0] * 10000) / 10000
+        y = (cie_y if cie_y is not None else _xy[1] * 10000) / 10000
         sd["xy_color"] = (round(x, 4), round(y, 4))
     elif hue is not None or sat is not None:
-        h = hue if hue is not None else attrs.get("hs_color", (0, 0))[0]
-        s = sat if sat is not None else attrs.get("hs_color", (0, 100))[1]
+        _hs = (attrs.get("hs_color") or (0, 0))
+        h = hue if hue is not None else _hs[0]
+        s = sat if sat is not None else (attrs.get("hs_color") or (0, 100))[1]
         sd["hs_color"] = (h, s)
     elif ct is not None:
         sd["color_temp"] = round(ct)
@@ -368,6 +368,8 @@ def setup_output_listeners(
                 state = hass.states.get(_re_id) if _re_id else None
                 try:
                     action = _eval_apply_all(_expr, channel_updates, state)
+                    if _re_id and "service_data" in action and "entity_id" not in action["service_data"]:
+                        action["service_data"]["entity_id"] = _re_id
                     await hass.services.async_call(**action, blocking=False)
                 except Exception:
                     _LOGGER.warning("apply_all_expr eval failed: %s", _expr, exc_info=True)
@@ -385,6 +387,8 @@ def setup_output_listeners(
                     state = hass.states.get(re_id) if re_id else None
                     try:
                         action = _eval_apply(expr, ch_value, state)
+                        if re_id and "service_data" in action and "entity_id" not in action["service_data"]:
+                            action["service_data"]["entity_id"] = re_id
                         await hass.services.async_call(**action, blocking=False)
                     except Exception:
                         _LOGGER.warning("apply_expr eval failed: %s", expr, exc_info=True)
