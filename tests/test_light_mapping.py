@@ -109,3 +109,65 @@ def test_resolve_entity_mapping_light_without_state():
     result = resolve_entity_mapping("light.lamp", None, "light", None)
     assert result is not None
     assert result["output"]["function"] == OutputFunction.FULL_COLOR_DIMMER
+
+
+def test_full_color_channel_order_matches_pydsvdcapi():
+    """FULL_COLOR_DIMMER channels must be in pydsvdcapi canonical order: BRIGHTNESS, CT, HUE, SAT, CIE_X, CIE_Y."""
+    result = _derive_light_output_config("light.test", _make_state({"hs"}))
+    channels = result["output"]["channels"]
+    assert len(channels) == 6
+    assert channels[0]["channel_type"] == OutputChannelType.BRIGHTNESS
+    assert channels[1]["channel_type"] == OutputChannelType.COLOR_TEMPERATURE
+    assert channels[2]["channel_type"] == OutputChannelType.HUE
+    assert channels[3]["channel_type"] == OutputChannelType.SATURATION
+    assert channels[4]["channel_type"] == OutputChannelType.CIE_X
+    assert channels[5]["channel_type"] == OutputChannelType.CIE_Y
+
+
+def test_brightness_push_expr_returns_zero_when_off():
+    """BRIGHTNESS push_expr for DIMMER returns 0.0 when entity state is 'off'."""
+    from custom_components.dsvdc4ha.listeners import _eval_push
+    result = _derive_light_output_config("light.test", _make_state({"brightness"}))
+    expr = result["output"]["channels"][0]["push_expr"]
+    state_off = MagicMock()
+    state_off.state = "off"
+    state_off.attributes = {"brightness": 200}
+    assert _eval_push(expr, state_off) == 0.0
+
+
+def test_brightness_push_expr_handles_none_brightness():
+    """BRIGHTNESS push_expr treats None brightness as 0 (no crash, no TypeError)."""
+    from custom_components.dsvdc4ha.listeners import _eval_push
+    result = _derive_light_output_config("light.test", _make_state({"brightness"}))
+    expr = result["output"]["channels"][0]["push_expr"]
+    state_none = MagicMock()
+    state_none.state = "on"
+    state_none.attributes = {"brightness": None}
+    assert _eval_push(expr, state_none) == 0.0
+
+
+def test_hs_push_expr_handles_none_hs_color():
+    """HUE/SAT push_expr treats None hs_color as (0, 0)/(0, 100) without crashing."""
+    from custom_components.dsvdc4ha.listeners import _eval_push
+    result = _derive_light_output_config("light.test", _make_state({"hs"}))
+    channels = result["output"]["channels"]
+    hue_ch = next(ch for ch in channels if ch["channel_type"] == OutputChannelType.HUE)
+    sat_ch = next(ch for ch in channels if ch["channel_type"] == OutputChannelType.SATURATION)
+    state_none = MagicMock()
+    state_none.state = "on"
+    state_none.attributes = {"hs_color": None, "color_mode": "hs"}
+    assert _eval_push(hue_ch["push_expr"], state_none) == 0.0
+    assert _eval_push(sat_ch["push_expr"], state_none) == 0.0
+
+
+def test_xy_push_expr_handles_none_xy_color():
+    """CIE_X/CIE_Y push_expr treats None xy_color as (0.3127, 0.3290) without crashing."""
+    from custom_components.dsvdc4ha.listeners import _eval_push
+    result = _derive_light_output_config("light.test", _make_state({"hs"}))
+    channels = result["output"]["channels"]
+    cie_x = next(ch for ch in channels if ch["channel_type"] == OutputChannelType.CIE_X)
+    state_none = MagicMock()
+    state_none.state = "on"
+    state_none.attributes = {"xy_color": None}
+    val = _eval_push(cie_x["push_expr"], state_none)
+    assert val == round(0.3127 * 10000, 1)

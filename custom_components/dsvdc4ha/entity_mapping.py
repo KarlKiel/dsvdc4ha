@@ -142,7 +142,7 @@ def _dimmer_output(entity_id: str) -> dict:
                 "channel_type": OutputChannelType.BRIGHTNESS,
                 "name": "Brightness",
                 "read_entity": entity_id,
-                "push_expr": "round(attrs.get('brightness', 0) / 2.55, 1)",
+                "push_expr": "0.0 if entity.state == 'off' else round((attrs.get('brightness') or 0) / 2.55, 1)",
             }
         ],
     }
@@ -162,7 +162,7 @@ def _color_temp_dimmer_output(entity_id: str) -> dict:
                 "channel_type": OutputChannelType.BRIGHTNESS,
                 "name": "Brightness",
                 "read_entity": entity_id,
-                "push_expr": "round(attrs.get('brightness', 0) / 2.55, 1)",
+                "push_expr": "0.0 if entity.state == 'off' else round((attrs.get('brightness') or 0) / 2.55, 1)",
             },
             {
                 "channel_type": OutputChannelType.COLOR_TEMPERATURE,
@@ -188,19 +188,7 @@ def _full_color_dimmer_output(entity_id: str) -> dict:
                 "channel_type": OutputChannelType.BRIGHTNESS,
                 "name": "Brightness",
                 "read_entity": entity_id,
-                "push_expr": "round(attrs.get('brightness', 0) / 2.55, 1)",
-            },
-            {
-                "channel_type": OutputChannelType.HUE,
-                "name": "Hue",
-                "read_entity": entity_id,
-                "push_expr": "attrs.get('hs_color', (0, 0))[0] if attrs.get('color_mode') in ('hs', 'rgb', 'rgbw', 'rgbww', 'xy') else 0.0",
-            },
-            {
-                "channel_type": OutputChannelType.SATURATION,
-                "name": "Saturation",
-                "read_entity": entity_id,
-                "push_expr": "attrs.get('hs_color', (0, 100))[1] if attrs.get('color_mode') in ('hs', 'rgb', 'rgbw', 'rgbww', 'xy') else 0.0",
+                "push_expr": "0.0 if entity.state == 'off' else round((attrs.get('brightness') or 0) / 2.55, 1)",
             },
             {
                 "channel_type": OutputChannelType.COLOR_TEMPERATURE,
@@ -209,16 +197,28 @@ def _full_color_dimmer_output(entity_id: str) -> dict:
                 "push_expr": "float(attrs.get('color_temp') or 370)",
             },
             {
+                "channel_type": OutputChannelType.HUE,
+                "name": "Hue",
+                "read_entity": entity_id,
+                "push_expr": "(attrs.get('hs_color') or (0, 0))[0] if attrs.get('color_mode') in ('hs', 'rgb', 'rgbw', 'rgbww', 'xy') else 0.0",
+            },
+            {
+                "channel_type": OutputChannelType.SATURATION,
+                "name": "Saturation",
+                "read_entity": entity_id,
+                "push_expr": "(attrs.get('hs_color') or (0, 0))[1] if attrs.get('color_mode') in ('hs', 'rgb', 'rgbw', 'rgbww', 'xy') else 0.0",
+            },
+            {
                 "channel_type": OutputChannelType.CIE_X,
                 "name": "CIE X",
                 "read_entity": entity_id,
-                "push_expr": "round(attrs.get('xy_color', (0.3127, 0.3290))[0] * 10000, 1)",
+                "push_expr": "round((attrs.get('xy_color') or (0.3127, 0.3290))[0] * 10000, 1)",
             },
             {
                 "channel_type": OutputChannelType.CIE_Y,
                 "name": "CIE Y",
                 "read_entity": entity_id,
-                "push_expr": "round(attrs.get('xy_color', (0.3127, 0.3290))[1] * 10000, 1)",
+                "push_expr": "round((attrs.get('xy_color') or (0.3127, 0.3290))[1] * 10000, 1)",
             },
         ],
     }
