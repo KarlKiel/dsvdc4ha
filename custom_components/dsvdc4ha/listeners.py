@@ -42,7 +42,7 @@ def _light_apply(channel_updates: dict, attrs: dict) -> dict:
         s = sat if sat is not None else (attrs.get("hs_color") or (0, 100))[1]
         sd["hs_color"] = (h, s)
     elif ct is not None:
-        sd["color_temp"] = round(ct)
+        sd["color_temp_kelvin"] = round(1_000_000 / max(ct, 1))
 
     return {"domain": "light", "service": "turn_on", "service_data": sd}
 

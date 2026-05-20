@@ -376,13 +376,13 @@ def test_light_apply_sat_only_uses_current_hue_from_attrs():
 def test_light_apply_ct_only():
     result = _light_apply({4: 370.0}, {})
     assert result["service"] == "turn_on"
-    assert result["service_data"]["color_temp"] == 370
+    assert result["service_data"]["color_temp_kelvin"] == round(1_000_000 / 370)
 
 
 def test_light_apply_brightness_and_ct():
     result = _light_apply({1: 80.0, 4: 300.0}, {})
     assert result["service_data"]["brightness"] == round(80.0 * 2.55)
-    assert result["service_data"]["color_temp"] == 300
+    assert result["service_data"]["color_temp_kelvin"] == round(1_000_000 / 300)
 
 
 def test_light_apply_brightness_and_hs():

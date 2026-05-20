@@ -168,7 +168,7 @@ def _color_temp_dimmer_output(entity_id: str) -> dict:
                 "channel_type": OutputChannelType.COLOR_TEMPERATURE,
                 "name": "Color Temperature",
                 "read_entity": entity_id,
-                "push_expr": "float(attrs.get('color_temp') or 370)",
+                "push_expr": "float(attrs.get('color_temp') or round(1_000_000 / max(attrs.get('color_temp_kelvin') or 2700, 1)))",
             },
         ],
     }
@@ -194,7 +194,7 @@ def _full_color_dimmer_output(entity_id: str) -> dict:
                 "channel_type": OutputChannelType.COLOR_TEMPERATURE,
                 "name": "Color Temperature",
                 "read_entity": entity_id,
-                "push_expr": "float(attrs.get('color_temp') or 370)",
+                "push_expr": "float(attrs.get('color_temp') or round(1_000_000 / max(attrs.get('color_temp_kelvin') or 2700, 1)))",
             },
             {
                 "channel_type": OutputChannelType.HUE,
