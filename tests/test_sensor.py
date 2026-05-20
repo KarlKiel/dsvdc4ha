@@ -79,3 +79,55 @@ def test_binary_input_unique_id():
     bi_data = {"dsIndex": 1, "name": "Window", "valueType": "boolean", "callback_entity": "binary_sensor.w"}
     entity = BinaryInputEntity("entry1", 0, _make_vdsd(), bi_data)
     assert entity.unique_id == "entry1_0_binary_input_1"
+
+
+def test_output_channel_entity_uses_push_expr_to_compute_value():
+    """OutputChannelEntity with push_expr evaluates it instead of float(state.state)."""
+    ch_data = {
+        "dsIndex": 0, "name": "Brightness", "channelType": 1,
+        "read_entity": "light.lamp",
+        "push_expr": "100.0 if entity.state == 'on' else 0.0",
+    }
+    entity = OutputChannelEntity("entry1", 0, _make_vdsd(), {}, ch_data)
+    state = MagicMock()
+    state.state = "on"
+    state.attributes = {}
+    val = entity._compute_value(state)
+    assert val == 100.0
+
+
+def test_output_channel_entity_push_expr_off_state():
+    """OutputChannelEntity push_expr correctly returns 0 for 'off' state."""
+    ch_data = {
+        "dsIndex": 0, "name": "Brightness", "channelType": 1,
+        "read_entity": "light.lamp",
+        "push_expr": "100.0 if entity.state == 'on' else 0.0",
+    }
+    entity = OutputChannelEntity("entry1", 0, _make_vdsd(), {}, ch_data)
+    state = MagicMock()
+    state.state = "off"
+    state.attributes = {}
+    assert entity._compute_value(state) == 0.0
+
+
+def test_output_channel_entity_falls_back_to_float_without_push_expr():
+    """OutputChannelEntity without push_expr uses float(state.state) for numeric states."""
+    ch_data = {"dsIndex": 0, "name": "Position", "channelType": 8}
+    entity = OutputChannelEntity("entry1", 0, _make_vdsd(), {}, ch_data)
+    state = MagicMock()
+    state.state = "75.5"
+    state.attributes = {}
+    assert entity._compute_value(state) == 75.5
+
+
+def test_output_channel_entity_push_expr_failure_returns_none():
+    """OutputChannelEntity returns None when push_expr evaluation raises."""
+    ch_data = {
+        "dsIndex": 0, "name": "Brightness", "channelType": 1,
+        "push_expr": "1 / 0",  # always raises
+    }
+    entity = OutputChannelEntity("entry1", 0, _make_vdsd(), {}, ch_data)
+    state = MagicMock()
+    state.state = "on"
+    state.attributes = {}
+    assert entity._compute_value(state) is None
