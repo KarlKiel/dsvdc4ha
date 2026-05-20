@@ -36,7 +36,7 @@ from pydsvdcapi.enums import (
     SensorUsage,
 )
 from pydsvdcapi.output import FUNCTION_CHANNELS, Output
-from pydsvdcapi.output_channel import OutputChannel, get_channel_spec
+from pydsvdcapi.output_channel import OutputChannel
 from pydsvdcapi.sensor_input import SensorInput
 from pydsvdcapi.vdc import Vdc, VdcCapabilities
 from pydsvdcapi.vdc_host import VdcHost
