@@ -35,6 +35,7 @@ from .api import (
     ColorGroup,
     derive_model_features_for_config,
     FUNCTION_CHANNELS,
+    get_channel_spec,
     OutputChannelType,
     OutputFunction,
     OutputMode,
@@ -1117,7 +1118,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 {
                     "dsIndex": i,
                     "channelType": ch["channel_type"],
-                    "name": _CHANNEL_TYPE_LABELS.get(ch["channel_type"], f"Channel {i}"),
+                    "name": getattr(get_channel_spec(ch["channel_type"]), "name", f"channel_{i}"),
                     "min": 0.0,
                     "max": 100.0,
                     "resolution": 0.4,
@@ -1888,7 +1889,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 self._current_channels.append({
                     "dsIndex": i,
                     "channelType": int(ct),
-                    "name": _CHANNEL_TYPE_LABELS.get(int(ct), f"Channel {i}"),
+                    "name": getattr(get_channel_spec(int(ct)), "name", f"channel_{i}"),
                     "min": 0.0,
                     "max": 100.0,
                     "resolution": 0.4,
@@ -1935,7 +1936,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 self._current_channels.append({
                     "dsIndex": i,
                     "channelType": int(ct),
-                    "name": _CHANNEL_TYPE_LABELS.get(int(ct), f"Channel {i}"),
+                    "name": getattr(get_channel_spec(int(ct)), "name", f"channel_{i}"),
                     "min": 0.0,
                     "max": 100.0,
                     "resolution": 0.4,
