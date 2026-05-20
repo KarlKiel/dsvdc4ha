@@ -133,7 +133,6 @@ def _add_output(vdsd: Vdsd, data: dict[str, Any]) -> None:
         output.add_channel(
             OutputChannelType(ch_data["channelType"]),
             ds_index=ds_index,
-            name=ch_data.get("name"),
             min_value=ch_data.get("min"),
             max_value=ch_data.get("max"),
             resolution=ch_data.get("resolution"),
