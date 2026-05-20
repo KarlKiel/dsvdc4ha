@@ -147,7 +147,7 @@ def test_brightness_push_expr_handles_none_brightness():
 
 
 def test_hs_push_expr_handles_none_hs_color():
-    """HUE/SAT push_expr treats None hs_color as (0, 0)/(0, 100) without crashing."""
+    """HUE/SAT push_expr treats None hs_color as (0, 0) — both default to 0 (no color)."""
     from custom_components.dsvdc4ha.listeners import _eval_push
     result = _derive_light_output_config("light.test", _make_state({"hs"}))
     channels = result["output"]["channels"]
