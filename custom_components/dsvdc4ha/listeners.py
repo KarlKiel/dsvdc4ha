@@ -368,8 +368,9 @@ def setup_output_listeners(
                 state = hass.states.get(_re_id) if _re_id else None
                 try:
                     action = _eval_apply_all(_expr, channel_updates, state)
-                    if _re_id and "service_data" in action and "entity_id" not in action["service_data"]:
-                        action["service_data"]["entity_id"] = _re_id
+                    if _re_id:
+                        sd = action.setdefault("service_data", {})
+                        action["target"] = {"entity_id": sd.pop("entity_id", _re_id)}
                     await hass.services.async_call(**action, blocking=False)
                 except Exception:
                     _LOGGER.warning("apply_all_expr eval failed: %s", _expr, exc_info=True)
@@ -387,8 +388,9 @@ def setup_output_listeners(
                     state = hass.states.get(re_id) if re_id else None
                     try:
                         action = _eval_apply(expr, ch_value, state)
-                        if re_id and "service_data" in action and "entity_id" not in action["service_data"]:
-                            action["service_data"]["entity_id"] = re_id
+                        if re_id:
+                            sd = action.setdefault("service_data", {})
+                            action["target"] = {"entity_id": sd.pop("entity_id", re_id)}
                         await hass.services.async_call(**action, blocking=False)
                     except Exception:
                         _LOGGER.warning("apply_expr eval failed: %s", expr, exc_info=True)

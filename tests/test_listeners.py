@@ -282,7 +282,8 @@ async def test_apply_expr_calls_ha_service():
     hass.services.async_call.assert_awaited_once_with(
         domain="cover",
         service="set_cover_position",
-        service_data={"position": 75, "entity_id": "cover.blind"},
+        service_data={"position": 75},
+        target={"entity_id": "cover.blind"},
         blocking=False,
     )
 
@@ -325,13 +326,15 @@ async def test_apply_expr_multi_channel_single_callback():
     await captured_callbacks[0](mock_output, {1: 100.0})
     assert hass.services.async_call.await_count == 1
     call0 = hass.services.async_call.call_args_list[0]
-    assert call0.kwargs["service_data"] == {"brightness": 255, "entity_id": "light.rgb"}
+    assert call0.kwargs["service_data"] == {"brightness": 255}
+    assert call0.kwargs["target"] == {"entity_id": "light.rgb"}
 
     # Fire channel type 2 (hue), value=180
     await captured_callbacks[0](mock_output, {2: 180.0})
     assert hass.services.async_call.await_count == 2
     call1 = hass.services.async_call.call_args_list[1]
-    assert call1.kwargs["service_data"] == {"hs_color": (180.0, 50), "entity_id": "light.rgb"}
+    assert call1.kwargs["service_data"] == {"hs_color": (180.0, 50)}
+    assert call1.kwargs["target"] == {"entity_id": "light.rgb"}
 
 
 # ── _light_apply unit tests ──────────────────────────────────────────────────
@@ -457,7 +460,8 @@ async def test_apply_all_expr_callback_fires_once():
     call_kwargs = hass.services.async_call.call_args.kwargs
     assert call_kwargs["domain"] == "light"
     assert call_kwargs["service"] == "turn_on"
-    assert call_kwargs["service_data"].get("entity_id") == "light.rgb"
+    assert call_kwargs["target"] == {"entity_id": "light.rgb"}
+    assert "entity_id" not in call_kwargs.get("service_data", {})
 
 
 @pytest.mark.asyncio
@@ -487,9 +491,10 @@ async def test_apply_expr_injects_entity_id():
 
     await captured[0](mock_output, {8: 25.0})
 
-    sd = hass.services.async_call.call_args.kwargs["service_data"]
-    assert sd["entity_id"] == "cover.blind"
-    assert sd["position"] == 75
+    call_kw = hass.services.async_call.call_args.kwargs
+    assert call_kw["target"] == {"entity_id": "cover.blind"}
+    assert call_kw["service_data"]["position"] == 75
+    assert "entity_id" not in call_kw["service_data"]
 
 
 @pytest.mark.asyncio
@@ -520,8 +525,9 @@ async def test_apply_all_expr_injects_entity_id():
 
     await captured[0](mock_output, {1: 80.0})
 
-    sd = hass.services.async_call.call_args.kwargs["service_data"]
-    assert sd.get("entity_id") == "light.bedroom"
+    call_kw = hass.services.async_call.call_args.kwargs
+    assert call_kw["target"] == {"entity_id": "light.bedroom"}
+    assert "entity_id" not in call_kw.get("service_data", {})
 
 
 def test_light_apply_none_xy_color_in_attrs():
