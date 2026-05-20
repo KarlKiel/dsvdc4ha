@@ -12,6 +12,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from .base_entity import DsvdcBaseEntity
 from .const import CLICK_TYPE_NAMES, DOMAIN
+from .api import get_channel_spec
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -160,7 +161,8 @@ class OutputChannelEntity(DsvdcBaseEntity, SensorEntity):
     ) -> None:
         super().__init__(subentry_id, vdsd_index, vdsd_data, f"channel_{ch_data['dsIndex']}")
         self._ch_data = ch_data
-        self._attr_name = ch_data.get("name", f"Channel {ch_data['dsIndex']}")
+        spec = get_channel_spec(ch_data["channelType"])
+        self._attr_name = spec.name if spec else f"channel_{ch_data['dsIndex']}"
         self._attr_native_value: float | None = None
         self._source_entity_id: str | None = ch_data.get("read_entity")
         self._push_expr: str | None = ch_data.get("push_expr")
