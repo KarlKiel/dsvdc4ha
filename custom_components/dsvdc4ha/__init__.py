@@ -28,7 +28,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Ensure the pinned pydsvdcapi version is installed before any entry setup."""
     from homeassistant.util.package import install_package, is_installed
 
-    if not is_installed(_PYDSVDCAPI_REQ):
+    if not await hass.async_add_executor_job(is_installed, _PYDSVDCAPI_REQ):
         _LOGGER.info("Installing required package: %s", _PYDSVDCAPI_REQ)
         success = await hass.async_add_executor_job(install_package, _PYDSVDCAPI_REQ)
         if not success:

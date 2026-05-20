@@ -1304,8 +1304,9 @@ async def test_resolve_entity_icon_falls_back_to_bundled_when_cairosvg_unavailab
     """When _cairosvg is None (libcairo missing), bundled PNG is used as fallback."""
     import base64
     # switch domain → toggle-switch-variant slug
+    import base64 as _base64
     fake_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
-    (tmp_path / "toggle-switch-variant.png").write_bytes(fake_png)
+    fake_b64 = _base64.b64encode(fake_png).decode()
 
     flow = _make_switch_flow()
     state = MagicMock()
@@ -1313,7 +1314,7 @@ async def test_resolve_entity_icon_falls_back_to_bundled_when_cairosvg_unavailab
     flow.hass.states.get.return_value = state
 
     with patch("custom_components.dsvdc4ha.config_flow._cairosvg", None):
-        with patch("custom_components.dsvdc4ha._icon_utils.ICONS_DIR", tmp_path):
+        with patch("custom_components.dsvdc4ha._icon_utils._ICON_CACHE", {"toggle-switch-variant": fake_b64}):
             icon_name, b64 = await flow._resolve_entity_icon("switch.kitchen")
 
     assert icon_name == "switch_kitchen"
@@ -1329,9 +1330,9 @@ async def test_resolve_entity_icon_returns_none_when_cairosvg_and_bundled_both_u
     state.attributes = {}
     flow.hass.states.get.return_value = state
 
-    # tmp_path is empty — no bundled PNG
+    # empty cache — no bundled PNG available
     with patch("custom_components.dsvdc4ha.config_flow._cairosvg", None):
-        with patch("custom_components.dsvdc4ha._icon_utils.ICONS_DIR", tmp_path):
+        with patch("custom_components.dsvdc4ha._icon_utils._ICON_CACHE", {}):
             icon_name, b64 = await flow._resolve_entity_icon("switch.kitchen")
 
     assert icon_name == "switch_kitchen"

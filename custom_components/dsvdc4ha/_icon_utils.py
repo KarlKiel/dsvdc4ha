@@ -6,6 +6,13 @@ from pathlib import Path
 
 ICONS_DIR: Path = Path(__file__).parent / "icons"
 
+# Pre-load all bundled PNGs at import time so runtime lookups are I/O-free.
+_ICON_CACHE: dict[str, str] = {
+    f.stem: base64.b64encode(f.read_bytes()).decode()
+    for f in ICONS_DIR.glob("*.png")
+    if f.is_file()
+}
+
 MDI_DOMAIN_ICONS: dict[str, str] = {
     "light": "lightbulb",
     "switch": "toggle-switch-variant",
@@ -27,11 +34,7 @@ MDI_DOMAIN_ICONS: dict[str, str] = {
 
 def bundled_icon_b64(mdi_slug: str) -> str | None:
     """Return base64-encoded 16x16 PNG for a known MDI slug, or None if not bundled."""
-    f = ICONS_DIR / f"{mdi_slug}.png"
-    try:
-        return base64.b64encode(f.read_bytes()).decode() if f.exists() else None
-    except OSError:
-        return None
+    return _ICON_CACHE.get(mdi_slug)
 
 
 def bundled_icon_b64_for(domain: str, device_class: str | None) -> str | None:
