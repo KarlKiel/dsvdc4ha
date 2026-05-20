@@ -65,7 +65,11 @@ def _eval_push(expr: str, state) -> float:
     """Evaluate a push_expr with entity/attrs in context. Returns float."""
     ctx = dict(_SAFE_EVAL_CONTEXT)
     ctx["entity"] = state
-    ctx["attrs"] = state.attributes if state else {}
+    # Strip None values so attrs.get(key, default) returns the default rather
+    # than None when a key exists but its value is None (e.g. brightness=None
+    # when a light is off).  All current push_expr patterns are safe with this.
+    raw = state.attributes if state else {}
+    ctx["attrs"] = {k: v for k, v in raw.items() if v is not None}
     return float(eval(expr, ctx))  # noqa: S307
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from custom_components.dsvdc4ha.listeners import (
+    _eval_push,
     seed_initial_values,
     setup_output_listeners,
 )
@@ -581,3 +582,65 @@ async def test_apply_all_expr_does_not_affect_per_channel_path():
     hass.states.get.return_value = state
     await captured[0](mock_output, {19: 1.0})
     assert hass.services.async_call.await_count == 1
+
+
+def test_eval_push_old_format_brightness_none_returns_zero():
+    """Old-format push_expr (attrs.get('brightness', 0)) must not crash when brightness=None.
+
+    HA stores brightness=None in attributes when a light is off, and Python's
+    dict.get(key, default) returns None (not default) when the key exists with
+    value None.  The _eval_push None-filter is the fix — this test locks it in.
+    """
+    state = MagicMock()
+    state.state = "off"
+    state.attributes = {"brightness": None, "color_mode": "brightness"}
+
+    # Old config entry format — does not guard against None
+    old_expr = "round(attrs.get('brightness', 0) / 2.55, 1)"
+    result = _eval_push(old_expr, state)
+    assert result == 0.0
+
+
+@pytest.mark.asyncio
+async def test_apply_all_expr_brightness_zero_calls_turn_off():
+    """When dSM sends brightness=0, _on_channel_applied_all must call light.turn_off."""
+    from custom_components.dsvdc4ha.listeners import _light_apply  # noqa: PLC0415
+
+    hass = MagicMock()
+    hass.services = MagicMock()
+    hass.services.async_call = AsyncMock()
+
+    api = MagicMock()
+    mock_device = MagicMock()
+    mock_vdsd = MagicMock()
+    mock_output = MagicMock()
+    mock_output.get_channel.return_value = MagicMock()
+    mock_vdsd.output = mock_output
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api.get_device.return_value = mock_device
+
+    captured = []
+    api.set_channel_applied_callback.side_effect = lambda out, cb: captured.append(cb)
+
+    output_data = {
+        "apply_all_expr": "_light_apply(channel_updates, attrs)",
+        "channels": [{"dsIndex": 0, "channelType": 1, "read_entity": "light.bedroom"}],
+    }
+
+    light_state = MagicMock()
+    light_state.state = "on"
+    light_state.attributes = {"brightness": 200, "color_mode": "brightness"}
+    hass.states.get.return_value = light_state
+
+    with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
+               return_value=lambda: None):
+        setup_output_listeners(hass, api, "entry1", [{"output": output_data}])
+
+    assert len(captured) == 1
+
+    # dSM sends brightness=0 → must fire turn_off
+    await captured[0](mock_output, {1: 0.0})
+
+    call_kw = hass.services.async_call.call_args.kwargs
+    assert call_kw["service"] == "turn_off"
+    assert call_kw["target"] == {"entity_id": "light.bedroom"}
