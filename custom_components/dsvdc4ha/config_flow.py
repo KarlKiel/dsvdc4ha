@@ -90,7 +90,7 @@ _COLOR_GROUP_LABELS: dict[int, str] = {
     9: "White — Single Device / Appliance",
 }
 
-# ButtonGroup: group a button input controls (values 1–11, 48)
+# ButtonGroup: group a button input controls (values 1–12, 48)
 _BUTTON_GROUP_LABELS: dict[int, str] = {
     1: "1 — Yellow / Light",
     2: "2 — Grey / Shadow",
@@ -103,19 +103,22 @@ _BUTTON_GROUP_LABELS: dict[int, str] = {
     9: "9 — Blue / Cooling",
     10: "10 — Blue / Ventilation",
     11: "11 — Blue / Window",
+    12: "12 — Blue / Recirculation",
     48: "48 — Room Temperature Control",
 }
 
-# BinaryInputGroup: group a binary input belongs to (values 1–8, Joker=8)
+# BinaryInputGroup: group a binary input belongs to (values 1–8, 10, 12, Joker=8)
 _BINARY_INPUT_GROUP_LABELS: dict[int, str] = {
     1: "1 — Yellow / Light",
     2: "2 — Grey / Shadow",
-    3: "3 — Blue / Climate",
+    3: "3 — Blue / Heating",
     4: "4 — Cyan / Audio",
     5: "5 — Magenta / Video",
     6: "6 — Red / Security",
     7: "7 — Green / Access",
     8: "8 — Black / Joker",
+    10: "10 — Blue / Ventilation",
+    12: "12 — Blue / Recirculation",
 }
 
 # SensorGroup: group a sensor reading belongs to (values 0–7, Joker=0)

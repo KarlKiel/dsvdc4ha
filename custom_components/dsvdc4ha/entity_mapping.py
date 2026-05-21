@@ -38,7 +38,7 @@ _CHANNEL_TYPE_NAMES: dict[str, int] = {m.name: m.value for m in OutputChannelTyp
 _BI_GROUP_ALL: list[tuple[int, str]] = [
     (BinaryInputGroup.LIGHT.value,    "Light (1)"),
     (BinaryInputGroup.SHADOW.value,   "Shadow (2)"),
-    (BinaryInputGroup.CLIMATE.value,  "Climate (3)"),
+    (BinaryInputGroup.HEATING.value,  "Heating (3)"),
     (BinaryInputGroup.AUDIO.value,    "Audio (4)"),
     (BinaryInputGroup.VIDEO.value,    "Video (5)"),
     (BinaryInputGroup.SECURITY.value, "Security (6)"),
@@ -47,7 +47,7 @@ _BI_GROUP_ALL: list[tuple[int, str]] = [
 ]
 _BI_GROUP_MOISTURE: list[tuple[int, str]] = [
     (BinaryInputGroup.SECURITY.value, "Security (6)"),
-    (BinaryInputGroup.CLIMATE.value,  "Climate (3)"),
+    (BinaryInputGroup.HEATING.value,  "Heating (3)"),
     (BinaryInputGroup.JOKER.value,    "Joker (8)"),
 ]
 # Reusable choice list for binary_input.input_usage_choices
@@ -290,7 +290,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "binary_input": {
             "sensor_function": BinaryInputType.FROST,
             "sensor_function_choices": [(BinaryInputType.FROST.value, "Frost (18)"), (BinaryInputType.GENERIC.value, "Generic (0)")],
-            "group": BinaryInputGroup.CLIMATE, "group_choices": _BI_GROUP_ALL,
+            "group": BinaryInputGroup.HEATING, "group_choices": _BI_GROUP_ALL,
             "input_usage": BinaryInputUsage.OUTDOOR_CLIMATE, "input_usage_choices": _BI_USAGE_ALL,
             "input_type": INPUT_TYPE_DETECTS_CHANGES, "update_interval": 1.0,
         },
@@ -343,7 +343,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-binary-sensor-heat",
         "vendor_name": "Home Assistant",
         "binary_input": {
-            "sensor_function": BinaryInputType.THERMOSTAT, "group": BinaryInputGroup.CLIMATE, "group_choices": _BI_GROUP_ALL,
+            "sensor_function": BinaryInputType.THERMOSTAT, "group": BinaryInputGroup.HEATING, "group_choices": _BI_GROUP_ALL,
             "input_usage": BinaryInputUsage.ROOM_CLIMATE, "input_usage_choices": _BI_USAGE_ALL,
             "input_type": INPUT_TYPE_DETECTS_CHANGES, "update_interval": 1.0,
         },

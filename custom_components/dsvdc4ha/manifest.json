@@ -3,7 +3,7 @@
   "name": "dSVDC for Home Assistant",
   "version": "0.2.0",
   "documentation": "https://github.com/KarlKiel/dsvdc4ha",
-  "requirements": ["pydsvdcapi==0.8.4", "cairosvg==2.9.0"],
+  "requirements": ["pydsvdcapi==0.8.6", "cairosvg==2.9.0"],
   "dependencies": [],
   "codeowners": ["@KarlKiel"],
   "iot_class": "local_push",
