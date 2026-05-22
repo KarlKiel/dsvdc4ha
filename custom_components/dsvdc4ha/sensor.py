@@ -16,6 +16,27 @@ from .api import get_channel_spec
 
 _LOGGER = logging.getLogger(__name__)
 
+_CHANNEL_UNIT: dict[int, str] = {
+    1: "%",     # brightness
+    2: "°",     # hue
+    3: "%",     # saturation
+    4: "mired", # colortemp
+    7: "%",     # shadePositionOutside
+    8: "%",     # shadePositionIndoor
+    9: "%",     # shadeOpeningAngleOutside
+    10: "%",    # shadeOpeningAngleIndoor
+    11: "%",    # transparency
+    12: "%",    # airFlowIntensity
+    14: "%",    # airFlapPosition
+    15: "%",    # airLouverPosition
+    16: "%",    # heatingPower
+    17: "%",    # coolingCapacity
+    18: "%",    # audioVolume
+    22: "°C",   # waterTemperature
+    23: "%",    # waterFlowRate
+    24: "%",    # powerLevel
+}
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -170,6 +191,7 @@ class OutputChannelEntity(DsvdcBaseEntity, SensorEntity):
         spec = get_channel_spec(ch_data["channelType"])
         self._attr_name = spec.name if spec else f"channel_{ch_data['dsIndex']}"
         self._attr_native_value: float | None = None
+        self._attr_native_unit_of_measurement = _CHANNEL_UNIT.get(ch_data["channelType"])
         self._source_entity_id: str | None = ch_data.get("read_entity")
         self._push_expr: str | None = ch_data.get("push_expr")
 
