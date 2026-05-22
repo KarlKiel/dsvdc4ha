@@ -569,7 +569,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-cover-awning",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": OutputFunction.POSITIONAL, "default_group": ColorClass.AWNINGS, "output_usage": OutputUsage.OUTDOORS,
+            "function": OutputFunction.POSITIONAL, "default_group": ColorClass.AWNINGS, "output_usage": 0,
             "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [2],
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
@@ -582,11 +582,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-cover-blind",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS,
-            "output_usage": OutputUsage.ROOM,
-            "output_usage_choices": [(OutputUsage.ROOM.value, "Room / Indoor (1)"), (OutputUsage.OUTDOORS.value, "Outdoors (2)")],
+            "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": 0,
             "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [2],
-            # channels depend on outputUsage (resolved in builder)
             "channels": [
                 {"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
                  "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
@@ -594,25 +591,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
                 {"channel_type": OutputChannelType.SHADE_OPENING_ANGLE_INDOOR,
                  "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
                  "push_expr": "attrs.get('current_tilt_position',0)"},
-            ],  # default indoor
-            "channels_by_usage": {
-                1: [
-                    {"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
-                     "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
-                     "push_expr": "round(100-attrs.get('current_position',0),1)"},
-                    {"channel_type": OutputChannelType.SHADE_OPENING_ANGLE_INDOOR,
-                     "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
-                     "push_expr": "attrs.get('current_tilt_position',0)"},
-                ],   # indoor
-                2: [
-                    {"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
-                     "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
-                     "push_expr": "round(100-attrs.get('current_position',0),1)"},
-                    {"channel_type": OutputChannelType.SHADE_OPENING_ANGLE_OUTSIDE,
-                     "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
-                     "push_expr": "attrs.get('current_tilt_position',0)"},
-                ],    # outdoor
-            },
+            ],
         },
     },
     {
@@ -621,7 +600,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-cover-curtain",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": OutputUsage.ROOM,
+            "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": 0,
             "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [2],
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
@@ -634,7 +613,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-cover-damper",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": OutputFunction.POSITIONAL, "default_group": ColorClass.VENTILATION, "output_usage": OutputUsage.ROOM,
+            "function": OutputFunction.POSITIONAL, "default_group": ColorClass.VENTILATION, "output_usage": 0,
             "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [3],
             "channels": [{"channel_type": OutputChannelType.AIR_FLAP_POSITION,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
@@ -647,7 +626,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-cover-door",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": OutputFunction.ON_OFF, "default_group": ColorClass.ACCESS, "output_usage": OutputUsage.OUTDOORS,
+            "function": OutputFunction.ON_OFF, "default_group": ColorClass.ACCESS, "output_usage": 0,
             "variable_ramp": False, "mode": OutputMode.BINARY, "groups": [7],
             "channels": [{"channel_type": OutputChannelType.POWER_STATE,
                           "apply_expr": "{'domain':'cover','service':'open_cover' if value>=1 else 'close_cover','service_data':{}}",
@@ -660,7 +639,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-cover-garage",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": OutputFunction.ON_OFF, "default_group": ColorClass.ACCESS, "output_usage": OutputUsage.OUTDOORS,
+            "function": OutputFunction.ON_OFF, "default_group": ColorClass.ACCESS, "output_usage": 0,
             "variable_ramp": False, "mode": OutputMode.BINARY, "groups": [7],
             "channels": [{"channel_type": OutputChannelType.POWER_STATE,
                           "apply_expr": "{'domain':'cover','service':'open_cover' if value>=1 else 'close_cover','service_data':{}}",
@@ -675,7 +654,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": OutputFunction.POSITIONAL,
             "function_choices": [(OutputFunction.POSITIONAL.value, "Positional — supports position feedback (2)"), (OutputFunction.ON_OFF.value, "On/Off only (0)")],
-            "default_group": ColorClass.ACCESS, "output_usage": OutputUsage.OUTDOORS,
+            "default_group": ColorClass.ACCESS, "output_usage": 0,
             "variable_ramp": False, "mode": OutputMode.DEFAULT, "groups": [7],
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
@@ -688,7 +667,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-cover-shade",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": OutputUsage.ROOM,
+            "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": 0,
             "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [2],
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
@@ -701,7 +680,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "model_uid": "ha-cover-shutter",
         "vendor_name": "Home Assistant",
         "output": {
-            "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": OutputUsage.OUTDOORS,
+            "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": 0,
             "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [2],
             "channels": [
                 {"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
@@ -721,7 +700,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": OutputFunction.POSITIONAL,
             "function_choices": [(OutputFunction.POSITIONAL.value, "Positional — supports position feedback (2)"), (OutputFunction.ON_OFF.value, "On/Off only (0)")],
-            "default_group": ColorClass.WINDOW, "output_usage": OutputUsage.ROOM,
+            "default_group": ColorClass.WINDOW, "output_usage": 0,
             "variable_ramp": False, "mode": OutputMode.DEFAULT, "groups": [3],
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
