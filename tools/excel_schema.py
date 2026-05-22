@@ -61,6 +61,13 @@ def _ch_type(entry: dict, i: int) -> str:
     return "-"
 
 
+def _ch_type_outdoor(entry: dict, i: int) -> str:
+    channels = (_sub(entry, "output")).get("channels_outdoor") or []
+    if i < len(channels):
+        return enum_name(OutputChannelType, channels[i].get("channel_type"))
+    return "-"
+
+
 # ---------------------------------------------------------------------------
 # Dropdown option lists (written to hidden _lookups sheet in the Excel)
 # ---------------------------------------------------------------------------
@@ -170,13 +177,22 @@ def _build_columns() -> list[tuple[str, str | None, Any]]:
          lambda e: enum_name(ColorClass, _sub(e, "output").get("default_group"))),
         ("output.variable_ramp", "YesNo",
          lambda e: "yes" if _sub(e, "output").get("variable_ramp") else "no"),
+        ("output.placement_choice", "YesNo",
+         lambda e: "yes" if _sub(e, "output").get("placement_choice") else "no"),
     ]
-    # Channels 0-5
+    # Channels 0-5 (indoor / default)
     for i in range(6):
         cols.append((
             f"output.ch{i}.channel_type.VALUE",
             "OutputChannelType",
             (lambda i: lambda e: _ch_type(e, i))(i),
+        ))
+    # Channels 0-5 outdoor variants (only populated when placement_choice is True)
+    for i in range(6):
+        cols.append((
+            f"output.ch{i}.channel_type_outdoor.VALUE",
+            "OutputChannelType",
+            (lambda i: lambda e: _ch_type_outdoor(e, i))(i),
         ))
     # button
     cols += [

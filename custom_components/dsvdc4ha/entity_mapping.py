@@ -570,7 +570,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.AWNINGS, "output_usage": 0,
-            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [2],
+            "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [2],
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
                           "push_expr": "round(100-attrs.get('current_position',0),1)"}],  # SHADE_POSITION_OUTSIDE
@@ -583,12 +583,21 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": 0,
-            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [2],
+            "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [2],
+            "placement_choice": True,
             "channels": [
                 {"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
                  "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
                  "push_expr": "round(100-attrs.get('current_position',0),1)"},
                 {"channel_type": OutputChannelType.SHADE_OPENING_ANGLE_INDOOR,
+                 "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
+                 "push_expr": "attrs.get('current_tilt_position',0)"},
+            ],
+            "channels_outdoor": [
+                {"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
+                 "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
+                 "push_expr": "round(100-attrs.get('current_position',0),1)"},
+                {"channel_type": OutputChannelType.SHADE_OPENING_ANGLE_OUTSIDE,
                  "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
                  "push_expr": "attrs.get('current_tilt_position',0)"},
             ],
@@ -601,10 +610,14 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": 0,
-            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [2],
+            "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [2],
+            "placement_choice": True,
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
-                          "push_expr": "attrs.get('current_position',0)"}],  # SHADE_POSITION_INDOOR
+                          "push_expr": "attrs.get('current_position',0)"}],
+            "channels_outdoor": [{"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
+                                   "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
+                                   "push_expr": "attrs.get('current_position',0)"}],
         },
     },
     {
@@ -614,7 +627,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.VENTILATION, "output_usage": 0,
-            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [3],
+            "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [3],
             "channels": [{"channel_type": OutputChannelType.AIR_FLAP_POSITION,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
                           "push_expr": "attrs.get('current_position',0)"}],  # AIR_FLAP_POSITION
@@ -655,7 +668,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "function": OutputFunction.POSITIONAL,
             "function_choices": [(OutputFunction.POSITIONAL.value, "Positional — supports position feedback (2)"), (OutputFunction.ON_OFF.value, "On/Off only (0)")],
             "default_group": ColorClass.ACCESS, "output_usage": 0,
-            "variable_ramp": False, "mode": OutputMode.DEFAULT, "groups": [7],
+            "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [7],
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
                           "push_expr": "round(100-attrs.get('current_position',0),1)"}],  # SHADE_POSITION_OUTSIDE
@@ -668,10 +681,14 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": 0,
-            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [2],
+            "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [2],
+            "placement_choice": True,
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
-                          "push_expr": "attrs.get('current_position',0)"}],  # SHADE_POSITION_INDOOR
+                          "push_expr": "attrs.get('current_position',0)"}],
+            "channels_outdoor": [{"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
+                                   "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
+                                   "push_expr": "attrs.get('current_position',0)"}],
         },
     },
     {
@@ -681,7 +698,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": 0,
-            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [2],
+            "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [2],
             "channels": [
                 {"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
                  "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
@@ -701,11 +718,15 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "function": OutputFunction.POSITIONAL,
             "function_choices": [(OutputFunction.POSITIONAL.value, "Positional — supports position feedback (2)"), (OutputFunction.ON_OFF.value, "On/Off only (0)")],
             "default_group": ColorClass.WINDOW, "output_usage": 0,
-            "variable_ramp": False, "mode": OutputMode.DEFAULT, "groups": [3],
+            "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [3],
+            "placement_choice": True,
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
-                          "push_expr": "attrs.get('current_position',0)"}],  # SHADE_POSITION_INDOOR
-            "optional_tilt": True,               # user asked for second channel
+                          "push_expr": "attrs.get('current_position',0)"}],
+            "channels_outdoor": [{"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
+                                   "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
+                                   "push_expr": "attrs.get('current_position',0)"}],
+            "optional_tilt": True,
         },
     },
     # ── Event ────────────────────────────────────────────────────────────────

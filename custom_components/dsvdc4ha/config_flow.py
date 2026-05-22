@@ -406,6 +406,11 @@ _CHANNEL_TYPE_OPTIONS = [
     for c in OutputChannelType
 ]
 
+_COVER_PLACEMENT_OPTIONS = [
+    selector.SelectOptionDict(value="indoor", label="Indoor (room-facing)"),
+    selector.SelectOptionDict(value="outdoor", label="Outdoor (weather-exposed)"),
+]
+
 # OutputFunction values that require manual channel configuration
 _MANUAL_CHANNEL_FUNCTIONS: set[int] = {
     f.value for f in OutputFunction if f.name in ("POSITIONAL", "BIPOLAR", "INTERNALLY_CONTROLLED", "CUSTOM")
@@ -990,6 +995,11 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         if out.get("optional_tilt"):
             schema_dict[vol.Optional("has_tilt", default=False)] = selector.BooleanSelector()
 
+        if out.get("placement_choice"):
+            schema_dict[vol.Required("cover_placement", default="indoor")] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=_COVER_PLACEMENT_OPTIONS))
+            )
+
         return self.async_show_form(
             step_id="entity_user_input",
             data_schema=vol.Schema(schema_dict),
@@ -1096,23 +1106,27 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             fn = int(user_input.get("function", o["function"]))
             usage = int(user_input.get("output_usage", o["output_usage"]))
 
-            # Resolve channels (may depend on outputUsage for blind)
-            if "channels_by_usage" in o:
+            # Resolve channels: outdoor placement overrides the default indoor set
+            placement = user_input.get("cover_placement", "indoor")
+            if o.get("placement_choice") and placement == "outdoor":
+                channels_def = list(o["channels_outdoor"])
+            elif "channels_by_usage" in o:
                 channels_def = o["channels_by_usage"].get(usage, o["channels"])
             else:
                 channels_def = list(o["channels"])
 
-            # Optional tilt channel (cover/window)
+            # Optional tilt channel — use outdoor angle channel when outdoor-facing
             if o.get("optional_tilt") and user_input.get("has_tilt"):
+                tilt_ch = 9 if placement == "outdoor" else 10
                 channels_def = channels_def + [{
-                    "channel_type": 10,
+                    "channel_type": tilt_ch,
                     "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
                     "push_expr": "attrs.get('current_tilt_position',0)",
                 }]
 
             # Mode derived from function when function was a user choice
             if "function_choices" in o:
-                mode = 1 if fn == 0 else 127  # BINARY for ON_OFF, DEFAULT otherwise
+                mode = 1 if fn == 0 else 2  # BINARY for ON_OFF, GRADUAL for positional
             else:
                 mode = o["mode"]
 
@@ -1368,6 +1382,11 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             )
         if out.get("optional_tilt"):
             schema_dict[vol.Optional("has_tilt", default=False)] = selector.BooleanSelector()
+
+        if out.get("placement_choice"):
+            schema_dict[vol.Required("cover_placement", default="indoor")] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=_COVER_PLACEMENT_OPTIONS))
+            )
 
         current = self._pending_choice_idx + 1
         total = len(self._pending_choice_entities)

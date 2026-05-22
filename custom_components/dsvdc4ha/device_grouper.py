@@ -266,13 +266,17 @@ def resolve_vdsd_plan(
         o = e.mapping["output"]
         fn = int(choices.get("function", o["function"]))
         usage = int(choices.get("output_usage", o["output_usage"]))
-        if "channels_by_usage" in o:
+        placement = choices.get("cover_placement", "indoor")
+        if o.get("placement_choice") and placement == "outdoor":
+            channels_def = list(o.get("channels_outdoor", o.get("channels", [])))
+        elif "channels_by_usage" in o:
             channels_def = o["channels_by_usage"].get(usage, o.get("channels", []))
         else:
             channels_def = list(o.get("channels", []))
         if o.get("optional_tilt") and choices.get("has_tilt"):
+            tilt_ch = 9 if placement == "outdoor" else 10
             channels_def = channels_def + [{
-                "channel_type": 10,
+                "channel_type": tilt_ch,
                 "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
                 "push_expr": "attrs.get('current_tilt_position',0)",
             }]

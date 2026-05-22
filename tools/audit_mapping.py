@@ -191,6 +191,11 @@ def run_audit(xlsx_path: str = "documents/ha_vdsd_mapping.xlsx") -> dict:
                 exp_vr = str(raw_vr).strip().lower() == "yes"
                 if bool(o.get("variable_ramp")) != exp_vr:
                     _dis(domain, dc, "output", "variable_ramp", exp_vr, o.get("variable_ramp"))
+            raw_pc = get("output.placement_choice")
+            if raw_pc is not None:
+                exp_pc = str(raw_pc).strip().lower() == "yes"
+                if bool(o.get("placement_choice")) != exp_pc:
+                    _dis(domain, dc, "output", "placement_choice", exp_pc, o.get("placement_choice"))
             channels = o.get("channels") or []
             for i in range(6):
                 raw_ct = get(f"output.ch{i}.channel_type.VALUE")
@@ -202,6 +207,17 @@ def run_audit(xlsx_path: str = "documents/ha_vdsd_mapping.xlsx") -> dict:
                 actual_ct = channels[i]["channel_type"] if i < len(channels) else None
                 if actual_ct is None or int(actual_ct) != exp_ct:
                     _dis(domain, dc, "output", f"channels[{i}].channel_type", exp_ct, actual_ct)
+            channels_outdoor = o.get("channels_outdoor") or []
+            for i in range(6):
+                raw_ct = get(f"output.ch{i}.channel_type_outdoor.VALUE")
+                if raw_ct is None or str(raw_ct).strip() == "-":
+                    break
+                exp_ct = enum_value(ENUM_CLASS["OutputChannelType"], str(raw_ct).strip())
+                if exp_ct is None:
+                    continue
+                actual_ct = channels_outdoor[i]["channel_type"] if i < len(channels_outdoor) else None
+                if actual_ct is None or int(actual_ct) != exp_ct:
+                    _dis(domain, dc, "output", f"channels_outdoor[{i}].channel_type", exp_ct, actual_ct)
 
         # button
         if b := entry.get("button"):
