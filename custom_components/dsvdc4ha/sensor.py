@@ -110,6 +110,8 @@ class SensorInputEntity(DsvdcBaseEntity, SensorEntity):
         self._attr_native_value: float | None = None
         self._source_entity_id: str | None = si_data.get("callback_entity")
         self._sensor_type: int = si_data.get("sensorType", 0)
+        from .unit_conversion import DS_TARGET_UNIT
+        self._attr_native_unit_of_measurement = DS_TARGET_UNIT.get(self._sensor_type)
 
     @property
     def state(self) -> float | None:

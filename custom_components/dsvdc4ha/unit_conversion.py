@@ -17,6 +17,38 @@ _PARTICULATE_CONVERSIONS: dict[str, object] = {
     "mg/m³": lambda v: v * 1_000.0,
 }
 
+# dS target unit per sensor type (what dSS expects to receive)
+DS_TARGET_UNIT: dict[int, str] = {
+    1:  "°C",
+    2:  "%",
+    3:  "lx",
+    4:  "V",
+    5:  "ppm",
+    6:  "Bq/m³",
+    8:  "µg/m³",
+    9:  "µg/m³",
+    10: "µg/m³",
+    13: "m/s",
+    14: "W",
+    15: "A",
+    16: "kWh",
+    17: "VA",
+    18: "hPa",
+    20: "dB",
+    21: "mm",
+    22: "ppm",
+    23: "m/s",
+    25: "W",
+    26: "kWh",
+    27: "L",
+    28: "L/s",
+    29: "mm",
+    30: "g",
+    31: "s",
+    32: "%",
+    34: "Hz",
+}
+
 # Conversion table: sensor_type_int → {ha_unit_str → converter(float) → float}
 # The target unit for each sensor type is the dS-expected unit.
 # Unknown sensor types and unknown units are passed through unchanged.
