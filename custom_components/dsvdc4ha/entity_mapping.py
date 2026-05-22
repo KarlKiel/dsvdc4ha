@@ -570,7 +570,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.AWNINGS, "output_usage": OutputUsage.OUTDOORS,
-            "variable_ramp": True, "mode": OutputMode.GRADUAL, "groups": [2],
+            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [2],
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
                           "push_expr": "round(100-attrs.get('current_position',0),1)"}],  # SHADE_POSITION_OUTSIDE
@@ -585,7 +585,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS,
             "output_usage": OutputUsage.ROOM,
             "output_usage_choices": [(OutputUsage.ROOM.value, "Room / Indoor (1)"), (OutputUsage.OUTDOORS.value, "Outdoors (2)")],
-            "variable_ramp": True, "mode": OutputMode.GRADUAL, "groups": [2],
+            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [2],
             # channels depend on outputUsage (resolved in builder)
             "channels": [
                 {"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
@@ -622,7 +622,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": OutputUsage.ROOM,
-            "variable_ramp": True, "mode": OutputMode.GRADUAL, "groups": [2],
+            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [2],
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
                           "push_expr": "attrs.get('current_position',0)"}],  # SHADE_POSITION_INDOOR
@@ -635,7 +635,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.VENTILATION, "output_usage": OutputUsage.ROOM,
-            "variable_ramp": True, "mode": OutputMode.GRADUAL, "groups": [3],
+            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [3],
             "channels": [{"channel_type": OutputChannelType.AIR_FLAP_POSITION,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
                           "push_expr": "attrs.get('current_position',0)"}],  # AIR_FLAP_POSITION
@@ -676,7 +676,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "function": OutputFunction.POSITIONAL,
             "function_choices": [(OutputFunction.POSITIONAL.value, "Positional — supports position feedback (2)"), (OutputFunction.ON_OFF.value, "On/Off only (0)")],
             "default_group": ColorClass.ACCESS, "output_usage": OutputUsage.OUTDOORS,
-            "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [7],
+            "variable_ramp": False, "mode": OutputMode.DEFAULT, "groups": [7],
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
                           "push_expr": "round(100-attrs.get('current_position',0),1)"}],  # SHADE_POSITION_OUTSIDE
@@ -689,7 +689,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": OutputUsage.ROOM,
-            "variable_ramp": True, "mode": OutputMode.GRADUAL, "groups": [2],
+            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [2],
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
                           "push_expr": "attrs.get('current_position',0)"}],  # SHADE_POSITION_INDOOR
@@ -702,7 +702,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": OutputUsage.OUTDOORS,
-            "variable_ramp": True, "mode": OutputMode.GRADUAL, "groups": [2],
+            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [2],
             "channels": [
                 {"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
                  "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
@@ -722,7 +722,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "function": OutputFunction.POSITIONAL,
             "function_choices": [(OutputFunction.POSITIONAL.value, "Positional — supports position feedback (2)"), (OutputFunction.ON_OFF.value, "On/Off only (0)")],
             "default_group": ColorClass.WINDOW, "output_usage": OutputUsage.ROOM,
-            "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [3],
+            "variable_ramp": False, "mode": OutputMode.DEFAULT, "groups": [3],
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
                           "push_expr": "attrs.get('current_position',0)"}],  # SHADE_POSITION_INDOOR
@@ -778,7 +778,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": OutputFunction.DIMMER, "default_group": ColorClass.VENTILATION, "output_usage": OutputUsage.ROOM,
-            "variable_ramp": True, "mode": OutputMode.GRADUAL, "groups": [3],
+            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [3],
             "channels": [
                 {"channel_type": OutputChannelType.AIR_FLOW_INTENSITY,
                  "apply_expr": "{'domain':'fan','service':'set_percentage','service_data':{'percentage':round(value)}}",
@@ -823,7 +823,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.JOKER, "output_usage": OutputUsage.ROOM,
-            "variable_ramp": True, "mode": OutputMode.GRADUAL, "groups": [8],
+            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [8],
             "channels": [{"channel_type": OutputChannelType.POWER_LEVEL,
                           "apply_expr": "{'domain':'number','service':'set_value','service_data':{'value':round(_denorm(value,float(attrs.get('min',0)),float(attrs.get('max',100))),2)}}",
                           "push_expr": "_norm(float(entity.state),float(attrs.get('min',0)),float(attrs.get('max',100)))"}],  # POWER_LEVEL
@@ -1288,7 +1288,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.HEATING, "output_usage": OutputUsage.ROOM,
-            "variable_ramp": True, "mode": OutputMode.GRADUAL, "groups": [3],
+            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [3],
             "channels": [{"channel_type": OutputChannelType.WATER_FLOW_RATE,
                           "apply_expr": "{'domain':'valve','service':'set_valve_position','service_data':{'position':round(value)}}",
                           "push_expr": "attrs.get('current_position',0)"}],  # WATER_FLOW_RATE
@@ -1301,7 +1301,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "vendor_name": "Home Assistant",
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.HEATING, "output_usage": OutputUsage.ROOM,
-            "variable_ramp": True, "mode": OutputMode.GRADUAL, "groups": [3],
+            "variable_ramp": True, "mode": OutputMode.DEFAULT, "groups": [3],
             "channels": [{"channel_type": OutputChannelType.WATER_FLOW_RATE,
                           "apply_expr": "{'domain':'valve','service':'set_valve_position','service_data':{'position':round(value)}}",
                           "push_expr": "attrs.get('current_position',0)"}],

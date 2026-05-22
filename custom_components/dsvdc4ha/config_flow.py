@@ -1112,7 +1112,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
             # Mode derived from function when function was a user choice
             if "function_choices" in o:
-                mode = 1 if fn == 0 else 2  # BINARY for ON_OFF, GRADUAL otherwise
+                mode = 1 if fn == 0 else 127  # BINARY for ON_OFF, DEFAULT otherwise
             else:
                 mode = o["mode"]
 
