@@ -156,15 +156,19 @@ def setup_input_listeners(
             si = vdsd.get_sensor_input(si_data["dsIndex"])
             if not si:
                 continue
+            _sensor_type: int = si_data.get("sensorType", 0)
 
             @callback
-            def _on_sensor_state(event: Event, _si=si) -> None:
+            def _on_sensor_state(event: Event, _si=si, _st=_sensor_type) -> None:
+                from .unit_conversion import convert_sensor_value  # noqa: PLC0415
                 new_state = event.data.get("new_state")
                 if not new_state or new_state.state in ("unknown", "unavailable"):
                     hass.async_create_task(api.report_sensor_value(_si, None))
                     return
                 try:
                     value = float(new_state.state)
+                    unit = new_state.attributes.get("unit_of_measurement")
+                    value = convert_sensor_value(_st, unit, value)
                     hass.async_create_task(api.report_sensor_value(_si, value))
                 except ValueError:
                     pass
@@ -225,12 +229,16 @@ async def seed_initial_values(
             si = vdsd.get_sensor_input(si_data["dsIndex"])
             if not si:
                 continue
+            from .unit_conversion import convert_sensor_value  # noqa: PLC0415
+            sensor_type: int = si_data.get("sensorType", 0)
             value: float | None = None
             if entity_id := si_data.get("callback_entity"):
                 state = hass.states.get(entity_id)
                 if state and state.state not in ("unknown", "unavailable"):
                     try:
-                        value = float(state.state)
+                        raw = float(state.state)
+                        unit = state.attributes.get("unit_of_measurement")
+                        value = convert_sensor_value(sensor_type, unit, raw)
                     except ValueError:
                         pass
             if value is None:

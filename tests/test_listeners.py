@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from custom_components.dsvdc4ha.listeners import (
     _eval_push,
     seed_initial_values,
+    setup_input_listeners,
     setup_output_listeners,
 )
 
@@ -644,3 +645,109 @@ async def test_apply_all_expr_brightness_zero_calls_turn_off():
     call_kw = hass.services.async_call.call_args.kwargs
     assert call_kw["service"] == "turn_off"
     assert call_kw["target"] == {"entity_id": "light.bedroom"}
+
+
+# ── Sensor unit conversion ───────────────────────────────────────────────
+
+
+def test_sensor_listener_applies_unit_conversion():
+    """_on_sensor_state converts value via unit_of_measurement before reporting."""
+    hass = MagicMock()
+    hass.async_create_task = MagicMock()
+    api = MagicMock()
+    api.report_sensor_value = AsyncMock()
+
+    mock_device = MagicMock()
+    mock_vdsd = MagicMock()
+    mock_vdsd.output = None
+    mock_si = MagicMock()
+    mock_vdsd.get_sensor_input.return_value = mock_si
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api.get_device.return_value = mock_device
+
+    # sensor type 14 = Active Power, HA reports in kW → dS expects W
+    si_data = {"dsIndex": 0, "callback_entity": "sensor.power", "sensorType": 14}
+    vdsd_data = [{"sensors": [si_data]}]
+
+    registered_cbs = []
+    with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
+               side_effect=lambda h, e, cb: (registered_cbs.append(cb), lambda: None)[1]):
+        setup_input_listeners(hass, api, "entry1", vdsd_data)
+
+    assert len(registered_cbs) == 1
+
+    new_state = MagicMock()
+    new_state.state = "1.5"                             # 1.5 kW
+    new_state.attributes = {"unit_of_measurement": "kW"}
+    event = MagicMock()
+    event.data = {"new_state": new_state}
+
+    registered_cbs[0](event)
+
+    # report_sensor_value should have been called with 1500 W (via async_create_task)
+    hass.async_create_task.assert_called_once()
+    api.report_sensor_value.assert_called_once_with(mock_si, 1500.0)
+
+
+def test_sensor_listener_no_conversion_when_unit_unknown():
+    """_on_sensor_state passes value unchanged when unit is not in conversion table."""
+    hass = MagicMock()
+    hass.async_create_task = MagicMock()
+    api = MagicMock()
+    api.report_sensor_value = AsyncMock()
+
+    mock_device = MagicMock()
+    mock_vdsd = MagicMock()
+    mock_vdsd.output = None
+    mock_si = MagicMock()
+    mock_vdsd.get_sensor_input.return_value = mock_si
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api.get_device.return_value = mock_device
+
+    si_data = {"dsIndex": 0, "callback_entity": "sensor.temp", "sensorType": 1}
+    vdsd_data = [{"sensors": [si_data]}]
+
+    registered_cbs = []
+    with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
+               side_effect=lambda h, e, cb: (registered_cbs.append(cb), lambda: None)[1]):
+        setup_input_listeners(hass, api, "entry1", vdsd_data)
+
+    new_state = MagicMock()
+    new_state.state = "25.0"
+    new_state.attributes = {"unit_of_measurement": "exotic_unit"}
+    event = MagicMock()
+    event.data = {"new_state": new_state}
+
+    registered_cbs[0](event)
+    api.report_sensor_value.assert_called_once_with(mock_si, 25.0)
+
+
+@pytest.mark.asyncio
+async def test_seed_initial_values_applies_unit_conversion():
+    """seed_initial_values converts the initial channel value via unit_of_measurement."""
+    hass = MagicMock()
+    # temperature sensor seeding: HA in °F, dS expects °C
+    state = MagicMock()
+    state.state = "32.0"                              # 32 °F = 0 °C
+    state.attributes = {"unit_of_measurement": "°F"}
+    hass.states.get.return_value = state
+
+    api = MagicMock()
+    mock_device = MagicMock()
+    mock_vdsd = MagicMock()
+    mock_si = MagicMock()
+    mock_si.min_value = -40.0
+    mock_si.update_value = AsyncMock()
+    mock_vdsd.get_sensor_input.return_value = mock_si
+    mock_vdsd.output = None
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api.get_device.return_value = mock_device
+
+    si_data = {
+        "dsIndex": 0,
+        "callback_entity": "sensor.temp",
+        "sensorType": 1,          # Temperature
+    }
+    await seed_initial_values(hass, api, "entry1", [{"sensors": [si_data]}])
+
+    mock_si.update_value.assert_awaited_once_with(value=pytest.approx(0.0), session=None)
