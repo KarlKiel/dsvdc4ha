@@ -89,7 +89,7 @@ _CONVERSIONS: dict[int, dict[str, object]] = {
         "psi":  lambda v: v * 68.9476,
         "mmHg": lambda v: v * 1.33322,
         "inHg": lambda v: v * 33.8639,
-        "cbar": lambda v: v * 1.0,    # 1 cbar == 1 mbar == 1 hPa
+        "cbar": lambda v: v * 10.0,   # 1 cbar == 0.01 bar == 1 kPa == 10 hPa
     },
     # 20 — Sound pressure level → dB
     20: {
