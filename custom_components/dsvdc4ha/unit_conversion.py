@@ -2,6 +2,21 @@
 """HA → dS sensor unit conversion table and helper."""
 from __future__ import annotations
 
+# Shared conversion tables for reuse across multiple sensor types
+_WIND_SPEED_CONVERSIONS: dict[str, object] = {
+    "m/s":  lambda v: v,
+    "km/h": lambda v: v / 3.6,
+    "mph":  lambda v: v * 0.44704,
+    "kn":   lambda v: v * 0.51444,
+    "ft/s": lambda v: v * 0.3048,
+}
+
+_PARTICULATE_CONVERSIONS: dict[str, object] = {
+    "µg/m³": lambda v: v,
+    "μg/m³": lambda v: v,  # U+03BC vs U+00B5
+    "mg/m³": lambda v: v * 1_000.0,
+}
+
 # Conversion table: sensor_type_int → {ha_unit_str → converter(float) → float}
 # The target unit for each sensor type is the dS-expected unit.
 # Unknown sensor types and unknown units are passed through unchanged.
@@ -33,31 +48,13 @@ _CONVERSIONS: dict[int, dict[str, object]] = {
         "pCi/L": lambda v: v * 37.0,
     },
     # 8 — PM10 → µg/m³
-    8: {
-        "µg/m³": lambda v: v,
-        "μg/m³": lambda v: v,  # U+03BC vs U+00B5
-        "mg/m³": lambda v: v * 1_000.0,
-    },
+    8: _PARTICULATE_CONVERSIONS,
     # 9 — PM2.5 → µg/m³
-    9: {
-        "µg/m³": lambda v: v,
-        "μg/m³": lambda v: v,
-        "mg/m³": lambda v: v * 1_000.0,
-    },
+    9: _PARTICULATE_CONVERSIONS,
     # 10 — PM1 → µg/m³
-    10: {
-        "µg/m³": lambda v: v,
-        "μg/m³": lambda v: v,
-        "mg/m³": lambda v: v * 1_000.0,
-    },
+    10: _PARTICULATE_CONVERSIONS,
     # 13 — Wind speed → m/s
-    13: {
-        "m/s":  lambda v: v,
-        "km/h": lambda v: v / 3.6,
-        "mph":  lambda v: v * 0.44704,
-        "kn":   lambda v: v * 0.51444,
-        "ft/s": lambda v: v * 0.3048,
-    },
+    13: _WIND_SPEED_CONVERSIONS,
     # 14 — Active Power → W
     14: {
         "W":  lambda v: v,
@@ -92,7 +89,7 @@ _CONVERSIONS: dict[int, dict[str, object]] = {
         "psi":  lambda v: v * 68.9476,
         "mmHg": lambda v: v * 1.33322,
         "inHg": lambda v: v * 33.8639,
-        "cbar": lambda v: v * 1.0,    # 1 cbar == 1 hPa
+        "cbar": lambda v: v * 1.0,    # 1 cbar == 1 mbar == 1 hPa
     },
     # 20 — Sound pressure level → dB
     20: {
@@ -113,13 +110,7 @@ _CONVERSIONS: dict[int, dict[str, object]] = {
         "ppb": lambda v: v / 1_000.0,
     },
     # 23 — Wind gust speed → m/s  (same conversions as wind speed)
-    23: {
-        "m/s":  lambda v: v,
-        "km/h": lambda v: v / 3.6,
-        "mph":  lambda v: v * 0.44704,
-        "kn":   lambda v: v * 0.51444,
-        "ft/s": lambda v: v * 0.3048,
-    },
+    23: _WIND_SPEED_CONVERSIONS,
     # 25 — Generated Active Power → W
     25: {
         "W":  lambda v: v,
@@ -131,6 +122,7 @@ _CONVERSIONS: dict[int, dict[str, object]] = {
         "kWh": lambda v: v,
         "Wh":  lambda v: v / 1_000.0,
         "MWh": lambda v: v * 1_000.0,
+        "GWh": lambda v: v * 1_000_000.0,
     },
     # 27 — Water Quantity → L
     27: {
