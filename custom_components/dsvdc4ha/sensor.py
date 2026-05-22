@@ -109,10 +109,20 @@ class SensorInputEntity(DsvdcBaseEntity, SensorEntity):
         self._attr_name = si_data["name"]
         self._attr_native_value: float | None = None
         self._source_entity_id: str | None = si_data.get("callback_entity")
+        self._sensor_type: int = si_data.get("sensorType", 0)
 
     @property
     def state(self) -> float | None:
         return self._attr_native_value
+
+    def _convert(self, state) -> float | None:
+        try:
+            from .unit_conversion import convert_sensor_value
+            raw = float(state.state)
+            unit = state.attributes.get("unit_of_measurement")
+            return convert_sensor_value(self._sensor_type, unit, raw)
+        except (ValueError, TypeError):
+            return None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
@@ -120,10 +130,7 @@ class SensorInputEntity(DsvdcBaseEntity, SensorEntity):
             return
         state = self.hass.states.get(self._source_entity_id)
         if state and state.state not in ("unknown", "unavailable"):
-            try:
-                self._attr_native_value = float(state.state)
-            except ValueError:
-                pass
+            self._attr_native_value = self._convert(state)
         self.async_on_remove(
             async_track_state_change_event(
                 self.hass, self._source_entity_id, self._handle_source_change
@@ -136,10 +143,7 @@ class SensorInputEntity(DsvdcBaseEntity, SensorEntity):
         if new_state is None or new_state.state in ("unknown", "unavailable"):
             self._attr_native_value = None
         else:
-            try:
-                self._attr_native_value = float(new_state.state)
-            except ValueError:
-                return
+            self._attr_native_value = self._convert(new_state)
         self.async_write_ha_state()
 
     def _handle_value(self, value: float | None) -> None:
