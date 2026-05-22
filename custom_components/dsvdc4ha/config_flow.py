@@ -1120,9 +1120,6 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 {
                     "dsIndex": i,
                     "channelType": ch["channel_type"],
-                    "min": 0.0,
-                    "max": 100.0,
-                    "resolution": 0.4,
                     "read_entity": entity_id,
                     "write_action": None,
                     **({"apply_expr": ch["apply_expr"]} if ch.get("apply_expr") else {}),
@@ -1890,9 +1887,6 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 self._current_channels.append({
                     "dsIndex": i,
                     "channelType": int(ct),
-                    "min": 0.0,
-                    "max": 100.0,
-                    "resolution": 0.4,
                 })
             return await self.async_step_channel_mapping()
         schema = vol.Schema({
@@ -1936,9 +1930,6 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 self._current_channels.append({
                     "dsIndex": i,
                     "channelType": int(ct),
-                    "min": 0.0,
-                    "max": 100.0,
-                    "resolution": 0.4,
                 })
             return await self.async_step_channel_mapping()
         schema = vol.Schema({

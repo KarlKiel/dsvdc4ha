@@ -36,7 +36,7 @@ from pydsvdcapi.enums import (
     SensorUsage,
 )
 from pydsvdcapi.output import FUNCTION_CHANNELS, Output
-from pydsvdcapi.output_channel import OutputChannel, get_channel_spec
+from pydsvdcapi.output_channel import CHANNEL_SPECS, OutputChannel, get_channel_spec
 from pydsvdcapi.sensor_input import SensorInput
 from pydsvdcapi.vdc import Vdc, VdcCapabilities
 from pydsvdcapi.vdc_host import VdcHost
@@ -129,13 +129,18 @@ def _add_output(vdsd: Vdsd, data: dict[str, Any]) -> None:
     )
     for ch_data in data.get("channels", []):
         ds_index = ch_data["dsIndex"]
+        channel_type = OutputChannelType(ch_data["channelType"])
+        # For standard channel types defined in CHANNEL_SPECS, always use the
+        # spec's min/max/resolution so stored config values can never override
+        # the dS-defined range (e.g. colortemp must be 100–1000 mired, not 0–100).
+        in_spec = channel_type in CHANNEL_SPECS
         output.remove_channel(ds_index)
         output.add_channel(
-            OutputChannelType(ch_data["channelType"]),
+            channel_type,
             ds_index=ds_index,
-            min_value=ch_data.get("min"),
-            max_value=ch_data.get("max"),
-            resolution=ch_data.get("resolution"),
+            min_value=None if in_spec else ch_data.get("min"),
+            max_value=None if in_spec else ch_data.get("max"),
+            resolution=None if in_spec else ch_data.get("resolution"),
         )
     vdsd.set_output(output)
 
