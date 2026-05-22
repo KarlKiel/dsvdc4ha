@@ -160,53 +160,6 @@ def _add_output(vdsd: Vdsd, data: dict[str, Any]) -> None:
     vdsd.set_output(output)
 
 
-class _PreviewDevice:
-    """Minimal Device stand-in used only by derive_model_features_for_config.
-
-    Vdsd.__init__ reads device.dsuid once to derive the vdSD dSUID.  No other
-    Device attributes are accessed during feature derivation, so a class with
-    a single valid DsUid attribute is sufficient.
-    """
-
-    def __init__(self) -> None:
-        self.dsuid: DsUid = DsUid.random()
-
-    def _schedule_auto_save(self) -> None:
-        """No-op: preview devices are ephemeral and never persisted."""
-
-
-def derive_model_features_for_config(vdsd_data: dict[str, Any]) -> set[str]:
-    """Return the model features pydsvdcapi would auto-derive for a vdSD config.
-
-    Builds a temporary Vdsd from the raw config dict, populates it with
-    components, delegates to pydsvdcapi's derive_model_features(), and returns
-    the resulting set.  No feature rules live in this codebase.
-
-    *vdsd_data* keys used:
-      primaryGroup (int), buttons (list), binary_inputs (list),
-      sensors (list), output (dict | None),
-      identify_action (any truthy value → adds "identification" feature).
-    """
-    vdsd = Vdsd(
-        device=_PreviewDevice(),
-        primary_group=ColorGroup(vdsd_data.get("primaryGroup", 1)),
-        name="preview",
-        model="preview",
-    )
-    for btn_data in vdsd_data.get("buttons", []):
-        _add_button(vdsd, btn_data)
-    for bi_data in vdsd_data.get("binary_inputs", []):
-        _add_binary_input(vdsd, bi_data)
-    for si_data in vdsd_data.get("sensors", []):
-        _add_sensor(vdsd, si_data)
-    if output_data := vdsd_data.get("output"):
-        _add_output(vdsd, output_data)
-    if vdsd_data.get("identify_action"):
-        vdsd.on_identify = lambda _: None  # no-op — only triggers "identification" feature derivation
-    vdsd.derive_model_features()
-    return set(vdsd.model_features)
-
-
 class DsvdcApi:
     """Thin wrapper around pydsvdcapi VdcHost + Vdc."""
 
@@ -541,19 +494,6 @@ class DsvdcApi:
         if output_data := data.get("output"):
             _add_output(vdsd, output_data)
         vdsd.derive_model_features()
-        # Apply the user's explicit feature selection saved during config flow.
-        # derive_model_features() above seeds the set; we then add optional
-        # features the user enabled and remove auto-derived ones they deselected.
-        if user_features := data.get("model_features"):
-            user_set = set(user_features)
-            auto_set = set(vdsd.model_features)
-            for f in auto_set - user_set:
-                vdsd.remove_model_feature(f)
-            for f in user_set - auto_set:
-                try:
-                    vdsd.add_model_feature(f)
-                except ValueError:
-                    _LOGGER.warning("Ignoring unsupported model feature %r stored in config (update device in config flow to remove it)", f)
         return vdsd
 
     async def vanish_device(self, entry_id: str) -> None:

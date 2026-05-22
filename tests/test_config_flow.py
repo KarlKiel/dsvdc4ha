@@ -264,7 +264,7 @@ async def test_device_info_step_advances_to_vdsd_creation():
 
 @pytest.mark.asyncio
 async def test_vdsd_overview_shows_form_then_next():
-    """Test vdsd_overview shows form and routes to model_features on next."""
+    """Test vdsd_overview shows form and routes to entity_completion on next (model_features is a passthrough)."""
     flow = _make_subentry_flow()
     flow._current_vdsd = {"displayId": "TestUnit", "optional": {}}
     flow._current_buttons = []
@@ -277,7 +277,7 @@ async def test_vdsd_overview_shows_form_then_next():
     assert result["step_id"] == "vdsd_overview"
 
     result2 = await flow.async_step_vdsd_overview({"action": "next"})
-    assert result2["step_id"] == "model_features"
+    assert result2["step_id"] == "entity_completion"
 
 
 @pytest.mark.asyncio
@@ -397,7 +397,7 @@ async def test_full_device_subentry_flow_creates_entry():
         {"displayId": "LampUnit", "primaryGroup": "1", "modelVersion": "v1"}
     )
     await flow.async_step_vdsd_overview({"action": "next"})
-    await flow.async_step_model_features({"features": []})
+    # model_features is now a passthrough — automatically finalises and routes to device_summary
     result = await flow.async_step_device_summary({"action": "create", "confirm": True})
 
     assert result["type"] == "create_entry"
@@ -588,7 +588,7 @@ async def test_device_entity_user_input_cycles_and_routes_to_summary():
 
 
 @pytest.mark.asyncio
-async def test_device_plan_summary_proceed_routes_to_model_features():
+async def test_device_plan_summary_proceed_routes_to_device_summary():
     flow = _make_subentry_flow()
     plan = _make_vdsd_plan()
     flow._vdsd_plans = [plan]
@@ -601,7 +601,7 @@ async def test_device_plan_summary_proceed_routes_to_model_features():
                       "buttons": [], "binary_inputs": [], "sensors": [], "output": None},
     ):
         result = await flow.async_step_device_plan_summary({"action": "proceed"})
-    assert result["step_id"] == "device_model_features"
+    assert result["step_id"] == "device_summary"
 
 
 @pytest.mark.asyncio
@@ -615,6 +615,7 @@ async def test_device_plan_summary_cancel_routes_to_creation_mode():
 
 @pytest.mark.asyncio
 async def test_device_model_features_cycles_and_routes_to_device_summary():
+    """device_model_features is a passthrough: cycles all plans and routes to device_summary."""
     flow = _make_subentry_flow()
     plan1 = _make_vdsd_plan("light.a")
     plan1.resolved_vdsd = {
@@ -635,19 +636,11 @@ async def test_device_model_features_cycles_and_routes_to_device_summary():
     flow._pending_vdsd_idx = 0
     flow._device_name = "Device"
 
-    # First plan: show form
+    # Single call cycles all plans and routes directly to device_summary
     result = await flow.async_step_device_model_features()
-    assert result["type"] == "form"
-    assert result["step_id"] == "device_model_features"
-
-    # First plan: submit
-    result2 = await flow.async_step_device_model_features({"features": ["blink"]})
-    assert result2["step_id"] == "device_model_features"  # second plan
-    assert flow._pending_vdsd_idx == 1
-
-    # Second plan: submit -> routes to device_summary
-    result3 = await flow.async_step_device_model_features({"features": []})
-    assert result3["step_id"] == "device_summary"
+    assert result["step_id"] == "device_summary"
+    assert flow._pending_vdsd_idx == 2
+    assert len(flow._vdsds) == 2
 
 
 @pytest.mark.asyncio

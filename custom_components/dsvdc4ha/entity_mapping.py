@@ -1398,6 +1398,7 @@ def needs_user_input(mapping: dict[str, Any]) -> bool:
             or comp.get("function_choices")
             or comp.get("min_max_user")
             or comp.get("optional_tilt")
+            or comp.get("placement_choice")
         ):
             return True
     return False

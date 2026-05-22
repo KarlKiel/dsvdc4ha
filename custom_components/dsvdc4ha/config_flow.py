@@ -33,7 +33,6 @@ from .api import (
     ButtonType,
     ColorClass,
     ColorGroup,
-    derive_model_features_for_config,
     FUNCTION_CHANNELS,
     OutputChannelType,
     OutputFunction,
@@ -422,61 +421,6 @@ _BUTTON_ELEMENTS_BY_TYPE: dict[int, int] = {0: 1, 1: 1, 2: 2, 3: 4, 4: 5, 5: 9, 
 # ---------------------------------------------------------------------------
 # Model features — labels, options, and auto-derive helper
 # ---------------------------------------------------------------------------
-
-# Human-readable labels for all auto-derivable model features.
-# Sourced from pydsvdcapi docs/model-features-auto-assignment.md
-_AUTO_FEATURE_LABELS: dict[str, str] = {
-    "dontcare":                     "Per-scene 'retain current value' checkbox",
-    "blink":                        "Per-scene blink effect checkbox",
-    "transt":                       "Per-scene transition time (standard / slow)",
-    "outvalue8":                    "8-bit output value slider",
-    "outputchannels":               "Multi-channel colour output controls",
-    "dimtimeconfig":                "Dim-time settings (up / down)",
-    "outconfigswitch":              "Switch output threshold configuration",
-    "impulseconfig":                "Impulse mode tab in device properties",
-    "pwmvalue":                     "PWM-mode indicator in output values",
-    "ventconfig":                   "Ventilation speed / flap configuration",
-    "shadeprops":                   "Shade device properties (positional timing)",
-    "shadeposition":                "16-bit position slider and up/down buttons",
-    "shadebladeang":                "Blade angle input / slider",
-    "motiontimefins":               "Blade motion timing in shade properties",
-    "locationconfig":               "Direction / orientation dropdown",
-    "operationlock":                "Ignore operation lock for weather alarms",
-    "windprotectionconfigblind":    "Wind protection class — jalousie / blind",
-    "windprotectionconfigawning":   "Wind protection class — awning / roller blind",
-    "heatingprops":                 "Climate device properties (valve / PWM settings)",
-    "heatinggroup":                 "Heating group dropdown",
-    "valvetype":                    "Attached terminal device dropdown",
-    "extendedvalvetypes":           "Extended valve type options",
-    "fcu":                          "Fan coil unit profile",
-    "temperatureoffset":            "Temperature offset adjustment",
-    "consumption":                  "Energy monitoring / consumption events menu",
-    "akmsensor":                    "AKM sensor function dropdown",
-    "pushbutton":                   "Push button type dropdown",
-    "pushbadvanced":                "Per-preset click-type config and local priority",
-    "pushbdisabled":                "Dialog for disabling unused buttons",
-    "pushbarea":                    "Area push-button type option",
-    "pushbdevice":                  "Device push-button type option",
-    "pushbsensor":                  "Sensor-style button type option",
-    "highlevel":                    "App button type option",
-    "jokerconfig":                  "Colour group dropdown for Joker device",
-    "identification":               "Identify menu entry (sends Notify to VDC)",
-}
-
-# Human-readable labels for 'not tested' optional features.
-_OPTIONAL_FEATURE_LABELS: dict[str, str] = {
-    "blinkconfig":                          "Blink behaviour configuration menu (not tested)",
-    "customtransitiontime":                 "Per-scene custom transition time (not tested)",
-    "consumptiontimer":                     "Consumption timer / run-time panel (not tested)",
-    "outmodegeneric":                       "Output mode selector — generic values 0–6 (not tested)",
-    "outmodeauto":                          "Output mode: add Auto option (not tested)",
-    "jokertempcontrol":                     "Temperature-controlled output for Joker device (not tested)",
-    "umvrelay":                             "Relay function dropdown (not tested)",
-    "ftwtempcontrolventilationselect":      "FTW combined temperature + ventilation selector (not tested)",
-    "setumr200config":                      "UMR200 hardware configuration (not tested)",
-    "apartmentapplication":                 "Apartment application integration (not tested)",
-    "customactivityconfig":                 "Custom activity / app configuration (not tested)",
-}
 
 def _port_is_available(port: int) -> bool:
     """Return True if the TCP port can be bound on the local machine."""
@@ -1474,43 +1418,12 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         )
 
     async def async_step_device_model_features(self, user_input: dict | None = None):
-        """Per-vdSD model features selection for the HA-device path."""
-        plan = self._vdsd_plans[self._pending_vdsd_idx]
-        vdsd: dict = plan.resolved_vdsd or {}
-
-        if user_input is not None:
-            plan.model_features = user_input.get("features", [])
-            if plan.resolved_vdsd is not None:
-                plan.resolved_vdsd["model_features"] = plan.model_features
-            self._pending_vdsd_idx += 1
-            if self._pending_vdsd_idx < len(self._vdsd_plans):
-                return await self.async_step_device_model_features()
-            # All plans done — assemble _vdsds and go to device_summary
-            self._vdsds = [p.resolved_vdsd for p in self._vdsd_plans if p.resolved_vdsd]
-            return await self.async_step_device_summary()
-
-        auto_features = derive_model_features_for_config(vdsd)
-        options: list[selector.SelectOptionDict] = []
-        for key, label in _AUTO_FEATURE_LABELS.items():
-            options.append(selector.SelectOptionDict(value=key, label=label))
-        for key, label in _OPTIONAL_FEATURE_LABELS.items():
-            options.append(selector.SelectOptionDict(value=key, label=label))
-        schema = vol.Schema({
-            vol.Optional("features", default=sorted(auto_features)): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=options, multiple=True)
-            ),
-        })
-        current = self._pending_vdsd_idx + 1
-        total = len(self._vdsd_plans)
-        return self.async_show_form(
-            step_id="device_model_features",
-            data_schema=schema,
-            description_placeholders={
-                "current": str(current),
-                "total": str(total),
-                "vdsd_name": plan.name,
-            },
-        )
+        """Pass-through: advance through all plans then route to device_summary."""
+        self._pending_vdsd_idx += 1
+        if self._pending_vdsd_idx < len(self._vdsd_plans):
+            return await self.async_step_device_model_features()
+        self._vdsds = [p.resolved_vdsd for p in self._vdsd_plans if p.resolved_vdsd]
+        return await self.async_step_device_summary()
 
     # ── "From scratch" creation path ──────────────────────────────────────────
 
@@ -1632,39 +1545,15 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         return self.async_show_form(step_id="optional_settings", data_schema=schema)
 
     async def async_step_model_features(self, user_input: dict | None = None):
-        """Select model features, then finalise and save the current vdSD."""
-        if user_input is not None:
-            self._current_vdsd["model_features"] = user_input.get("features", [])
-            self._current_vdsd["buttons"] = self._current_buttons
-            self._current_vdsd["binary_inputs"] = self._current_binary_inputs
-            self._current_vdsd["sensors"] = self._current_sensors
-            self._current_vdsd["output"] = self._current_output
-            self._vdsds.append(dict(self._current_vdsd))
-            if self._creation_mode == "from_entity":
-                return await self.async_step_entity_completion()
-            return await self.async_step_device_summary()
-
-        auto_features = derive_model_features_for_config({
-            "primaryGroup": self._current_vdsd.get("primaryGroup", 1),
-            "buttons": self._current_buttons,
-            "binary_inputs": self._current_binary_inputs,
-            "sensors": self._current_sensors,
-            "output": self._current_output,
-            "identify_action": self._current_vdsd.get("identify_action"),
-        })
-
-        options: list[selector.SelectOptionDict] = []
-        for key, label in _AUTO_FEATURE_LABELS.items():
-            options.append(selector.SelectOptionDict(value=key, label=label))
-        for key, label in _OPTIONAL_FEATURE_LABELS.items():
-            options.append(selector.SelectOptionDict(value=key, label=label))
-
-        schema = vol.Schema({
-            vol.Optional("features", default=sorted(auto_features)): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=options, multiple=True)
-            ),
-        })
-        return self.async_show_form(step_id="model_features", data_schema=schema)
+        """Pass-through: finalise the current vdSD then route to the next step."""
+        self._current_vdsd["buttons"] = self._current_buttons
+        self._current_vdsd["binary_inputs"] = self._current_binary_inputs
+        self._current_vdsd["sensors"] = self._current_sensors
+        self._current_vdsd["output"] = self._current_output
+        self._vdsds.append(dict(self._current_vdsd))
+        if self._creation_mode == "from_entity":
+            return await self.async_step_entity_completion()
+        return await self.async_step_device_summary()
 
     async def async_step_entity_completion(self, user_input: dict | None = None):
         """Entity-based flow: create the device or add another vdSD component."""
