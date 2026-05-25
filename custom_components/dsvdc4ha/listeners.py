@@ -7,12 +7,22 @@ from typing import TYPE_CHECKING
 from homeassistant.core import HomeAssistant, callback, Event
 from homeassistant.helpers.event import async_track_state_change_event
 
+from pydsvdcapi.enums import BinaryInputType
+
 from .const import DOMAIN
 
 if TYPE_CHECKING:
     from .api import DsvdcApi
 
 _LOGGER = logging.getLogger(__name__)
+
+# DS uses the opposite polarity for open/closed contacts on these types:
+# DS "active" (True) = contact closed = HA "off"; DS "inactive" (False) = open = HA "on".
+_INVERTED_BINARY_SENSOR_FUNCTIONS = frozenset({
+    BinaryInputType.WINDOW_OPEN.value,
+    BinaryInputType.DOOR_OPEN.value,
+    BinaryInputType.GARAGE_DOOR_OPEN.value,
+})
 
 def _light_apply(channel_updates: dict, attrs: dict) -> dict:
     """Translate simultaneous DS channel_updates into one light.turn_on/off call."""
@@ -185,13 +195,17 @@ def setup_input_listeners(
                 continue
             is_bool = bi_data.get("valueType", "boolean") == "boolean"
 
+            invert_bi = bi_data.get("sensorFunction") in _INVERTED_BINARY_SENSOR_FUNCTIONS
+
             @callback
-            def _on_binary_state(event: Event, _bi=bi, _is_bool=is_bool) -> None:
+            def _on_binary_state(event: Event, _bi=bi, _is_bool=is_bool, _invert=invert_bi) -> None:
                 new_state = event.data.get("new_state")
                 if not new_state or new_state.state in ("unknown", "unavailable"):
                     return
                 if _is_bool:
                     value = new_state.state in ("on", "true", "1", "True")
+                    if _invert:
+                        value = not value
                     hass.async_create_task(api.report_binary_value(_bi, value))
                 else:
                     try:
@@ -256,7 +270,10 @@ async def seed_initial_values(
                 continue
             is_bool = bi_data.get("valueType", "boolean") == "boolean"
             if is_bool:
-                await bi.update_value(state.state in ("on", "true", "1", "True"), session=None)
+                value = state.state in ("on", "true", "1", "True")
+                if bi_data.get("sensorFunction") in _INVERTED_BINARY_SENSOR_FUNCTIONS:
+                    value = not value
+                await bi.update_value(value, session=None)
             else:
                 try:
                     await bi.update_extended_value(int(float(state.state)), session=None)
