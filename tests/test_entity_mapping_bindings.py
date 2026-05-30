@@ -133,6 +133,62 @@ def test_needs_user_input_sf_any():
     assert needs_user_input(m)
 
 
+def test_needs_user_input_shadow_position_timing():
+    m = {"output": {"shadow_position_timing": True}}
+    assert needs_user_input(m)
+
+
+def test_needs_user_input_shadow_angle_timing():
+    m = {"output": {"shadow_angle_timing": True}}
+    assert needs_user_input(m)
+
+
+def test_needs_user_input_returns_false_without_flags():
+    m = {"output": {"function": 0, "groups": [2]}}
+    assert not needs_user_input(m)
+
+
+def test_awning_output_has_shadow_position_timing():
+    m = _mapping("cover", "awning")
+    assert m["output"].get("shadow_position_timing") is True
+    assert not m["output"].get("shadow_angle_timing")
+
+
+def test_blind_output_has_both_shadow_timing_flags():
+    m = _mapping("cover", "blind")
+    assert m["output"].get("shadow_position_timing") is True
+    assert m["output"].get("shadow_angle_timing") is True
+
+
+def test_curtain_output_has_position_timing_only():
+    m = _mapping("cover", "curtain")
+    assert m["output"].get("shadow_position_timing") is True
+    assert not m["output"].get("shadow_angle_timing")
+
+
+def test_shutter_output_has_both_shadow_timing_flags():
+    m = _mapping("cover", "shutter")
+    assert m["output"].get("shadow_position_timing") is True
+    assert m["output"].get("shadow_angle_timing") is True
+
+
+def test_window_cover_output_has_both_shadow_timing_flags():
+    m = _mapping("cover", "window")
+    assert m["output"].get("shadow_position_timing") is True
+    assert m["output"].get("shadow_angle_timing") is True
+
+
+def test_door_output_has_no_shadow_timing_flags():
+    m = _mapping("cover", "door")
+    assert not m["output"].get("shadow_position_timing")
+    assert not m["output"].get("shadow_angle_timing")
+
+
+def test_damper_output_has_no_shadow_timing_flags():
+    m = _mapping("cover", "damper")
+    assert not m["output"].get("shadow_position_timing")
+
+
 def test_channel_type_names_matches_enum():
     from pydsvdcapi.enums import OutputChannelType
     import importlib.util, pathlib

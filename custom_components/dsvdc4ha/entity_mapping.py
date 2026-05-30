@@ -571,6 +571,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.AWNINGS, "output_usage": 0,
             "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [2],
+            "shadow_position_timing": True,
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
                           "push_expr": "round(100-attrs.get('current_position',0),1)"}],  # SHADE_POSITION_OUTSIDE
@@ -585,6 +586,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": 0,
             "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [2],
             "placement_choice": True,
+            "shadow_position_timing": True,
+            "shadow_angle_timing": True,
             "channels": [
                 {"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
                  "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
@@ -612,6 +615,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": 0,
             "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [2],
             "placement_choice": True,
+            "shadow_position_timing": True,
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
                           "push_expr": "attrs.get('current_position',0)"}],
@@ -669,6 +673,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "function_choices": [(OutputFunction.POSITIONAL.value, "Positional — supports position feedback (2)"), (OutputFunction.ON_OFF.value, "On/Off only (0)")],
             "default_group": ColorClass.ACCESS, "output_usage": 0,
             "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [7],
+            "shadow_position_timing": True,
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
                           "push_expr": "round(100-attrs.get('current_position',0),1)"}],  # SHADE_POSITION_OUTSIDE
@@ -683,6 +688,7 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": 0,
             "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [2],
             "placement_choice": True,
+            "shadow_position_timing": True,
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
                           "push_expr": "attrs.get('current_position',0)"}],
@@ -699,6 +705,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
         "output": {
             "function": OutputFunction.POSITIONAL, "default_group": ColorClass.BLINDS, "output_usage": 0,
             "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [2],
+            "shadow_position_timing": True,
+            "shadow_angle_timing": True,
             "channels": [
                 {"channel_type": OutputChannelType.SHADE_POSITION_OUTSIDE,
                  "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(100-value)}}",
@@ -720,6 +728,8 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
             "default_group": ColorClass.WINDOW, "output_usage": 0,
             "variable_ramp": False, "mode": OutputMode.GRADUAL, "groups": [3],
             "placement_choice": True,
+            "shadow_position_timing": True,
+            "shadow_angle_timing": True,
             "channels": [{"channel_type": OutputChannelType.SHADE_POSITION_INDOOR,
                           "apply_expr": "{'domain':'cover','service':'set_cover_position','service_data':{'position':round(value)}}",
                           "push_expr": "attrs.get('current_position',0)"}],
@@ -1399,6 +1409,8 @@ def needs_user_input(mapping: dict[str, Any]) -> bool:
             or comp.get("min_max_user")
             or comp.get("optional_tilt")
             or comp.get("placement_choice")
+            or comp.get("shadow_position_timing")
+            or comp.get("shadow_angle_timing")
         ):
             return True
     return False
