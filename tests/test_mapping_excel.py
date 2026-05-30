@@ -246,3 +246,42 @@ def test_audit_detects_wrong_user_flag(tmp_path):
         and "USER" in d["field"]
         for d in result["discrepancies"]
     ), f"Expected USER discrepancy not in: {result['discrepancies']}"
+
+
+def test_shadow_position_timing_column_exists():
+    from tools.excel_schema import COLUMNS
+    headers = [h for h, _, _ in COLUMNS]
+    assert "output.shadow_position_timing" in headers
+
+
+def test_shadow_angle_timing_column_exists():
+    from tools.excel_schema import COLUMNS
+    headers = [h for h, _, _ in COLUMNS]
+    assert "output.shadow_angle_timing" in headers
+
+
+def test_shadow_position_timing_is_yes_for_awning():
+    from tools.excel_schema import COLUMNS
+    from custom_components.dsvdc4ha.entity_mapping import ENTITY_MAPPING
+    awning = next(e for e in ENTITY_MAPPING if e["domain"] == "cover" and e.get("device_class") == "awning")
+    col = next((ext for h, _, ext in COLUMNS if h == "output.shadow_position_timing"), None)
+    assert col is not None
+    assert col(awning) == "yes"
+
+
+def test_shadow_angle_timing_is_no_for_awning():
+    from tools.excel_schema import COLUMNS
+    from custom_components.dsvdc4ha.entity_mapping import ENTITY_MAPPING
+    awning = next(e for e in ENTITY_MAPPING if e["domain"] == "cover" and e.get("device_class") == "awning")
+    col = next((ext for h, _, ext in COLUMNS if h == "output.shadow_angle_timing"), None)
+    assert col is not None
+    assert col(awning) == "no"
+
+
+def test_shadow_angle_timing_is_yes_for_blind():
+    from tools.excel_schema import COLUMNS
+    from custom_components.dsvdc4ha.entity_mapping import ENTITY_MAPPING
+    blind = next(e for e in ENTITY_MAPPING if e["domain"] == "cover" and e.get("device_class") == "blind")
+    col = next((ext for h, _, ext in COLUMNS if h == "output.shadow_angle_timing"), None)
+    assert col is not None
+    assert col(blind) == "yes"

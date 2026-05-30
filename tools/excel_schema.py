@@ -194,6 +194,21 @@ def _build_columns() -> list[tuple[str, str | None, Any]]:
             "OutputChannelType",
             (lambda i: lambda e: _ch_type_outdoor(e, i))(i),
         ))
+    # Shadow motor timing flags (source of truth for what to ask in config flow)
+    cols += [
+        ("output.shadow_position_timing", "YesNo",
+         lambda e: "yes" if _sub(e, "output").get("shadow_position_timing") else "no"),
+        ("output.shadow_angle_timing", "YesNo",
+         lambda e: "yes" if _sub(e, "output").get("shadow_angle_timing") else "no"),
+    ]
+    # Shadow motor timing values (grey / cover devices — set by dSS at runtime)
+    cols += [
+        ("output.openTime",      None, lambda e: _sub(e, "output").get("openTime")),
+        ("output.closeTime",     None, lambda e: _sub(e, "output").get("closeTime")),
+        ("output.angleOpenTime", None, lambda e: _sub(e, "output").get("angleOpenTime")),
+        ("output.angleCloseTime",None, lambda e: _sub(e, "output").get("angleCloseTime")),
+        ("output.stopDelayTime", None, lambda e: _sub(e, "output").get("stopDelayTime")),
+    ]
     # button
     cols += [
         ("button.button_type.VALUE", "ButtonType",
