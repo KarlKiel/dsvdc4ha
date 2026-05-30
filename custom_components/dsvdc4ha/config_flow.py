@@ -944,6 +944,24 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 selector.SelectSelector(selector.SelectSelectorConfig(options=_COVER_PLACEMENT_OPTIONS))
             )
 
+        if out.get("shadow_position_timing"):
+            schema_dict[vol.Optional("openTime")] = selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+            )
+            schema_dict[vol.Optional("closeTime")] = selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+            )
+            schema_dict[vol.Optional("stopDelayTime")] = selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+            )
+        if out.get("shadow_angle_timing"):
+            schema_dict[vol.Optional("angleOpenTime")] = selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+            )
+            schema_dict[vol.Optional("angleCloseTime")] = selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+            )
+
         return self.async_show_form(
             step_id="entity_user_input",
             data_schema=vol.Schema(schema_dict),
@@ -1097,6 +1115,11 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "onThreshold": 50,
                 "channels": channels,
                 **({"apply_all_expr": o["apply_all_expr"]} if o.get("apply_all_expr") else {}),
+                **{
+                    k: float(user_input[k])
+                    for k in ("openTime", "closeTime", "angleOpenTime", "angleCloseTime", "stopDelayTime")
+                    if k in user_input and user_input[k] is not None
+                },
             }
 
         # Resolve entity icon and store in vdSD dict
@@ -1330,6 +1353,24 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         if out.get("placement_choice"):
             schema_dict[vol.Required("cover_placement", default="indoor")] = (
                 selector.SelectSelector(selector.SelectSelectorConfig(options=_COVER_PLACEMENT_OPTIONS))
+            )
+
+        if out.get("shadow_position_timing"):
+            schema_dict[vol.Optional("openTime")] = selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+            )
+            schema_dict[vol.Optional("closeTime")] = selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+            )
+            schema_dict[vol.Optional("stopDelayTime")] = selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+            )
+        if out.get("shadow_angle_timing"):
+            schema_dict[vol.Optional("angleOpenTime")] = selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+            )
+            schema_dict[vol.Optional("angleCloseTime")] = selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
             )
 
         current = self._pending_choice_idx + 1

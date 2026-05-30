@@ -1462,3 +1462,124 @@ async def test_entity_picker_light_apply_all_expr_stored_in_vdsd():
     output = flow._current_vdsd.get("output") if flow._current_vdsd else None
     assert output is not None
     assert "apply_all_expr" in output, "apply_all_expr must be stored in vdSD output"
+
+
+# ---------------------------------------------------------------------------
+# Shadow motor timing fields — form and output builder
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_entity_user_input_form_shows_position_timing_for_awning():
+    """async_step_entity_user_input shows openTime/closeTime/stopDelayTime for awning."""
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = None
+    flow._entity_mapping = get_entity_mapping("cover", "awning")
+    flow._entity_id = "cover.my_awning"
+    flow._display_id = "HA Cover (awning)"
+    flow._vendor_name = ""
+    flow._device_name = "My Awning"
+    result = await flow.async_step_entity_user_input(user_input=None)
+    assert result["type"] == "form"
+    schema_keys = [str(k) for k in result["data_schema"].schema.keys()]
+    assert any("openTime" in k for k in schema_keys)
+    assert any("closeTime" in k for k in schema_keys)
+    assert any("stopDelayTime" in k for k in schema_keys)
+    assert not any("angleOpenTime" in k for k in schema_keys)
+
+
+@pytest.mark.asyncio
+async def test_entity_user_input_form_shows_angle_timing_for_blind():
+    """async_step_entity_user_input shows angle timing fields for blind."""
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = None
+    flow._entity_mapping = get_entity_mapping("cover", "blind")
+    flow._entity_id = "cover.my_blind"
+    flow._display_id = "HA Cover (blind)"
+    flow._vendor_name = ""
+    flow._device_name = "My Blind"
+    result = await flow.async_step_entity_user_input(user_input=None)
+    assert result["type"] == "form"
+    schema_keys = [str(k) for k in result["data_schema"].schema.keys()]
+    assert any("angleOpenTime" in k for k in schema_keys)
+    assert any("angleCloseTime" in k for k in schema_keys)
+
+
+@pytest.mark.asyncio
+async def test_build_entity_vdsd_stores_timing_values():
+    """_build_entity_vdsd_and_continue writes timing user_input into output dict."""
+    from unittest.mock import patch as _patch, AsyncMock as _AsyncMock
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = None
+    flow._entity_id = "cover.my_awning"
+    flow._entity_mapping = get_entity_mapping("cover", "awning")
+    flow._display_id = "HA Cover (awning)"
+    flow._vendor_name = ""
+    flow._device_name = "My Awning"
+    flow._vdsds = []
+    flow._current_vdsd = {}
+    flow._current_buttons = []
+    flow._current_binary_inputs = []
+    flow._current_sensors = []
+    flow._current_output = None
+
+    mock_ent_reg = MagicMock()
+    mock_ent_reg.async_get.return_value = None
+
+    with _patch("custom_components.dsvdc4ha.config_flow.er.async_get", return_value=mock_ent_reg), \
+         _patch.object(flow, "_resolve_entity_icon", new=_AsyncMock(return_value=("", None))), \
+         _patch.object(flow, "async_step_model_features",
+                       new=_AsyncMock(return_value={"type": "form", "step_id": "model_features"})):
+        await flow._build_entity_vdsd_and_continue({
+            "openTime": 30.0,
+            "closeTime": 25.0,
+            "stopDelayTime": 2.0,
+        })
+
+    output = flow._current_vdsd.get("output") if flow._current_vdsd else None
+    assert output is not None
+    assert output.get("openTime") == 30.0
+    assert output.get("closeTime") == 25.0
+    assert output.get("stopDelayTime") == 2.0
+    assert "angleOpenTime" not in output
+
+
+@pytest.mark.asyncio
+async def test_build_entity_vdsd_omits_absent_timing_values():
+    """Timing values not in user_input are not added to output dict."""
+    from unittest.mock import patch as _patch, AsyncMock as _AsyncMock
+    from custom_components.dsvdc4ha.entity_mapping import get_entity_mapping
+    flow = VdsdSubentryFlowHandler()
+    flow.hass = MagicMock()
+    flow.hass.states.get.return_value = None
+    flow._entity_id = "cover.my_awning"
+    flow._entity_mapping = get_entity_mapping("cover", "awning")
+    flow._display_id = "HA Cover (awning)"
+    flow._vendor_name = ""
+    flow._device_name = "My Awning"
+    flow._vdsds = []
+    flow._current_vdsd = {}
+    flow._current_buttons = []
+    flow._current_binary_inputs = []
+    flow._current_sensors = []
+    flow._current_output = None
+
+    mock_ent_reg = MagicMock()
+    mock_ent_reg.async_get.return_value = None
+
+    with _patch("custom_components.dsvdc4ha.config_flow.er.async_get", return_value=mock_ent_reg), \
+         _patch.object(flow, "_resolve_entity_icon", new=_AsyncMock(return_value=("", None))), \
+         _patch.object(flow, "async_step_model_features",
+                       new=_AsyncMock(return_value={"type": "form", "step_id": "model_features"})):
+        await flow._build_entity_vdsd_and_continue({})
+
+    output = flow._current_vdsd.get("output") if flow._current_vdsd else None
+    assert output is not None
+    assert "openTime" not in output
+    assert "closeTime" not in output
+    assert "stopDelayTime" not in output
