@@ -458,3 +458,62 @@ def test_resolve_sensor_usage_uses_mapping_default_when_no_choice():
     )
     result = resolve_vdsd_plan(plan, "Device", "Vendor", "Model", {})
     assert result["sensors"][0]["sensorUsage"] == 1
+
+
+def test_resolve_vdsd_plan_shadow_timing_forwarded():
+    """Timing values from user_choices are written into the resolved output dict."""
+    mapping = {
+        "primary_group": 2,
+        "output": {
+            "function": 2, "output_usage": 0, "groups": [2], "default_group": 2,
+            "variable_ramp": False, "mode": 2,
+            "shadow_position_timing": True,
+            "shadow_angle_timing": True,
+            "channels": [{"channel_type": 8,
+                          "apply_expr": "...", "push_expr": "..."}],
+        },
+    }
+    e = _entity("cover.blind", "cover", mapping)
+    plan = VdsdPlan(
+        primary_group=2, name="Test — Cover",
+        output_entity=e,
+        user_choices={"cover.blind": {
+            "openTime": 30.0,
+            "closeTime": 25.0,
+            "angleOpenTime": 5.0,
+            "angleCloseTime": 4.0,
+            "stopDelayTime": 1.5,
+        }},
+    )
+
+    vdsd = resolve_vdsd_plan(plan, "Test", "Vendor", "Model", {})
+
+    out = vdsd["output"]
+    assert out.get("openTime") == 30.0
+    assert out.get("closeTime") == 25.0
+    assert out.get("angleOpenTime") == 5.0
+    assert out.get("angleCloseTime") == 4.0
+    assert out.get("stopDelayTime") == 1.5
+
+
+def test_resolve_vdsd_plan_timing_absent_when_not_in_choices():
+    """Timing keys not in user_choices do not appear in resolved output dict."""
+    mapping = {
+        "primary_group": 2,
+        "output": {
+            "function": 2, "output_usage": 0, "groups": [2], "default_group": 2,
+            "variable_ramp": False, "mode": 2,
+            "shadow_position_timing": True,
+            "channels": [{"channel_type": 8,
+                          "apply_expr": "...", "push_expr": "..."}],
+        },
+    }
+    e = _entity("cover.shade", "cover", mapping)
+    plan = VdsdPlan(primary_group=2, name="Test — Cover", output_entity=e)
+
+    vdsd = resolve_vdsd_plan(plan, "Test", "Vendor", "Model", {})
+
+    out = vdsd["output"]
+    assert "openTime" not in out
+    assert "closeTime" not in out
+    assert "stopDelayTime" not in out

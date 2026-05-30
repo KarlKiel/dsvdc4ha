@@ -308,6 +308,11 @@ def resolve_vdsd_plan(
             "onThreshold": _OUTPUT_ON_THRESHOLD,
             "channels": channels,
             **({"apply_all_expr": o["apply_all_expr"]} if o.get("apply_all_expr") else {}),
+            **{
+                k: float(choices[k])
+                for k in ("openTime", "closeTime", "angleOpenTime", "angleCloseTime", "stopDelayTime")
+                if k in choices and choices[k] is not None
+            },
         }
 
     return vdsd
