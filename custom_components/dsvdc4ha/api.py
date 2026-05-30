@@ -57,17 +57,6 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-# Cover positional channels that carry 0–100 % values and need finer resolution
-# than the pydsvdcapi spec default (100/255 ≈ 0.392 %) — use 16-bit resolution.
-_COVER_100_CHANNELS = frozenset({
-    OutputChannelType.SHADE_POSITION_OUTSIDE,
-    OutputChannelType.SHADE_POSITION_INDOOR,
-    OutputChannelType.SHADE_OPENING_ANGLE_OUTSIDE,
-    OutputChannelType.SHADE_OPENING_ANGLE_INDOOR,
-    OutputChannelType.AIR_FLAP_POSITION,
-})
-_COVER_RESOLUTION = 100.0 / 65536
-
 
 def _add_button(vdsd: Vdsd, data: dict[str, Any]) -> None:
     btn = ButtonInput(
@@ -137,26 +126,27 @@ def _add_output(vdsd: Vdsd, data: dict[str, Any]) -> None:
         on_threshold=data.get("onThreshold"),
         min_brightness=data.get("minBrightness"),
         max_power=data.get("maxPower"),
+        open_time=data.get("openTime"),
+        close_time=data.get("closeTime"),
+        angle_open_time=data.get("angleOpenTime"),
+        angle_close_time=data.get("angleCloseTime"),
+        stop_delay_time=data.get("stopDelayTime"),
     )
     for ch_data in data.get("channels", []):
         ds_index = ch_data["dsIndex"]
         channel_type = OutputChannelType(ch_data["channelType"])
         in_spec = channel_type in CHANNEL_SPECS
         output.remove_channel(ds_index)
-        if channel_type in _COVER_100_CHANNELS:
-            # Cover positional channels: keep spec min/max but use 16-bit resolution
-            # for finer positioning precision (100/65536 vs spec default 100/255).
-            output.add_channel(channel_type, ds_index=ds_index, resolution=_COVER_RESOLUTION)
-        else:
-            # For standard spec channels honour spec min/max/resolution; only
-            # apply stored values for channel types not in CHANNEL_SPECS.
-            output.add_channel(
-                channel_type,
-                ds_index=ds_index,
-                min_value=None if in_spec else ch_data.get("min"),
-                max_value=None if in_spec else ch_data.get("max"),
-                resolution=None if in_spec else ch_data.get("resolution"),
-            )
+        # For standard spec channels honour spec min/max/resolution (pydsvdcapi 0.8.8+
+        # already has the correct values, e.g. 16-bit resolution for shade channels).
+        # Only apply stored values for channel types not in CHANNEL_SPECS.
+        output.add_channel(
+            channel_type,
+            ds_index=ds_index,
+            min_value=None if in_spec else ch_data.get("min"),
+            max_value=None if in_spec else ch_data.get("max"),
+            resolution=None if in_spec else ch_data.get("resolution"),
+        )
     vdsd.set_output(output)
 
 

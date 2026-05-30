@@ -218,6 +218,16 @@ def run_audit(xlsx_path: str = "documents/ha_vdsd_mapping.xlsx") -> dict:
                 actual_ct = channels_outdoor[i]["channel_type"] if i < len(channels_outdoor) else None
                 if actual_ct is None or int(actual_ct) != exp_ct:
                     _dis(domain, dc, "output", f"channels_outdoor[{i}].channel_type", exp_ct, actual_ct)
+            for timing_field in ("openTime", "closeTime", "angleOpenTime", "angleCloseTime", "stopDelayTime"):
+                raw = get(f"output.{timing_field}")
+                if raw is not None and str(raw).strip() not in ("-", ""):
+                    try:
+                        exp = float(raw)
+                    except (ValueError, TypeError):
+                        continue
+                    actual = o.get(timing_field)
+                    if actual is not None and abs(float(actual) - exp) > 1e-9:
+                        _dis(domain, dc, "output", timing_field, exp, actual)
 
         # button
         if b := entry.get("button"):
