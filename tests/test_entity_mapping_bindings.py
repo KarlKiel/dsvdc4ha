@@ -202,6 +202,12 @@ def test_damper_output_has_no_shadow_timing_flags():
     assert not m["output"].get("shadow_angle_timing")
 
 
+def test_garage_output_has_no_shadow_timing_flags():
+    m = _mapping("cover", "garage")
+    assert not m["output"].get("shadow_position_timing")
+    assert not m["output"].get("shadow_angle_timing")
+
+
 def test_channel_type_names_matches_enum():
     from pydsvdcapi.enums import OutputChannelType
     import importlib.util, pathlib
