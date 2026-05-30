@@ -166,6 +166,18 @@ def test_curtain_output_has_position_timing_only():
     assert not m["output"].get("shadow_angle_timing")
 
 
+def test_gate_output_has_shadow_position_timing_only():
+    m = _mapping("cover", "gate")
+    assert m["output"].get("shadow_position_timing") is True
+    assert not m["output"].get("shadow_angle_timing")
+
+
+def test_shade_output_has_shadow_position_timing_only():
+    m = _mapping("cover", "shade")
+    assert m["output"].get("shadow_position_timing") is True
+    assert not m["output"].get("shadow_angle_timing")
+
+
 def test_shutter_output_has_both_shadow_timing_flags():
     m = _mapping("cover", "shutter")
     assert m["output"].get("shadow_position_timing") is True
@@ -187,6 +199,7 @@ def test_door_output_has_no_shadow_timing_flags():
 def test_damper_output_has_no_shadow_timing_flags():
     m = _mapping("cover", "damper")
     assert not m["output"].get("shadow_position_timing")
+    assert not m["output"].get("shadow_angle_timing")
 
 
 def test_channel_type_names_matches_enum():
