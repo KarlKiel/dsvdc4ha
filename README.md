@@ -1,4 +1,8 @@
-# dsvdc4ha
+# dS-vDC @ HA
+
+<p align="center">
+  <img src="custom_components/dsvdc4ha/logo.png" alt="dS-vDC @ HA" width="256">
+</p>
 
 A Home Assistant custom integration that exposes existing HA entities as virtual digitalStrom devices (vdSDs) inside a connected digitalStrom system (DSS).
 
