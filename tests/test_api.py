@@ -30,6 +30,46 @@ async def test_api_start_creates_host_and_vdc():
         mock_host_instance.start.assert_awaited_once_with(announce=True)
 
 
+def test_vdc_dsuid_incorporates_host_mac():
+    """Vdc must receive a dsuid derived from the host MAC, not a static hash."""
+    from pydsvdcapi.dsuid import DsUid, DsUidNamespace
+    from custom_components.dsvdc4ha.const import VDC_IMPLEMENTATION_ID
+
+    mac_a = "AA:BB:CC:DD:EE:FF"
+    mac_b = "11:22:33:44:55:66"
+
+    dsuid_a = DsUid.from_name_in_space(f"{VDC_IMPLEMENTATION_ID}:{mac_a}", DsUidNamespace.VDC)
+    dsuid_b = DsUid.from_name_in_space(f"{VDC_IMPLEMENTATION_ID}:{mac_b}", DsUidNamespace.VDC)
+    dsuid_static = DsUid.from_name_in_space(VDC_IMPLEMENTATION_ID, DsUidNamespace.VDC)
+
+    assert dsuid_a != dsuid_b, "Different MACs must produce different Vdc dSUIDs"
+    assert dsuid_a != dsuid_static, "MAC-based dSUID must differ from the static fallback"
+
+
+@pytest.mark.asyncio
+async def test_api_vdc_receives_mac_based_dsuid():
+    """Vdc constructor must be called with a dsuid= derived from the host MAC."""
+    with patch("custom_components.dsvdc4ha.api.VdcHost") as MockHost, \
+         patch("custom_components.dsvdc4ha.api.Vdc") as MockVdc, \
+         patch("custom_components.dsvdc4ha.api.VdcCapabilities"):
+        mock_host = MagicMock()
+        mock_host.start = AsyncMock()
+        mock_host.mac = "AA:BB:CC:DD:EE:01"
+        MockHost.return_value = mock_host
+
+        api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp/test_state")
+        await api.start()
+
+        vdc_kwargs = MockVdc.call_args.kwargs
+        assert "dsuid" in vdc_kwargs, "Vdc must be called with explicit dsuid="
+        from pydsvdcapi.dsuid import DsUid, DsUidNamespace
+        from custom_components.dsvdc4ha.const import VDC_IMPLEMENTATION_ID
+        expected = DsUid.from_name_in_space(
+            f"{VDC_IMPLEMENTATION_ID}:AA:BB:CC:DD:EE:01", DsUidNamespace.VDC
+        )
+        assert vdc_kwargs["dsuid"] == expected
+
+
 @pytest.mark.asyncio
 async def test_api_stop_calls_host_stop():
     with patch("custom_components.dsvdc4ha.api.VdcHost") as MockHost, \

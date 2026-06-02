@@ -316,8 +316,14 @@ class DsvdcApi:
             identification=False,
             dynamic_definitions=True,
         )
+        # Derive a stable, per-machine Vdc dSUID from the host MAC so that
+        # two different HA installations never advertise the same Vdc dSUID.
+        vdc_dsuid = DsUid.from_name_in_space(
+            f"{VDC_IMPLEMENTATION_ID}:{host.mac}", DsUidNamespace.VDC
+        )
         vdc = Vdc(
             host=host,
+            dsuid=vdc_dsuid,
             implementation_id=VDC_IMPLEMENTATION_ID,
             name=VDC_NAME,
             model=VDC_MODEL,
