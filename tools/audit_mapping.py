@@ -196,6 +196,16 @@ def run_audit(xlsx_path: str = "documents/ha_vdsd_mapping.xlsx") -> dict:
                 exp_pc = str(raw_pc).strip().lower() == "yes"
                 if bool(o.get("placement_choice")) != exp_pc:
                     _dis(domain, dc, "output", "placement_choice", exp_pc, o.get("placement_choice"))
+            raw_spt = get("output.shadow_position_timing")
+            if raw_spt is not None:
+                exp_spt = str(raw_spt).strip().lower() == "yes"
+                if bool(o.get("shadow_position_timing")) != exp_spt:
+                    _dis(domain, dc, "output", "shadow_position_timing", exp_spt, o.get("shadow_position_timing"))
+            raw_sat = get("output.shadow_angle_timing")
+            if raw_sat is not None:
+                exp_sat = str(raw_sat).strip().lower() == "yes"
+                if bool(o.get("shadow_angle_timing")) != exp_sat:
+                    _dis(domain, dc, "output", "shadow_angle_timing", exp_sat, o.get("shadow_angle_timing"))
             channels = o.get("channels") or []
             for i in range(6):
                 raw_ct = get(f"output.ch{i}.channel_type.VALUE")

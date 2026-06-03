@@ -998,23 +998,19 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 selector.SelectSelector(selector.SelectSelectorConfig(options=_COVER_PLACEMENT_OPTIONS))
             )
 
+        def _timing_field(key: str):
+            v = out.get(key)
+            return vol.Optional(key, default=v) if v is not None else vol.Optional(key)
+
         if out.get("shadow_position_timing"):
-            schema_dict[vol.Optional("openTime")] = selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-            )
-            schema_dict[vol.Optional("closeTime")] = selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-            )
-            schema_dict[vol.Optional("stopDelayTime")] = selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-            )
+            _ns = selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+            schema_dict[_timing_field("openTime")]      = selector.NumberSelector(_ns)
+            schema_dict[_timing_field("closeTime")]     = selector.NumberSelector(_ns)
+            schema_dict[_timing_field("stopDelayTime")] = selector.NumberSelector(_ns)
         if out.get("shadow_angle_timing"):
-            schema_dict[vol.Optional("angleOpenTime")] = selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-            )
-            schema_dict[vol.Optional("angleCloseTime")] = selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-            )
+            _ns = selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+            schema_dict[_timing_field("angleOpenTime")]  = selector.NumberSelector(_ns)
+            schema_dict[_timing_field("angleCloseTime")] = selector.NumberSelector(_ns)
 
         return self.async_show_form(
             step_id="entity_user_input",
@@ -1409,23 +1405,19 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 selector.SelectSelector(selector.SelectSelectorConfig(options=_COVER_PLACEMENT_OPTIONS))
             )
 
+        def _timing_field(key: str):
+            v = out.get(key)
+            return vol.Optional(key, default=v) if v is not None else vol.Optional(key)
+
         if out.get("shadow_position_timing"):
-            schema_dict[vol.Optional("openTime")] = selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-            )
-            schema_dict[vol.Optional("closeTime")] = selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-            )
-            schema_dict[vol.Optional("stopDelayTime")] = selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-            )
+            _ns = selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+            schema_dict[_timing_field("openTime")]      = selector.NumberSelector(_ns)
+            schema_dict[_timing_field("closeTime")]     = selector.NumberSelector(_ns)
+            schema_dict[_timing_field("stopDelayTime")] = selector.NumberSelector(_ns)
         if out.get("shadow_angle_timing"):
-            schema_dict[vol.Optional("angleOpenTime")] = selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-            )
-            schema_dict[vol.Optional("angleCloseTime")] = selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-            )
+            _ns = selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+            schema_dict[_timing_field("angleOpenTime")]  = selector.NumberSelector(_ns)
+            schema_dict[_timing_field("angleCloseTime")] = selector.NumberSelector(_ns)
 
         current = self._pending_choice_idx + 1
         total = len(self._pending_choice_entities)
