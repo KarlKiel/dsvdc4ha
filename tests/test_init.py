@@ -409,12 +409,12 @@ async def test_subentry_listener_noop_when_coordinator_is_none():
 
 @pytest.mark.asyncio
 async def test_backfill_missing_icons_fills_from_entity_state():
-    """backfill fills icon_data_b64 from entity state when it is missing."""
+    """backfill fills icon_data_b64 and icon_slug for old-format entries (no icon_slug key)."""
     from custom_components.dsvdc4ha import _backfill_missing_icons
 
     vdsd = _vdsd_with_binary_input("binary_sensor.mylight")
-    # Ensure no icon is set initially
     vdsd.pop("icon_data_b64", None)
+    vdsd.pop("icon_slug", None)  # old-format entry
 
     subentry = MagicMock()
     subentry.subentry_id = "sub1"
@@ -424,30 +424,31 @@ async def test_backfill_missing_icons_fills_from_entity_state():
     entry.subentries = {"sub1": subentry}
 
     state = MagicMock()
-    state.attributes = {"device_class": None}
+    state.attributes = {"device_class": "motion"}
 
     hass = MagicMock()
     hass.states.get.return_value = state
     hass.config_entries.async_update_subentry = MagicMock()
 
-    with patch(
-        "custom_components.dsvdc4ha.bundled_icon_b64_for",
-        return_value="FAKEBASE64",
-    ):
-        await _backfill_missing_icons(hass, entry)
+    with patch("custom_components.dsvdc4ha.MDI_DOMAIN_ICONS", {"binary_sensor.motion": "motion-sensor", "binary_sensor": "radiobox-blank"}):
+        with patch("custom_components.dsvdc4ha.bundled_icon_b64", return_value="FAKEBASE64"):
+            await _backfill_missing_icons(hass, entry)
 
     hass.config_entries.async_update_subentry.assert_called_once()
     call_kwargs = hass.config_entries.async_update_subentry.call_args
-    assert call_kwargs.kwargs["data"]["vdsds"][0]["icon_data_b64"] == "FAKEBASE64"
+    updated_vdsd = call_kwargs.kwargs["data"]["vdsds"][0]
+    assert updated_vdsd["icon_data_b64"] == "FAKEBASE64"
+    assert updated_vdsd["icon_slug"] == "motion-sensor"
 
 
 @pytest.mark.asyncio
-async def test_backfill_missing_icons_skips_if_icon_already_set():
-    """backfill does NOT call async_update_subentry when icon_data_b64 is already set."""
+async def test_backfill_missing_icons_skips_if_icon_slug_present():
+    """backfill does NOT call async_update_subentry when icon_slug key is present (new format)."""
     from custom_components.dsvdc4ha import _backfill_missing_icons
 
     vdsd = _vdsd_with_binary_input("binary_sensor.mylight")
     vdsd["icon_data_b64"] = "EXISTING"
+    vdsd["icon_slug"] = "radiobox-blank"  # new-format entry
 
     subentry = MagicMock()
     subentry.subentry_id = "sub1"
@@ -459,22 +460,19 @@ async def test_backfill_missing_icons_skips_if_icon_already_set():
     hass = MagicMock()
     hass.config_entries.async_update_subentry = MagicMock()
 
-    with patch(
-        "custom_components.dsvdc4ha.bundled_icon_b64_for",
-        return_value="FAKEBASE64",
-    ):
-        await _backfill_missing_icons(hass, entry)
+    await _backfill_missing_icons(hass, entry)
 
     hass.config_entries.async_update_subentry.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_backfill_missing_icons_skips_if_no_icon_available():
-    """backfill does NOT call async_update_subentry when bundled_icon_b64_for returns None."""
+async def test_backfill_stores_icon_slug_even_when_no_bundled_icon():
+    """backfill stores icon_slug without icon_data_b64 when no bundled PNG is available."""
     from custom_components.dsvdc4ha import _backfill_missing_icons
 
     vdsd = _vdsd_with_binary_input("binary_sensor.mylight")
     vdsd.pop("icon_data_b64", None)
+    vdsd.pop("icon_slug", None)
 
     subentry = MagicMock()
     subentry.subentry_id = "sub1"
@@ -490,13 +488,15 @@ async def test_backfill_missing_icons_skips_if_no_icon_available():
     hass.states.get.return_value = state
     hass.config_entries.async_update_subentry = MagicMock()
 
-    with patch(
-        "custom_components.dsvdc4ha.bundled_icon_b64_for",
-        return_value=None,
-    ):
-        await _backfill_missing_icons(hass, entry)
+    with patch("custom_components.dsvdc4ha.MDI_DOMAIN_ICONS", {"binary_sensor": "radiobox-blank"}):
+        with patch("custom_components.dsvdc4ha.bundled_icon_b64", return_value=None):
+            await _backfill_missing_icons(hass, entry)
 
-    hass.config_entries.async_update_subentry.assert_not_called()
+    hass.config_entries.async_update_subentry.assert_called_once()
+    call_kwargs = hass.config_entries.async_update_subentry.call_args
+    updated_vdsd = call_kwargs.kwargs["data"]["vdsds"][0]
+    assert updated_vdsd["icon_slug"] == "radiobox-blank"
+    assert "icon_data_b64" not in updated_vdsd or updated_vdsd.get("icon_data_b64") is None
 
 
 @pytest.mark.asyncio
@@ -506,6 +506,7 @@ async def test_backfill_missing_icons_skips_if_no_entity_state():
 
     vdsd = _vdsd_with_binary_input("binary_sensor.mylight")
     vdsd.pop("icon_data_b64", None)
+    vdsd.pop("icon_slug", None)
 
     subentry = MagicMock()
     subentry.subentry_id = "sub1"
@@ -518,11 +519,7 @@ async def test_backfill_missing_icons_skips_if_no_entity_state():
     hass.states.get.return_value = None
     hass.config_entries.async_update_subentry = MagicMock()
 
-    with patch(
-        "custom_components.dsvdc4ha.bundled_icon_b64_for",
-        return_value="FAKEBASE64",
-    ):
-        await _backfill_missing_icons(hass, entry)
+    await _backfill_missing_icons(hass, entry)
 
     hass.config_entries.async_update_subentry.assert_not_called()
 

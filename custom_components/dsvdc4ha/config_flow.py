@@ -1177,6 +1177,8 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         vdsd["icon_name"] = icon_name
         if icon_b64:
             vdsd["icon_data_b64"] = icon_b64
+        _state_for_slug = self.hass.states.get(entity_id)
+        vdsd["icon_slug"] = _mdi_icon_name_for(_state_for_slug, entity_id) if _state_for_slug else None
 
         # Store result and forward to channel mapping or model_features
         self._current_vdsd = vdsd
@@ -1463,6 +1465,11 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                     plan.resolved_vdsd["icon_name"] = icon_name
                     if icon_b64:
                         plan.resolved_vdsd["icon_data_b64"] = icon_b64
+                    _state_for_slug = self.hass.states.get(primary_e.entity_id)
+                    plan.resolved_vdsd["icon_slug"] = (
+                        _mdi_icon_name_for(_state_for_slug, primary_e.entity_id)
+                        if _state_for_slug else None
+                    )
             self._pending_vdsd_idx = 0
             return await self.async_step_device_model_features()
 

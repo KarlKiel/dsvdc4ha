@@ -12,7 +12,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
-from ._icon_utils import bundled_icon_b64_for
+from ._icon_utils import MDI_DOMAIN_ICONS, bundled_icon_b64
 from .const import DOMAIN, PLATFORMS
 from .coordinator import HubCoordinator
 
@@ -78,24 +78,34 @@ def _build_entity_index(entry: ConfigEntry) -> dict[str, list[tuple[str, int]]]:
 
 
 async def _backfill_missing_icons(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Backfill icon_data_b64 for vdSDs that have no icon stored."""
+    """Backfill/upgrade icon_data_b64 for vdSDs missing an icon_slug (old-format entries).
+
+    New-format entries store icon_slug alongside icon_data_b64 so this backfill
+    skips them.  Old-format entries (no icon_slug key) are upgraded to the best
+    device-class-specific bundled icon available, which covers all supported
+    device classes now that the bundled PNG set is complete.
+    """
     for subentry in entry.subentries.values():
         vdsds = list(subentry.data.get("vdsds", []))
         updated = False
         for i, vdsd in enumerate(vdsds):
-            if vdsd.get("icon_data_b64"):
-                continue
+            if "icon_slug" in vdsd:
+                continue  # Already processed by new-format config flow
             for eid in _entity_ids_in_vdsd(vdsd):
                 state = hass.states.get(eid)
                 if state is None:
                     continue
                 domain = eid.split(".")[0]
                 device_class = state.attributes.get("device_class")
-                b64 = bundled_icon_b64_for(domain, device_class)
+                slug = MDI_DOMAIN_ICONS.get(f"{domain}.{device_class}") if device_class else None
+                slug = slug or MDI_DOMAIN_ICONS.get(domain)
+                b64 = bundled_icon_b64(slug) if slug else None
                 if b64:
-                    vdsds[i] = {**vdsd, "icon_data_b64": b64}
-                    updated = True
-                    break
+                    vdsds[i] = {**vdsd, "icon_data_b64": b64, "icon_slug": slug}
+                else:
+                    vdsds[i] = {**vdsd, "icon_slug": slug}
+                updated = True
+                break
         if updated:
             hass.config_entries.async_update_subentry(
                 entry, subentry, data={**subentry.data, "vdsds": vdsds}
