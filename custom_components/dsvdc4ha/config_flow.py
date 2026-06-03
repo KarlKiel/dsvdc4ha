@@ -1977,19 +1977,26 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                     "channelType": int(ct),
                 })
             return await self.async_step_channel_mapping()
-        schema = vol.Schema({
-            vol.Optional("onThreshold", default=50): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=100, mode="box")
-            ),
-            vol.Optional("minBrightness"): selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, max=100, mode="box")
-            ),
+
+        fn = self._current_output.get("function", 0) if self._current_output else 0
+        is_positional = fn == OutputFunction.POSITIONAL.value
+        _ns_pct = selector.NumberSelectorConfig(min=0, max=100, mode="box")
+        _ns_s   = selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+        schema_dict: dict = {
+            vol.Optional("onThreshold", default=50): selector.NumberSelector(_ns_pct),
+            vol.Optional("minBrightness"): selector.NumberSelector(_ns_pct),
             vol.Optional("maxPower"): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, mode="box")
             ),
             vol.Optional("activeCoolingMode", default=False): selector.BooleanSelector(),
-        })
-        return self.async_show_form(step_id="output_optional", data_schema=schema)
+        }
+        if is_positional:
+            schema_dict[vol.Optional("openTime")]      = selector.NumberSelector(_ns_s)
+            schema_dict[vol.Optional("closeTime")]     = selector.NumberSelector(_ns_s)
+            schema_dict[vol.Optional("stopDelayTime")] = selector.NumberSelector(_ns_s)
+            schema_dict[vol.Optional("angleOpenTime")] = selector.NumberSelector(_ns_s)
+            schema_dict[vol.Optional("angleCloseTime")]= selector.NumberSelector(_ns_s)
+        return self.async_show_form(step_id="output_optional", data_schema=vol.Schema(schema_dict))
 
     async def async_step_channel(self, user_input: dict | None = None):
         """Collect channel configuration for manual-channel output functions."""
