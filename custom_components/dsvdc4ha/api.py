@@ -27,6 +27,8 @@ from pydsvdcapi.enums import (
     ButtonType,
     ColorClass,
     ColorGroup,
+    HeatingSystemCapability,
+    HeatingSystemType,
     OutputChannelType,
     OutputFunction,
     OutputMode,
@@ -126,6 +128,21 @@ def _add_output(vdsd: Vdsd, data: dict[str, Any]) -> None:
         on_threshold=data.get("onThreshold"),
         min_brightness=data.get("minBrightness"),
         max_power=data.get("maxPower"),
+        active_cooling_mode=data.get("activeCoolingMode"),
+        dim_time_up=data.get("dimTimeUp"),
+        dim_time_down=data.get("dimTimeDown"),
+        dim_time_up_alt1=data.get("dimTimeUpAlt1"),
+        dim_time_down_alt1=data.get("dimTimeDownAlt1"),
+        dim_time_up_alt2=data.get("dimTimeUpAlt2"),
+        dim_time_down_alt2=data.get("dimTimeDownAlt2"),
+        heating_system_capability=(
+            HeatingSystemCapability(int(data["heatingSystemCapability"]))
+            if data.get("heatingSystemCapability") is not None else None
+        ),
+        heating_system_type=(
+            HeatingSystemType(int(data["heatingSystemType"]))
+            if data.get("heatingSystemType") is not None else None
+        ),
         open_time=data.get("openTime"),
         close_time=data.get("closeTime"),
         angle_open_time=data.get("angleOpenTime"),
@@ -147,6 +164,11 @@ def _add_output(vdsd: Vdsd, data: dict[str, Any]) -> None:
             max_value=None if in_spec else ch_data.get("max"),
             resolution=None if in_spec else ch_data.get("resolution"),
         )
+        ch = output.channels[ds_index]
+        if uc := ch_data.get("uplinkConverter"):
+            ch.set_uplink_converter(uc)
+        if dc := ch_data.get("downlinkConverter"):
+            ch.set_downlink_converter(dc)
     vdsd.set_output(output)
 
 
