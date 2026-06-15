@@ -239,6 +239,40 @@ def run_audit(xlsx_path: str = "documents/ha_vdsd_mapping.xlsx") -> dict:
                     if actual is not None and abs(float(actual) - exp) > 1e-9:
                         _dis(domain, dc, "output", timing_field, exp, actual)
 
+            # active_cooling_mode
+            raw_acm = get("output.active_cooling_mode")
+            if raw_acm is not None:
+                exp_acm = str(raw_acm).strip().lower() == "yes"
+                if bool(o.get("active_cooling_mode")) != exp_acm:
+                    _dis(domain, dc, "output", "active_cooling_mode", exp_acm, o.get("active_cooling_mode"))
+            # heating_system_capability
+            chk_val("output", "heating_system_capability", "HeatingSystemCapability",
+                    "output.heating_system_capability.VALUE",
+                    o.get("heating_system_capability") if o.get("heating_system_capability") is not None else 0)
+            # heating_system_type
+            chk_val("output", "heating_system_type", "HeatingSystemType",
+                    "output.heating_system_type.VALUE",
+                    o.get("heating_system_type") if o.get("heating_system_type") is not None else 0)
+            # dimmer timing (dS 8-bit format int; snake_case keys in entity_mapping)
+            _DIM_FIELDS = [
+                ("output.dimTimeUp",       "dim_time_up"),
+                ("output.dimTimeDown",     "dim_time_down"),
+                ("output.dimTimeUpAlt1",   "dim_time_up_alt1"),
+                ("output.dimTimeDownAlt1", "dim_time_down_alt1"),
+                ("output.dimTimeUpAlt2",   "dim_time_up_alt2"),
+                ("output.dimTimeDownAlt2", "dim_time_down_alt2"),
+            ]
+            for col, key in _DIM_FIELDS:
+                raw = get(col)
+                if raw is not None and str(raw).strip() not in ("-", ""):
+                    try:
+                        exp = int(raw)
+                    except (ValueError, TypeError):
+                        continue
+                    actual = o.get(key)
+                    if actual is not None and actual != exp:
+                        _dis(domain, dc, "output", key, exp, actual)
+
         # button
         if b := entry.get("button"):
             chk_val("button", "button_type", "ButtonType",
