@@ -1354,13 +1354,14 @@ CHANNEL_TYPE_LABELS: dict[int, str] = {
     17: "Cooling Capacity",
     18: "Audio Volume",
     19: "Power State",
-    20: "Fan Speed",
-    21: "Ventilation AirFlowIntensity",
-    22: "Ventilation AirFlowDirection",
+    20: "Air Louver Auto",
+    21: "Air Flow Auto",
+    22: "Water Temperature",
     23: "Water Flow Rate",
     24: "Power Level",
     25: "Video Station",
     26: "Video Input Source",
+    192: "FCU Operation Mode",
 }
 
 
