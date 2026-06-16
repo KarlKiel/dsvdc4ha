@@ -27,7 +27,7 @@ async def test_api_start_creates_host_and_vdc():
         MockVdc.assert_called_once()
         mock_vdc_instance = MockVdc.return_value
         mock_host_instance.add_vdc.assert_called_once_with(mock_vdc_instance)
-        mock_host_instance.start.assert_awaited_once_with(announce=True)
+        mock_host_instance.start.assert_awaited_once_with(announce=True, on_disconnect=None)
 
 
 def test_vdc_dsuid_incorporates_host_mac():
@@ -122,7 +122,7 @@ async def test_api_stop_deregisters_shared_zeroconf():
         await api.start(zeroconf=mock_zeroconf)
         await api.stop()
 
-        mock_host_instance.start.assert_awaited_once_with(announce=False)
+        mock_host_instance.start.assert_awaited_once_with(announce=False, on_disconnect=None)
         mock_zeroconf.async_register_service.assert_awaited_once()
         # async_unregister_service is called twice: once as pre-unregister during
         # _register_zeroconf and once in _deregister_zeroconf during stop()
@@ -508,5 +508,78 @@ async def test_vanish_device_removes_from_ever_announced():
     await api.vanish_device("sub1")
 
     assert "sub1" not in api._ever_announced
+
+
+def test_add_output_passes_heating_system_params():
+    """heating_system_capability and heating_system_type are forwarded as enum instances."""
+    from pydsvdcapi.enums import HeatingSystemCapability, HeatingSystemType
+    mock_vdsd = MagicMock()
+    output_data = {
+        "name": "test-valve",
+        "function": 0,
+        "defaultGroup": 3,
+        "activeGroup": 3,
+        "groups": [3],
+        "channels": [],
+        "heatingSystemCapability": 3,  # HEATING_AND_COOLING
+        "heatingSystemType": 1,        # FLOOR_HEATING
+        "activeCoolingMode": True,
+    }
+    _add_output(mock_vdsd, output_data)
+    actual_output = mock_vdsd.set_output.call_args[0][0]
+    assert actual_output.heating_system_capability == HeatingSystemCapability.HEATING_AND_COOLING
+    assert actual_output.heating_system_type == HeatingSystemType.FLOOR_HEATING
+    assert actual_output.active_cooling_mode is True
+
+
+def test_add_output_passes_dim_times():
+    """dim_time_up and dim_time_down are forwarded as integers (dS 8-bit format)."""
+    mock_vdsd = MagicMock()
+    output_data = {
+        "name": "test-dimmer",
+        "function": 1,   # DIMMER
+        "defaultGroup": 1,
+        "activeGroup": 1,
+        "groups": [1],
+        "channels": [],
+        "dimTimeUp": 40,
+        "dimTimeDown": 60,
+        "dimTimeUpAlt1": 80,
+        "dimTimeDownAlt1": 100,
+    }
+    _add_output(mock_vdsd, output_data)
+    actual_output = mock_vdsd.set_output.call_args[0][0]
+    assert actual_output.dim_time_up == 40
+    assert actual_output.dim_time_down == 60
+    assert actual_output.dim_time_up_alt1 == 80
+    assert actual_output.dim_time_down_alt1 == 100
+    assert actual_output.dim_time_up_alt2 is None
+    assert actual_output.dim_time_down_alt2 is None
+
+
+def test_add_output_wires_channel_converters():
+    """uplinkConverter and downlinkConverter strings are wired to the channel."""
+    mock_vdsd = MagicMock()
+    output_data = {
+        "name": "test-dimmer-conv",
+        "function": 1,   # DIMMER — auto-creates brightness channel at dsIndex 0
+        "defaultGroup": 1,
+        "activeGroup": 1,
+        "groups": [1],
+        "channels": [
+            {
+                "dsIndex": 0,
+                "channelType": 1,  # BRIGHTNESS
+                "uplinkConverter": "value = value * 100.0 / 255.0",
+                "downlinkConverter": "value = int(round(value * 255.0 / 100.0))",
+            }
+        ],
+    }
+    _add_output(mock_vdsd, output_data)
+    actual_output = mock_vdsd.set_output.call_args[0][0]
+    ch = actual_output.channels[0]
+    # Verify the converters were applied — check uplink_converter_code and downlink_converter_code properties
+    assert ch.uplink_converter_code == "value = value * 100.0 / 255.0"
+    assert ch.downlink_converter_code == "value = int(round(value * 255.0 / 100.0))"
 
 

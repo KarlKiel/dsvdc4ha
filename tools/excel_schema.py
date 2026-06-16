@@ -16,6 +16,7 @@ from pydsvdcapi.enums import (
     BinaryInputGroup, BinaryInputType, BinaryInputUsage,
     ButtonFunctionJoker, ButtonGroup, ButtonMode, ButtonType,
     ColorClass, ColorGroup,
+    HeatingSystemCapability, HeatingSystemType,
     OutputChannelType, OutputFunction, OutputMode, OutputUsage,
     SensorGroup, SensorType, SensorUsage,
 )
@@ -90,6 +91,8 @@ ENUM_OPTIONS: dict[str, list[str]] = {
     "ButtonGroup":       ["-"] + [m.name for m in ButtonGroup],
     "ButtonFunctionJoker": ["-"] + [m.name for m in ButtonFunctionJoker],
     "ButtonMode":        ["-"] + [m.name for m in ButtonMode],
+    "HeatingSystemCapability": ["-"] + [m.name for m in HeatingSystemCapability],
+    "HeatingSystemType":       ["-"] + [m.name for m in HeatingSystemType],
 }
 
 ENUM_CLASS: dict[str, Any] = {
@@ -109,6 +112,8 @@ ENUM_CLASS: dict[str, Any] = {
     "ButtonGroup":       ButtonGroup,
     "ButtonFunctionJoker": ButtonFunctionJoker,
     "ButtonMode":        ButtonMode,
+    "HeatingSystemCapability": HeatingSystemCapability,
+    "HeatingSystemType":       HeatingSystemType,
 }
 
 # ---------------------------------------------------------------------------
@@ -208,6 +213,24 @@ def _build_columns() -> list[tuple[str, str | None, Any]]:
         ("output.angleOpenTime", None, lambda e: _sub(e, "output").get("angleOpenTime")),
         ("output.angleCloseTime",None, lambda e: _sub(e, "output").get("angleCloseTime")),
         ("output.stopDelayTime", None, lambda e: _sub(e, "output").get("stopDelayTime")),
+    ]
+    # Output — active cooling / heating system (FCU / heat pump / BLUE group devices)
+    cols += [
+        ("output.active_cooling_mode", "YesNo",
+         lambda e: "yes" if _sub(e, "output").get("active_cooling_mode") else "no"),
+        ("output.heating_system_capability.VALUE", "HeatingSystemCapability",
+         lambda e: enum_name(HeatingSystemCapability, _sub(e, "output").get("heating_system_capability"))),
+        ("output.heating_system_type.VALUE", "HeatingSystemType",
+         lambda e: enum_name(HeatingSystemType, _sub(e, "output").get("heating_system_type"))),
+    ]
+    # Output — dimmer timing (dS 8-bit format int; None = use dSS defaults)
+    cols += [
+        ("output.dimTimeUp",         None, lambda e: _sub(e, "output").get("dim_time_up")),
+        ("output.dimTimeDown",       None, lambda e: _sub(e, "output").get("dim_time_down")),
+        ("output.dimTimeUpAlt1",     None, lambda e: _sub(e, "output").get("dim_time_up_alt1")),
+        ("output.dimTimeDownAlt1",   None, lambda e: _sub(e, "output").get("dim_time_down_alt1")),
+        ("output.dimTimeUpAlt2",     None, lambda e: _sub(e, "output").get("dim_time_up_alt2")),
+        ("output.dimTimeDownAlt2",   None, lambda e: _sub(e, "output").get("dim_time_down_alt2")),
     ]
     # button
     cols += [

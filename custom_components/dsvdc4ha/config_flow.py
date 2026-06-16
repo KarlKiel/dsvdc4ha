@@ -35,6 +35,8 @@ from .api import (
     ColorClass,
     ColorGroup,
     FUNCTION_CHANNELS,
+    HeatingSystemCapability,
+    HeatingSystemType,
     OutputChannelType,
     OutputFunction,
     OutputMode,
@@ -1975,6 +1977,11 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 for k, v in user_input.items():
                     if v is not None and v != "":
                         self._current_output[k] = v
+            # Convert dim_time NumberSelector floats to int (dS 8-bit format)
+            for _k in ("dimTimeUp", "dimTimeDown", "dimTimeUpAlt1", "dimTimeDownAlt1",
+                       "dimTimeUpAlt2", "dimTimeDownAlt2"):
+                if _k in self._current_output:
+                    self._current_output[_k] = int(self._current_output[_k])
             fn = self._current_output.get("function", 0) if self._current_output else 0
             if fn in _MANUAL_CHANNEL_FUNCTIONS:
                 return await self.async_step_channel()
@@ -2003,6 +2010,34 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             schema_dict[vol.Optional("stopDelayTime")] = selector.NumberSelector(_ns_s)
             schema_dict[vol.Optional("angleOpenTime")] = selector.NumberSelector(_ns_s)
             schema_dict[vol.Optional("angleCloseTime")]= selector.NumberSelector(_ns_s)
+        is_dimmer = fn in (
+            OutputFunction.DIMMER.value,
+            OutputFunction.DIMMER_COLOR_TEMP.value,
+            OutputFunction.FULL_COLOR_DIMMER.value,
+        )
+        if is_dimmer:
+            # dS 8-bit format int (0-255), NOT milliseconds
+            _ns_ds8 = selector.NumberSelectorConfig(min=0, max=255, step=1, mode="box")
+            schema_dict[vol.Optional("dimTimeUp")]        = selector.NumberSelector(_ns_ds8)
+            schema_dict[vol.Optional("dimTimeDown")]      = selector.NumberSelector(_ns_ds8)
+            schema_dict[vol.Optional("dimTimeUpAlt1")]    = selector.NumberSelector(_ns_ds8)
+            schema_dict[vol.Optional("dimTimeDownAlt1")]  = selector.NumberSelector(_ns_ds8)
+            schema_dict[vol.Optional("dimTimeUpAlt2")]    = selector.NumberSelector(_ns_ds8)
+            schema_dict[vol.Optional("dimTimeDownAlt2")]  = selector.NumberSelector(_ns_ds8)
+        schema_dict[vol.Optional("heatingSystemCapability")] = selector.SelectSelector(
+            selector.SelectSelectorConfig(options=[
+                selector.SelectOptionDict(value="", label="(not specified)"),
+                *[selector.SelectOptionDict(value=str(m.value), label=m.name)
+                  for m in HeatingSystemCapability],
+            ])
+        )
+        schema_dict[vol.Optional("heatingSystemType")] = selector.SelectSelector(
+            selector.SelectSelectorConfig(options=[
+                selector.SelectOptionDict(value="", label="(not specified)"),
+                *[selector.SelectOptionDict(value=str(m.value), label=m.name)
+                  for m in HeatingSystemType],
+            ])
+        )
         return self.async_show_form(step_id="output_optional", data_schema=vol.Schema(schema_dict))
 
     async def async_step_channel(self, user_input: dict | None = None):

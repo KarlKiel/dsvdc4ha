@@ -27,6 +27,8 @@ from pydsvdcapi.enums import (
     ButtonType,
     ColorClass,
     ColorGroup,
+    HeatingSystemCapability,
+    HeatingSystemType,
     OutputChannelType,
     OutputFunction,
     OutputMode,
@@ -126,6 +128,21 @@ def _add_output(vdsd: Vdsd, data: dict[str, Any]) -> None:
         on_threshold=data.get("onThreshold"),
         min_brightness=data.get("minBrightness"),
         max_power=data.get("maxPower"),
+        active_cooling_mode=data.get("activeCoolingMode"),
+        dim_time_up=data.get("dimTimeUp"),
+        dim_time_down=data.get("dimTimeDown"),
+        dim_time_up_alt1=data.get("dimTimeUpAlt1"),
+        dim_time_down_alt1=data.get("dimTimeDownAlt1"),
+        dim_time_up_alt2=data.get("dimTimeUpAlt2"),
+        dim_time_down_alt2=data.get("dimTimeDownAlt2"),
+        heating_system_capability=(
+            HeatingSystemCapability(int(data["heatingSystemCapability"]))
+            if data.get("heatingSystemCapability") is not None else None
+        ),
+        heating_system_type=(
+            HeatingSystemType(int(data["heatingSystemType"]))
+            if data.get("heatingSystemType") is not None else None
+        ),
         open_time=data.get("openTime"),
         close_time=data.get("closeTime"),
         angle_open_time=data.get("angleOpenTime"),
@@ -147,6 +164,11 @@ def _add_output(vdsd: Vdsd, data: dict[str, Any]) -> None:
             max_value=None if in_spec else ch_data.get("max"),
             resolution=None if in_spec else ch_data.get("resolution"),
         )
+        ch = output.channels[ds_index]
+        if uc := ch_data.get("uplinkConverter"):
+            ch.set_uplink_converter(uc)
+        if dc := ch_data.get("downlinkConverter"):
+            ch.set_downlink_converter(dc)
     vdsd.set_output(output)
 
 
@@ -208,6 +230,7 @@ class DsvdcApi:
         self,
         zeroconf: AsyncZeroconf | None = None,
         on_session_ready: Any = None,
+        on_disconnect: Any = None,
     ) -> None:
         """Create VdcHost + Vdc and start serving.
 
@@ -219,6 +242,9 @@ class DsvdcApi:
         hello handshake with the DSS completes and all VDCs have been announced.
         It is installed before host.start() to avoid any race with an early DSS
         connection.
+
+        on_disconnect is an optional async callable with signature
+        ``(host, reason)`` invoked when the dSM connection is lost unexpectedly.
         """
         if self._host is not None:
             raise RuntimeError("DsvdcApi.start() called while already running")
@@ -254,10 +280,10 @@ class DsvdcApi:
 
         host._on_session_ready = _hooked
         if zeroconf is not None:
-            await host.start(announce=False)
+            await host.start(announce=False, on_disconnect=on_disconnect)
             await self._register_zeroconf(host, zeroconf)
         else:
-            await host.start(announce=True)
+            await host.start(announce=True, on_disconnect=on_disconnect)
         _LOGGER.debug("VdcHost started on port %d", host._port)
 
     def _purge_corrupted_state_files(self) -> None:

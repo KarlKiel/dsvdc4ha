@@ -1,17 +1,19 @@
-"""Binary sensor platform for dsvdc4ha — binary input mirrors."""
+"""Binary sensor platform for dsvdc4ha — binary input mirrors and hub connectivity."""
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, Event, callback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .base_entity import DsvdcBaseEntity
-from .const import DOMAIN
+from .const import DOMAIN, VDC_HOST_MODEL, VDC_HOST_NAME, VDC_HOST_VENDOR_NAME
+from .coordinator import HubCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -21,6 +23,8 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
+    coordinator: HubCoordinator = hass.data[DOMAIN]["hub"]
+    async_add_entities([HubConnectivitySensor(entry, coordinator)])
     hass.data.setdefault(DOMAIN, {})["_add_binary_entities"] = async_add_entities
     for subentry in entry.subentries.values():
         _add_entities_for_subentry(subentry, async_add_entities)
@@ -86,3 +90,35 @@ class BinaryInputEntity(DsvdcBaseEntity, BinarySensorEntity):
         self._attr_is_on = value
         if self.hass:
             self.async_write_ha_state()
+
+
+class HubConnectivitySensor(BinarySensorEntity):
+    """Binary sensor reporting whether the dSM/dSS is currently connected."""
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
+    _attr_name = "dSS Connection"
+
+    def __init__(self, entry: ConfigEntry, coordinator: HubCoordinator) -> None:
+        self._coordinator = coordinator
+        self._attr_unique_id = f"{entry.entry_id}_dss_connection"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            name=VDC_HOST_NAME,
+            model=VDC_HOST_MODEL,
+            manufacturer=VDC_HOST_VENDOR_NAME,
+        )
+
+    @property
+    def is_on(self) -> bool:
+        return self._coordinator.is_connected
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(
+            self._coordinator.subscribe_connection_status(self._handle_connection_change)
+        )
+
+    @callback
+    def _handle_connection_change(self, connected: bool) -> None:
+        self.async_write_ha_state()
