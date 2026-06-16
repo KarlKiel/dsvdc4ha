@@ -33,7 +33,11 @@ async def test_coordinator_start_delegates_to_api(mock_hass, mock_api):
         from custom_components.dsvdc4ha.coordinator import HubCoordinator
         coord = HubCoordinator(mock_hass, port=9090)
         await coord.async_start()
-        mock_api.start.assert_awaited_once_with(zeroconf=mock_zeroconf, on_session_ready=None)
+        mock_api.start.assert_awaited_once()
+        call_kwargs = mock_api.start.call_args.kwargs
+        assert call_kwargs["zeroconf"] is mock_zeroconf
+        assert callable(call_kwargs["on_session_ready"])
+        assert callable(call_kwargs["on_disconnect"])
 
 
 @pytest.mark.asyncio
@@ -92,4 +96,8 @@ async def test_async_setup_entry_hub_starts_coordinator(mock_api):
 
         assert result is True
         assert "hub" in mock_hass.data.get("dsvdc4ha", {})
-        mock_api.start.assert_awaited_once_with(zeroconf=mock_zeroconf, on_session_ready=None)
+        mock_api.start.assert_awaited_once()
+        call_kwargs = mock_api.start.call_args.kwargs
+        assert call_kwargs["zeroconf"] is mock_zeroconf
+        assert callable(call_kwargs["on_session_ready"])
+        assert callable(call_kwargs["on_disconnect"])

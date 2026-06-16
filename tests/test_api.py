@@ -27,7 +27,7 @@ async def test_api_start_creates_host_and_vdc():
         MockVdc.assert_called_once()
         mock_vdc_instance = MockVdc.return_value
         mock_host_instance.add_vdc.assert_called_once_with(mock_vdc_instance)
-        mock_host_instance.start.assert_awaited_once_with(announce=True)
+        mock_host_instance.start.assert_awaited_once_with(announce=True, on_disconnect=None)
 
 
 def test_vdc_dsuid_incorporates_host_mac():
@@ -122,7 +122,7 @@ async def test_api_stop_deregisters_shared_zeroconf():
         await api.start(zeroconf=mock_zeroconf)
         await api.stop()
 
-        mock_host_instance.start.assert_awaited_once_with(announce=False)
+        mock_host_instance.start.assert_awaited_once_with(announce=False, on_disconnect=None)
         mock_zeroconf.async_register_service.assert_awaited_once()
         # async_unregister_service is called twice: once as pre-unregister during
         # _register_zeroconf and once in _deregister_zeroconf during stop()

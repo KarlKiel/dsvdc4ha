@@ -230,6 +230,7 @@ class DsvdcApi:
         self,
         zeroconf: AsyncZeroconf | None = None,
         on_session_ready: Any = None,
+        on_disconnect: Any = None,
     ) -> None:
         """Create VdcHost + Vdc and start serving.
 
@@ -241,6 +242,9 @@ class DsvdcApi:
         hello handshake with the DSS completes and all VDCs have been announced.
         It is installed before host.start() to avoid any race with an early DSS
         connection.
+
+        on_disconnect is an optional async callable with signature
+        ``(host, reason)`` invoked when the dSM connection is lost unexpectedly.
         """
         if self._host is not None:
             raise RuntimeError("DsvdcApi.start() called while already running")
@@ -276,10 +280,10 @@ class DsvdcApi:
 
         host._on_session_ready = _hooked
         if zeroconf is not None:
-            await host.start(announce=False)
+            await host.start(announce=False, on_disconnect=on_disconnect)
             await self._register_zeroconf(host, zeroconf)
         else:
-            await host.start(announce=True)
+            await host.start(announce=True, on_disconnect=on_disconnect)
         _LOGGER.debug("VdcHost started on port %d", host._port)
 
     def _purge_corrupted_state_files(self) -> None:
