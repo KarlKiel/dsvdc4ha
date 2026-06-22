@@ -106,3 +106,32 @@ async def test_async_setup_entry_hub_starts_coordinator(mock_api):
 def test_hub_device_name_constant():
     from custom_components.dsvdc4ha.const import VDC_HOST_NAME
     assert VDC_HOST_NAME == "vdc @ Home Assistant"
+
+
+@pytest.mark.asyncio
+async def test_coordinator_schedules_reconnect_on_disconnect(mock_hass, mock_api):
+    """On disconnect, coordinator marks itself disconnected and schedules reconnect."""
+    mock_zeroconf = MagicMock()
+    mock_integration = MagicMock()
+    mock_integration.version = "1.2.3"
+
+    with (
+        patch("custom_components.dsvdc4ha.coordinator.DsvdcApi", return_value=mock_api),
+        patch("custom_components.dsvdc4ha.coordinator.async_get_instance", new=AsyncMock(return_value=mock_zeroconf)),
+        patch("custom_components.dsvdc4ha.coordinator.async_get_integration", new=AsyncMock(return_value=mock_integration)),
+    ):
+        from custom_components.dsvdc4ha.coordinator import HubCoordinator
+        coord = HubCoordinator(mock_hass, port=9090)
+        reconnect_calls: list[str] = []
+
+        async def _fake_reconnect():
+            reconnect_calls.append("reconnect")
+
+        coord._do_reconnect = _fake_reconnect
+        await coord.async_start()
+
+        disconnect_cb = mock_api.start.call_args.kwargs["on_disconnect"]
+        await disconnect_cb(None, "test-reason")
+
+        assert coord.is_connected is False
+        assert mock_hass.async_create_task.called

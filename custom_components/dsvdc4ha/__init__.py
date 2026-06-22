@@ -137,6 +137,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await coordinator.async_start()
         except Exception as exc:
             raise ConfigEntryNotReady(f"Cannot start vDC host: {exc}") from exc
+    coordinator._entry = entry
     hass.data[DOMAIN]["hub"] = coordinator
 
     # Set up sensor / binary_sensor platforms — they iterate entry.subentries
