@@ -68,7 +68,7 @@ def _add_entities_for_subentry(
 class ButtonSensorEntity(DsvdcBaseEntity, SensorEntity):
     """Sensor showing the last click type or action ID forwarded to dS."""
 
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_visible_default = False
 
     def __init__(self, subentry_id: str, vdsd_index: int, vdsd_data: dict, btn_data: dict) -> None:
         super().__init__(subentry_id, vdsd_index, vdsd_data, f"button_{btn_data['dsIndex']}")
@@ -127,7 +127,7 @@ class ButtonSensorEntity(DsvdcBaseEntity, SensorEntity):
 class SensorInputEntity(DsvdcBaseEntity, SensorEntity):
     """Sensor mirroring a dS sensor input value."""
 
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_visible_default = False
 
     def __init__(self, subentry_id: str, vdsd_index: int, vdsd_data: dict, si_data: dict) -> None:
         super().__init__(subentry_id, vdsd_index, vdsd_data, f"sensor_{si_data['dsIndex']}")
@@ -183,7 +183,7 @@ class SensorInputEntity(DsvdcBaseEntity, SensorEntity):
 class OutputChannelEntity(DsvdcBaseEntity, SensorEntity):
     """Sensor mirroring the current value of an output channel."""
 
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_visible_default = False
 
     def __init__(
         self,
@@ -249,7 +249,7 @@ class OutputChannelEntity(DsvdcBaseEntity, SensorEntity):
 class OutputDescriptionSensorEntity(DsvdcBaseEntity, SensorEntity):
     """Read-only diagnostic sensor for an outputDescription property."""
 
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_visible_default = False
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_should_poll = False
 
@@ -274,7 +274,7 @@ class OutputDescriptionSensorEntity(DsvdcBaseEntity, SensorEntity):
 class OutputStateSensorEntity(DsvdcBaseEntity, SensorEntity):
     """Sensor for an outputState property (localPriority, transitionTime, error)."""
 
-    _attr_entity_registry_enabled_default = False
+    _attr_entity_registry_visible_default = False
     _attr_should_poll = False
 
     def __init__(
