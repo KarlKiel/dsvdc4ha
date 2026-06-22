@@ -751,3 +751,35 @@ async def test_seed_initial_values_applies_unit_conversion():
     await seed_initial_values(hass, api, "entry1", [{"sensors": [si_data]}])
 
     mock_si.update_value.assert_awaited_once_with(value=pytest.approx(0.0), session=None)
+
+
+# ── POWER_STATE apply_expr threshold tests ───────────────────────────────────
+
+from custom_components.dsvdc4ha.listeners import _eval_apply  # noqa: E402
+
+
+def test_power_state_apply_expr_on_when_value_3():
+    """apply_expr for POWER_STATE triggers turn_on when dSM sends max enum value (3)."""
+    state = MagicMock()
+    state.attributes = {}
+    expr = "{'domain':'switch','service':'turn_on' if value>0 else 'turn_off','service_data':{}}"
+    result = _eval_apply(expr, 3.0, state)
+    assert result["service"] == "turn_on"
+
+
+def test_power_state_apply_expr_on_when_value_1():
+    """apply_expr for POWER_STATE triggers turn_on for enum value 1 (on)."""
+    state = MagicMock()
+    state.attributes = {}
+    expr = "{'domain':'switch','service':'turn_on' if value>0 else 'turn_off','service_data':{}}"
+    result = _eval_apply(expr, 1.0, state)
+    assert result["service"] == "turn_on"
+
+
+def test_power_state_apply_expr_off_when_value_zero():
+    """apply_expr for POWER_STATE triggers turn_off for value 0."""
+    state = MagicMock()
+    state.attributes = {}
+    expr = "{'domain':'switch','service':'turn_on' if value>0 else 'turn_off','service_data':{}}"
+    result = _eval_apply(expr, 0.0, state)
+    assert result["service"] == "turn_off"

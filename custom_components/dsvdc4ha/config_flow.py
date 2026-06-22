@@ -1994,16 +1994,19 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
         fn = self._current_output.get("function", 0) if self._current_output else 0
         is_positional = fn == OutputFunction.POSITIONAL.value
+        is_on_off = fn == OutputFunction.ON_OFF.value
         _ns_pct = selector.NumberSelectorConfig(min=0, max=100, mode="box")
         _ns_s   = selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-        schema_dict: dict = {
-            vol.Optional("onThreshold", default=50): selector.NumberSelector(_ns_pct),
+        schema_dict: dict = {}
+        if is_on_off:
+            schema_dict[vol.Optional("onThreshold", default=50)] = selector.NumberSelector(_ns_pct)
+        schema_dict.update({
             vol.Optional("minBrightness"): selector.NumberSelector(_ns_pct),
             vol.Optional("maxPower"): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, mode="box")
             ),
             vol.Optional("activeCoolingMode", default=False): selector.BooleanSelector(),
-        }
+        })
         if is_positional:
             schema_dict[vol.Optional("openTime")]      = selector.NumberSelector(_ns_s)
             schema_dict[vol.Optional("closeTime")]     = selector.NumberSelector(_ns_s)
