@@ -478,6 +478,17 @@ _OPTIONAL_FEATURE_LABELS: dict[str, str] = {
 }
 
 
+def _select(options: list, *, multiple: bool = False) -> selector.SelectSelector:
+    """Return a SelectSelector using LIST mode for ≤5 options, DROPDOWN for more."""
+    mode = (
+        selector.SelectSelectorMode.LIST
+        if len(options) <= 5
+        else selector.SelectSelectorMode.DROPDOWN
+    )
+    cfg = selector.SelectSelectorConfig(options=options, mode=mode, multiple=multiple)
+    return selector.SelectSelector(cfg)
+
+
 def _port_is_available(port: int) -> bool:
     """Return True if the TCP port can be bound on the local machine."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -909,34 +920,22 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             )
         elif sfc:
             schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in sfc
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in sfc])
             )
 
         if btn.get("group_choices"):
             schema_dict[vol.Required("group", default=str(btn["group"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in btn["group_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in btn["group_choices"]])
             )
 
         if bi.get("group_choices"):
             schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in bi["group_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in bi["group_choices"]])
             )
 
         if bi.get("input_usage_choices"):
             schema_dict[vol.Required("input_usage", default=str(bi["input_usage"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in bi["input_usage_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in bi["input_usage_choices"]])
             )
 
         stc = sen.get("sensor_type_choices")
@@ -970,26 +969,17 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             )
         elif suc:
             schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in suc
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in suc])
             )
 
         if out.get("output_usage_choices"):
             schema_dict[vol.Required("output_usage", default=str(out["output_usage"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in out["output_usage_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in out["output_usage_choices"]])
             )
 
         if out.get("function_choices"):
             schema_dict[vol.Required("function", default=str(out["function"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in out["function_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in out["function_choices"]])
             )
 
         if out.get("optional_tilt"):
@@ -1323,32 +1313,20 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             )
         elif sfc:
             schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in sfc
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in sfc])
             )
 
         if btn.get("group_choices"):
             schema_dict[vol.Required("group", default=str(btn["group"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in btn["group_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in btn["group_choices"]])
             )
         if bi.get("group_choices"):
             schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in bi["group_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in bi["group_choices"]])
             )
         if bi.get("input_usage_choices"):
             schema_dict[vol.Required("input_usage", default=str(bi["input_usage"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in bi["input_usage_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in bi["input_usage_choices"]])
             )
         stc = sen.get("sensor_type_choices")
         if stc == "any":
@@ -1382,24 +1360,15 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             )
         elif suc:
             schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in suc
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in suc])
             )
         if out.get("output_usage_choices"):
             schema_dict[vol.Required("output_usage", default=str(out["output_usage"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in out["output_usage_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in out["output_usage_choices"]])
             )
         if out.get("function_choices"):
             schema_dict[vol.Required("function", default=str(out["function"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in out["function_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in out["function_choices"]])
             )
         if out.get("optional_tilt"):
             schema_dict[vol.Optional("has_tilt", default=False)] = selector.BooleanSelector()
@@ -1801,13 +1770,11 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             vol.Optional("supportsLocalKeyMode", default=False): selector.BooleanSelector(),
             vol.Optional("setsLocalPriority", default=False): selector.BooleanSelector(),
             vol.Optional("callsPresent", default=True): selector.BooleanSelector(),
-            vol.Required("callbackType", default="clickTypes"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="clickTypes", label="Click types (passthrough: entity state = click type number)"),
-                    selector.SelectOptionDict(value="actionIds", label="Scene / action IDs (passthrough: entity state = scene number)"),
-                    selector.SelectOptionDict(value="detect_clicks", label="Auto-detect (binary sensor / event / button entity)"),
-                ])
-            ),
+            vol.Required("callbackType", default="clickTypes"): _select([
+                selector.SelectOptionDict(value="clickTypes", label="Click types (passthrough: entity state = click type number)"),
+                selector.SelectOptionDict(value="actionIds", label="Scene / action IDs (passthrough: entity state = scene number)"),
+                selector.SelectOptionDict(value="detect_clicks", label="Auto-detect (binary sensor / event / button entity)"),
+            ]),
             vol.Optional("callback_entity"): selector.EntitySelector(),
         })
         return self.async_show_form(step_id="button", data_schema=schema)

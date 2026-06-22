@@ -58,6 +58,7 @@
           "data": {
             "sensor_function": "Binary input function",
             "group": "Button / input group",
+            "bi_group": "dS Binary Input Group",
             "sensor_type": "Sensor type",
             "min": "Minimum value",
             "max": "Maximum value",
@@ -91,6 +92,7 @@
           "data": {
             "sensor_function": "Binary input function",
             "group": "Button / input group",
+            "bi_group": "dS Binary Input Group",
             "sensor_type": "Sensor type",
             "min": "Minimum value",
             "max": "Maximum value",
