@@ -172,6 +172,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await seed_initial_values(hass, coordinator.api, subentry.subentry_id, vdsds)
         await coordinator.api.announce_device(subentry.subentry_id)
 
+    # Expose Output description and state properties as diagnostic sensor entities.
+    _add_sensor = hass.data[DOMAIN].get("_add_sensor_entities")
+    if _add_sensor and coordinator.api:
+        from .sensor import OutputDescriptionSensorEntity, OutputStateSensorEntity
+        for subentry in entry.subentries.values():
+            for vdsd_idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):
+                if not vdsd_data.get("output"):
+                    continue
+                device = coordinator.api.get_device(subentry.subentry_id)
+                if not device:
+                    continue
+                vdsd = device.get_vdsd(vdsd_idx)
+                if not vdsd or not vdsd.output:
+                    continue
+                prop_entities = []
+                for key, val in vdsd.output.get_description_properties().items():
+                    prop_entities.append(
+                        OutputDescriptionSensorEntity(
+                            subentry.subentry_id, vdsd_idx, vdsd_data, key, val
+                        )
+                    )
+                for key, val in vdsd.output.get_state_properties().items():
+                    prop_entities.append(
+                        OutputStateSensorEntity(
+                            subentry.subentry_id, vdsd_idx, vdsd_data, key, val
+                        )
+                    )
+                if prop_entities:
+                    _add_sensor(prop_entities, config_subentry_id=subentry.subentry_id)
+
     # React to entity enable/disable and deletion in the HA entity registry.
     # Store in domain_data so the subentry delta listener can update it in-place.
     entity_index = _build_entity_index(entry)

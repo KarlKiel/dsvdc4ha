@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, Event, callback
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
@@ -241,5 +242,59 @@ class OutputChannelEntity(DsvdcBaseEntity, SensorEntity):
 
     def _handle_value(self, value: float) -> None:
         self._attr_native_value = value
+        if self.hass:
+            self.async_write_ha_state()
+
+
+class OutputDescriptionSensorEntity(DsvdcBaseEntity, SensorEntity):
+    """Read-only diagnostic sensor for an outputDescription property."""
+
+    _attr_entity_registry_enabled_default = False
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_should_poll = False
+
+    def __init__(
+        self,
+        subentry_id: str,
+        vdsd_index: int,
+        vdsd_data: dict,
+        prop_key: str,
+        prop_value: Any,
+    ) -> None:
+        super().__init__(subentry_id, vdsd_index, vdsd_data, f"desc_{prop_key}")
+        self._prop_key = prop_key
+        self._attr_name = f"Description: {prop_key}"
+        self._attr_native_value = prop_value
+
+    @property
+    def state(self) -> Any:
+        return self._attr_native_value
+
+
+class OutputStateSensorEntity(DsvdcBaseEntity, SensorEntity):
+    """Sensor for an outputState property (localPriority, transitionTime, error)."""
+
+    _attr_entity_registry_enabled_default = False
+    _attr_should_poll = False
+
+    def __init__(
+        self,
+        subentry_id: str,
+        vdsd_index: int,
+        vdsd_data: dict,
+        prop_key: str,
+        prop_value: Any,
+    ) -> None:
+        super().__init__(subentry_id, vdsd_index, vdsd_data, f"state_{prop_key}")
+        self._prop_key = prop_key
+        self._attr_name = f"State: {prop_key}"
+        self._attr_native_value = prop_value
+
+    @property
+    def state(self) -> Any:
+        return self._attr_native_value
+
+    def _handle_state_update(self, new_value: Any) -> None:
+        self._attr_native_value = new_value
         if self.hass:
             self.async_write_ha_state()
