@@ -1828,7 +1828,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "valueType": user_input.get("valueType", "boolean"),
                 "callback_entity": user_input.get("callback_entity"),
             })
-            return await self.async_step_vdsd_overview()
+            return await self.async_step_binary_input_binding()
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
             vol.Required("group", default="8"): selector.SelectSelector(
@@ -1859,6 +1859,36 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         })
         return self.async_show_form(step_id="binary_input", data_schema=schema)
 
+    async def async_step_binary_input_binding(self, user_input: dict | None = None):
+        """Structured binding for binary input callback."""
+        from .binding_transforms import TRANSFORM_OPTIONS
+        if user_input is not None:
+            bi = self._current_binary_inputs[-1]
+            binding_type = user_input.get("binding_type", "entity_state")
+            if binding_type == "entity_state":
+                bi["callback_entity"] = user_input.get("source_entity")
+            elif binding_type == "entity_attribute":
+                bi["callback_entity"] = user_input.get("source_entity")
+                if attr := user_input.get("source_attribute"):
+                    bi["value_attribute"] = attr
+                bi["value_transform"] = user_input.get("transform", "passthrough")
+            return await self.async_step_vdsd_overview()
+
+        schema = vol.Schema({
+            vol.Required("binding_type", default="entity_state"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value="entity_state", label="Use entity on/off state"),
+                    selector.SelectOptionDict(value="entity_attribute", label="Use attribute value with transform"),
+                ], mode=selector.SelectSelectorMode.LIST)
+            ),
+            vol.Optional("source_entity"): selector.EntitySelector(),
+            vol.Optional("source_attribute", default=""): selector.TextSelector(),
+            vol.Optional("transform", default="bool_to_1_0"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=TRANSFORM_OPTIONS)
+            ),
+        })
+        return self.async_show_form(step_id="binary_input_binding", data_schema=schema)
+
     async def async_step_sensor(self, user_input: dict | None = None):
         """Collect sensor configuration."""
         if user_input is not None:
@@ -1877,7 +1907,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "changesOnlyInterval": float(user_input.get("changesOnlyInterval", 0)),
                 "callback_entity": user_input.get("callback_entity"),
             })
-            return await self.async_step_vdsd_overview()
+            return await self.async_step_sensor_binding()
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
             vol.Required("group", default="0"): selector.SelectSelector(
@@ -1913,6 +1943,27 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             vol.Optional("callback_entity"): selector.EntitySelector(),
         })
         return self.async_show_form(step_id="sensor", data_schema=schema)
+
+    async def async_step_sensor_binding(self, user_input: dict | None = None):
+        """Structured binding for sensor input callback."""
+        from .binding_transforms import TRANSFORM_OPTIONS
+        if user_input is not None:
+            si = self._current_sensors[-1]
+            si["callback_entity"] = user_input.get("source_entity")
+            if attr := user_input.get("source_attribute"):
+                si["value_attribute"] = attr
+            if transform := user_input.get("transform"):
+                si["value_transform"] = transform
+            return await self.async_step_vdsd_overview()
+
+        schema = vol.Schema({
+            vol.Optional("source_entity"): selector.EntitySelector(),
+            vol.Optional("source_attribute", default=""): selector.TextSelector(),
+            vol.Optional("transform", default="passthrough"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=TRANSFORM_OPTIONS)
+            ),
+        })
+        return self.async_show_form(step_id="sensor_binding", data_schema=schema)
 
     async def async_step_output(self, user_input: dict | None = None):
         """Collect output configuration."""

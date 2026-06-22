@@ -354,11 +354,17 @@ async def test_binary_input_step_appends_and_returns():
         "inputType": "1",
         "inputUsage": "0",
         "valueType": "boolean",
-        "callback_entity": "binary_sensor.window",
     })
-    assert result2["step_id"] == "vdsd_overview"
+    assert result2["step_id"] == "binary_input_binding"
     assert len(flow._current_binary_inputs) == 1
     assert flow._current_binary_inputs[0]["name"] == "Window"
+
+    result3 = await flow.async_step_binary_input_binding({
+        "binding_type": "entity_state",
+        "source_entity": "binary_sensor.window",
+    })
+    assert result3["step_id"] == "vdsd_overview"
+    assert flow._current_binary_inputs[0]["callback_entity"] == "binary_sensor.window"
 
 
 @pytest.mark.asyncio

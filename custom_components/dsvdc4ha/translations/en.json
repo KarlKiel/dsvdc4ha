@@ -235,6 +235,25 @@
             "transform": "Value transformation (applied to dS channel value)"
           }
         },
+        "binary_input_binding": {
+          "title": "Binary Input Binding",
+          "description": "Configure how to derive an on/off value from Home Assistant for this binary input.",
+          "data": {
+            "binding_type": "Binding type",
+            "source_entity": "Source entity",
+            "source_attribute": "Attribute (empty = use state)",
+            "transform": "Value transform"
+          }
+        },
+        "sensor_binding": {
+          "title": "Sensor Input Binding",
+          "description": "Configure how to derive a numeric value from Home Assistant for this sensor input.",
+          "data": {
+            "source_entity": "Source entity",
+            "source_attribute": "Attribute (empty = use state)",
+            "transform": "Value transform"
+          }
+        },
         "model_features": {
           "title": "Model Features",
           "description": "The following model features will be added to the vdSD. Auto-derived features are pre-selected; adjust as needed."
