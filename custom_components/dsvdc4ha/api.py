@@ -592,6 +592,16 @@ class DsvdcApi:
     def get_device(self, entry_id: str) -> Device | None:
         return self._devices.get(entry_id)
 
+    def patch_vdsd_config_urls(self, url_map: dict[tuple[str, int], str]) -> None:
+        """Patch config_url on individual vdSDs after HA device registration."""
+        for (entry_id, vdsd_idx), url in url_map.items():
+            device = self._devices.get(entry_id)
+            if device is None:
+                continue
+            vdsd = device.get_vdsd(vdsd_idx)
+            if vdsd is not None:
+                vdsd.config_url = url
+
     @property
     def registered_entry_ids(self) -> set[str]:
         """Set of entry_ids currently tracked by this API."""

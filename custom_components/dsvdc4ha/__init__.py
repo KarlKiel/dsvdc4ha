@@ -147,10 +147,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # HA→dS listeners, then seed current HA state so pydsvdcapi's
     # _wait_for_initial_values() is satisfied before announce() is awaited.
     await _backfill_missing_icons(hass, entry)
+    from homeassistant.helpers import device_registry as dr
     from .listeners import setup_input_listeners, setup_output_listeners, seed_initial_values
+    dev_reg = dr.async_get(hass)
+    internal_url = (hass.config.internal_url or "http://homeassistant.local:8123").rstrip("/")
     for subentry in entry.subentries.values():
         vdsds = subentry.data.get("vdsds", [])
         coordinator.api.add_device(subentry.subentry_id, vdsds)
+        # Patch per-vdSD config URLs to point to their individual HA device pages.
+        url_map: dict[tuple[str, int], str] = {}
+        for vdsd_idx in range(len(vdsds)):
+            identifier = (DOMAIN, f"{subentry.subentry_id}_{vdsd_idx}")
+            ha_device = dev_reg.async_get_device(identifiers={identifier})
+            if ha_device is not None:
+                url_map[(subentry.subentry_id, vdsd_idx)] = (
+                    f"{internal_url}/config/devices/device/{ha_device.id}"
+                )
+        if url_map:
+            coordinator.api.patch_vdsd_config_urls(url_map)
         unsubs = setup_input_listeners(hass, coordinator.api, subentry.subentry_id, vdsds)
         unsubs += setup_output_listeners(hass, coordinator.api, subentry.subentry_id, vdsds)
         hass.data[DOMAIN][subentry.subentry_id] = {"unsubs": unsubs}
