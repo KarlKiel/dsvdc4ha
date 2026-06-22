@@ -219,3 +219,6 @@ __marimo__/
 
 # Dev-only documents folder
 documents/
+
+# Git worktrees for parallel development
+.worktrees/
