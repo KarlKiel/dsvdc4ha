@@ -478,6 +478,17 @@ _OPTIONAL_FEATURE_LABELS: dict[str, str] = {
 }
 
 
+def _select(options: list, *, multiple: bool = False) -> selector.SelectSelector:
+    """Return a SelectSelector using LIST mode for ≤5 options, DROPDOWN for more."""
+    mode = (
+        selector.SelectSelectorMode.LIST
+        if len(options) <= 5
+        else selector.SelectSelectorMode.DROPDOWN
+    )
+    cfg = selector.SelectSelectorConfig(options=options, mode=mode, multiple=multiple)
+    return selector.SelectSelector(cfg)
+
+
 def _port_is_available(port: int) -> bool:
     """Return True if the TCP port can be bound on the local machine."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -740,11 +751,14 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         self._entity_mapping: dict[str, Any] | None = None
         # "from_ha_device" path state
         self._ha_device_id: str = ""
+        self._device_entities: list[_EntityInfo] = []
+        self._selected_entity_ids: list[str] | None = None
         self._vdsd_plans: list[VdsdPlan] = []
         self._unsupported_entities: list[_EntityInfo] = []
         self._pending_choice_entities: list[tuple[_EntityInfo, int]] = []
         self._pending_choice_idx: int = 0
         self._pending_vdsd_idx: int = 0
+        self._pending_name_confirm_idx: int = 0
         self._creation_mode: str = "from_entity"
 
     async def _resolve_entity_icon(self, entity_id: str) -> tuple[str, str | None]:
@@ -909,34 +923,22 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             )
         elif sfc:
             schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in sfc
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in sfc])
             )
 
         if btn.get("group_choices"):
             schema_dict[vol.Required("group", default=str(btn["group"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in btn["group_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in btn["group_choices"]])
             )
 
         if bi.get("group_choices"):
             schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in bi["group_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in bi["group_choices"]])
             )
 
         if bi.get("input_usage_choices"):
             schema_dict[vol.Required("input_usage", default=str(bi["input_usage"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in bi["input_usage_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in bi["input_usage_choices"]])
             )
 
         stc = sen.get("sensor_type_choices")
@@ -970,26 +972,17 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             )
         elif suc:
             schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in suc
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in suc])
             )
 
         if out.get("output_usage_choices"):
             schema_dict[vol.Required("output_usage", default=str(out["output_usage"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in out["output_usage_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in out["output_usage_choices"]])
             )
 
         if out.get("function_choices"):
             schema_dict[vol.Required("function", default=str(out["function"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in out["function_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in out["function_choices"]])
             )
 
         if out.get("optional_tilt"):
@@ -1271,10 +1264,23 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 )
                 entities.append(entity_info)
 
+            self._device_entities = entities
+            return await self.async_step_device_entity_select()
+
+        schema = vol.Schema({
+            vol.Required("device_id"): selector.DeviceSelector(),
+        })
+        return self.async_show_form(step_id="device_picker", data_schema=schema)
+
+    async def async_step_device_entity_select(self, user_input: dict | None = None):
+        """Let the user select which device entities to expose as vdSDs."""
+        if user_input is not None:
+            selected_ids: list[str] = user_input.get("entity_ids", [])
+            self._selected_entity_ids = selected_ids
+            filtered = [e for e in self._device_entities if e.entity_id in selected_ids]
             self._vdsd_plans, self._unsupported_entities = compute_vdsd_plan(
-                entities, self._device_name
+                filtered, self._device_name
             )
-            # Build choice queue: (entity_info, plan_idx) for every entity needing input
             self._pending_choice_entities = []
             for plan_idx, plan in enumerate(self._vdsd_plans):
                 for candidate in [
@@ -1287,15 +1293,41 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                         self._pending_choice_entities.append((candidate, plan_idx))
             self._pending_choice_idx = 0
             self._pending_vdsd_idx = 0
-
             if self._pending_choice_entities:
                 return await self.async_step_device_entity_user_input()
             return await self.async_step_device_plan_summary()
 
+        # Build list of supported entity options
+        options: list[selector.SelectOptionDict] = []
+        for entity_info in self._device_entities:
+            if entity_info.mapping is not None:
+                options.append(
+                    selector.SelectOptionDict(
+                        value=entity_info.entity_id,
+                        label=f"{entity_info.friendly_name} ({entity_info.domain})",
+                    )
+                )
+
+        if not options:
+            # No supported entities — skip and build empty plan
+            self._vdsd_plans, self._unsupported_entities = compute_vdsd_plan(
+                [], self._device_name
+            )
+            self._pending_choice_entities = []
+            self._pending_choice_idx = 0
+            self._pending_vdsd_idx = 0
+            return await self.async_step_device_plan_summary()
+
         schema = vol.Schema({
-            vol.Required("device_id"): selector.DeviceSelector(),
+            vol.Required("entity_ids", default=[o["value"] for o in options]): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=options, multiple=True)
+            ),
         })
-        return self.async_show_form(step_id="device_picker", data_schema=schema)
+        return self.async_show_form(
+            step_id="device_entity_select",
+            data_schema=schema,
+            description_placeholders={"device_name": self._device_name},
+        )
 
     async def async_step_device_entity_user_input(self, user_input: dict | None = None):
         """Collect per-entity choices (one entity at a time) for the HA-device path."""
@@ -1323,32 +1355,20 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             )
         elif sfc:
             schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in sfc
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in sfc])
             )
 
         if btn.get("group_choices"):
             schema_dict[vol.Required("group", default=str(btn["group"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in btn["group_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in btn["group_choices"]])
             )
         if bi.get("group_choices"):
             schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in bi["group_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in bi["group_choices"]])
             )
         if bi.get("input_usage_choices"):
             schema_dict[vol.Required("input_usage", default=str(bi["input_usage"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in bi["input_usage_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in bi["input_usage_choices"]])
             )
         stc = sen.get("sensor_type_choices")
         if stc == "any":
@@ -1382,24 +1402,15 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             )
         elif suc:
             schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in suc
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in suc])
             )
         if out.get("output_usage_choices"):
             schema_dict[vol.Required("output_usage", default=str(out["output_usage"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in out["output_usage_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in out["output_usage_choices"]])
             )
         if out.get("function_choices"):
             schema_dict[vol.Required("function", default=str(out["function"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in out["function_choices"]
-                ]))
+                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in out["function_choices"]])
             )
         if out.get("optional_tilt"):
             schema_dict[vol.Optional("has_tilt", default=False)] = selector.BooleanSelector()
@@ -1525,8 +1536,8 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             self._pending_vdsd_idx += 1
             if self._pending_vdsd_idx < len(self._vdsd_plans):
                 return await self.async_step_device_model_features()
-            self._vdsds = [p.resolved_vdsd for p in self._vdsd_plans if p.resolved_vdsd]
-            return await self.async_step_device_summary()
+            self._pending_name_confirm_idx = 0
+            return await self.async_step_name_confirm()
 
         auto_features = derive_model_features_for_config(vdsd)
         options: list[selector.SelectOptionDict] = [
@@ -1677,9 +1688,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             self._current_vdsd["binary_inputs"] = self._current_binary_inputs
             self._current_vdsd["sensors"] = self._current_sensors
             self._current_vdsd["output"] = self._current_output
-            self._vdsds.append(dict(self._current_vdsd))
             if self._creation_mode == "from_entity":
-                return await self.async_step_entity_completion()
+                return await self.async_step_name_confirm()
+            self._vdsds.append(dict(self._current_vdsd))
             return await self.async_step_device_summary()
 
         auto_features = derive_model_features_for_config({
@@ -1748,6 +1759,62 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             },
         )
 
+    async def async_step_name_confirm(self, user_input: dict | None = None):
+        """Let the user confirm or edit device and entity names before saving."""
+        if self._creation_mode == "from_ha_device":
+            plan = self._vdsd_plans[self._pending_name_confirm_idx]
+            vdsd = plan.resolved_vdsd or {}
+            if user_input is not None:
+                if plan.resolved_vdsd is not None:
+                    plan.resolved_vdsd["displayId"] = user_input.get("device_name", vdsd.get("displayId", ""))
+                    plan.resolved_vdsd["name"] = user_input.get("entity_name", vdsd.get("name", ""))
+                self._pending_name_confirm_idx += 1
+                if self._pending_name_confirm_idx < len(self._vdsd_plans):
+                    return await self.async_step_name_confirm()
+                self._vdsds = [p.resolved_vdsd for p in self._vdsd_plans if p.resolved_vdsd]
+                return await self.async_step_device_summary()
+            device_name = vdsd.get("displayId", vdsd.get("name", ""))
+            entity_name = vdsd.get("name", "")
+        else:
+            if user_input is not None:
+                if "device_name" in user_input:
+                    self._current_vdsd["displayId"] = user_input["device_name"]
+                if "entity_name" in user_input:
+                    self._apply_entity_name(user_input["entity_name"])
+                self._vdsds.append(dict(self._current_vdsd))
+                return await self.async_step_entity_completion()
+            device_name = self._current_vdsd.get("displayId", self._current_vdsd.get("name", ""))
+            entity_name = self._derive_entity_name_proposal()
+
+        schema = vol.Schema({
+            vol.Required("device_name", default=device_name): selector.TextSelector(),
+            vol.Required("entity_name", default=entity_name): selector.TextSelector(),
+        })
+        return self.async_show_form(step_id="name_confirm", data_schema=schema)
+
+    def _derive_entity_name_proposal(self) -> str:
+        """Return a proposed entity name based on what's configured."""
+        if self._current_output:
+            return self._current_output.get("name", "Output")
+        if self._current_binary_inputs:
+            return self._current_binary_inputs[0].get("name", "Binary Input")
+        if self._current_sensors:
+            return self._current_sensors[0].get("name", "Sensor")
+        if self._current_buttons:
+            return self._current_buttons[0].get("name", "Button")
+        return ""
+
+    def _apply_entity_name(self, name: str) -> None:
+        """Apply the confirmed entity name to the configured component."""
+        if self._current_output:
+            self._current_output["name"] = name
+        elif self._current_binary_inputs:
+            self._current_binary_inputs[0]["name"] = name
+        elif self._current_sensors:
+            self._current_sensors[0]["name"] = name
+        elif self._current_buttons:
+            self._current_buttons[0]["name"] = name
+
     async def async_step_button(self, user_input: dict | None = None):
         """Collect button element configuration."""
         if user_input is not None:
@@ -1801,13 +1868,11 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             vol.Optional("supportsLocalKeyMode", default=False): selector.BooleanSelector(),
             vol.Optional("setsLocalPriority", default=False): selector.BooleanSelector(),
             vol.Optional("callsPresent", default=True): selector.BooleanSelector(),
-            vol.Required("callbackType", default="clickTypes"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="clickTypes", label="Click types (passthrough: entity state = click type number)"),
-                    selector.SelectOptionDict(value="actionIds", label="Scene / action IDs (passthrough: entity state = scene number)"),
-                    selector.SelectOptionDict(value="detect_clicks", label="Auto-detect (binary sensor / event / button entity)"),
-                ])
-            ),
+            vol.Required("callbackType", default="clickTypes"): _select([
+                selector.SelectOptionDict(value="clickTypes", label="Click types (passthrough: entity state = click type number)"),
+                selector.SelectOptionDict(value="actionIds", label="Scene / action IDs (passthrough: entity state = scene number)"),
+                selector.SelectOptionDict(value="detect_clicks", label="Auto-detect (binary sensor / event / button entity)"),
+            ]),
             vol.Optional("callback_entity"): selector.EntitySelector(),
         })
         return self.async_show_form(step_id="button", data_schema=schema)
@@ -1994,16 +2059,19 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
         fn = self._current_output.get("function", 0) if self._current_output else 0
         is_positional = fn == OutputFunction.POSITIONAL.value
+        is_on_off = fn == OutputFunction.ON_OFF.value
         _ns_pct = selector.NumberSelectorConfig(min=0, max=100, mode="box")
         _ns_s   = selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-        schema_dict: dict = {
-            vol.Optional("onThreshold", default=50): selector.NumberSelector(_ns_pct),
+        schema_dict: dict = {}
+        if is_on_off:
+            schema_dict[vol.Optional("onThreshold", default=50)] = selector.NumberSelector(_ns_pct)
+        schema_dict.update({
             vol.Optional("minBrightness"): selector.NumberSelector(_ns_pct),
             vol.Optional("maxPower"): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, mode="box")
             ),
             vol.Optional("activeCoolingMode", default=False): selector.BooleanSelector(),
-        }
+        })
         if is_positional:
             schema_dict[vol.Optional("openTime")]      = selector.NumberSelector(_ns_s)
             schema_dict[vol.Optional("closeTime")]     = selector.NumberSelector(_ns_s)

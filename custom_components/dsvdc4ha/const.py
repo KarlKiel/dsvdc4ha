@@ -3,18 +3,18 @@ from __future__ import annotations
 
 DOMAIN = "dsvdc4ha"
 
-PLATFORMS = ["sensor", "binary_sensor"]
+PLATFORMS = ["sensor", "binary_sensor", "button"]
 
-VDC_HOST_NAME = "KarlKiel's Home Assistant vDC-host"
-VDC_HOST_MODEL = "KarlKiel's vDC-host @ Home Assistant"
-VDC_HOST_MODEL_UID = "KarlKiel's Home Assistant vDC-host"
-VDC_HOST_VENDOR_NAME = "KarlKiel"
-VDC_HOST_VENDOR_GUID = "vendorname:KarlKiel"
+VDC_HOST_NAME = "vdc @ Home Assistant"
+VDC_HOST_MODEL = "vDC-host @ Home Assistant"
+VDC_HOST_MODEL_UID = "ha-vdc-host"
+VDC_HOST_VENDOR_NAME = "Home Assistant"
+VDC_HOST_VENDOR_GUID = "vendorname:HomeAssistant"
 
-VDC_NAME = "vDC 4 Home Assistant"
-VDC_MODEL = "KarlKiel's generic vDC @ Home Assistant"
-VDC_MODEL_UID = "KarlKiel's Home Assistant DS vDC"
-VDC_IMPLEMENTATION_ID = "x-KarlKiel-HomeAssistant-vDC"
+VDC_NAME = "vDC for Home Assistant"
+VDC_MODEL = "vDC @ Home Assistant"
+VDC_MODEL_UID = "ha-vdc"
+VDC_IMPLEMENTATION_ID = "x-HA-vDC"
 VDC_DEVICE_ICON_NAME = "KarlKielVDC.png"
 
 CONF_PORT = "port"

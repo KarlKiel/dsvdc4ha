@@ -52,12 +52,20 @@
             "device_id": "Home Assistant device"
           }
         },
+        "device_entity_select": {
+          "title": "Select Entities to Expose",
+          "description": "Choose which entities from '{device_name}' to expose as vdSDs in digitalSTROM. All supported entities are pre-selected.",
+          "data": {
+            "entity_ids": "Entities to expose"
+          }
+        },
         "device_entity_user_input": {
           "title": "Entity Options ({current} of {total})",
           "description": "Entity: {entity_name} ({domain}). Some settings for this entity type require your input.",
           "data": {
             "sensor_function": "Binary input function",
             "group": "Button / input group",
+            "bi_group": "dS Binary Input Group",
             "sensor_type": "Sensor type",
             "min": "Minimum value",
             "max": "Maximum value",
@@ -91,6 +99,7 @@
           "data": {
             "sensor_function": "Binary input function",
             "group": "Button / input group",
+            "bi_group": "dS Binary Input Group",
             "sensor_type": "Sensor type",
             "min": "Minimum value",
             "max": "Maximum value",
@@ -98,6 +107,14 @@
             "output_usage": "Output usage (indoor / outdoor)",
             "function": "Output function",
             "has_tilt": "Device supports tilt / blade angle control"
+          }
+        },
+        "name_confirm": {
+          "title": "Confirm Names",
+          "description": "Review and confirm the proposed names for the HA device and entity.",
+          "data": {
+            "device_name": "Device name (shown in HA)",
+            "entity_name": "Entity name (shown in HA)"
           }
         },
         "entity_channel_mapping": {

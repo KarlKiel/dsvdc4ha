@@ -521,6 +521,11 @@ class DsvdcApi:
                 if count > 0:
                     self._ever_announced.add(entry_id)
 
+    async def force_reannounce_device(self, entry_id: str) -> None:
+        """Force re-announcement of a device to dSS, ignoring _ever_announced cache."""
+        self._ever_announced.discard(entry_id)
+        await self.announce_device(entry_id)
+
     def _build_vdsd(self, device: Device, idx: int, data: dict[str, Any]) -> Vdsd:
         vdsd = Vdsd(
             device=device,
@@ -591,6 +596,16 @@ class DsvdcApi:
 
     def get_device(self, entry_id: str) -> Device | None:
         return self._devices.get(entry_id)
+
+    def patch_vdsd_config_urls(self, url_map: dict[tuple[str, int], str]) -> None:
+        """Patch config_url on individual vdSDs after HA device registration."""
+        for (entry_id, vdsd_idx), url in url_map.items():
+            device = self._devices.get(entry_id)
+            if device is None:
+                continue
+            vdsd = device.get_vdsd(vdsd_idx)
+            if vdsd is not None:
+                vdsd.config_url = url
 
     @property
     def registered_entry_ids(self) -> set[str]:
