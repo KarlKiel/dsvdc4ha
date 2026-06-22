@@ -52,6 +52,13 @@
             "device_id": "Home Assistant device"
           }
         },
+        "device_entity_select": {
+          "title": "Select Entities to Expose",
+          "description": "Choose which entities from '{device_name}' to expose as vdSDs in digitalSTROM. All supported entities are pre-selected.",
+          "data": {
+            "entity_ids": "Entities to expose"
+          }
+        },
         "device_entity_user_input": {
           "title": "Entity Options ({current} of {total})",
           "description": "Entity: {entity_name} ({domain}). Some settings for this entity type require your input.",

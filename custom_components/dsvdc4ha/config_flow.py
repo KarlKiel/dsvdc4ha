@@ -751,6 +751,8 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         self._entity_mapping: dict[str, Any] | None = None
         # "from_ha_device" path state
         self._ha_device_id: str = ""
+        self._device_entities: list[_EntityInfo] = []
+        self._selected_entity_ids: list[str] | None = None
         self._vdsd_plans: list[VdsdPlan] = []
         self._unsupported_entities: list[_EntityInfo] = []
         self._pending_choice_entities: list[tuple[_EntityInfo, int]] = []
@@ -1261,10 +1263,23 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 )
                 entities.append(entity_info)
 
+            self._device_entities = entities
+            return await self.async_step_device_entity_select()
+
+        schema = vol.Schema({
+            vol.Required("device_id"): selector.DeviceSelector(),
+        })
+        return self.async_show_form(step_id="device_picker", data_schema=schema)
+
+    async def async_step_device_entity_select(self, user_input: dict | None = None):
+        """Let the user select which device entities to expose as vdSDs."""
+        if user_input is not None:
+            selected_ids: list[str] = user_input.get("entity_ids", [])
+            self._selected_entity_ids = selected_ids
+            filtered = [e for e in self._device_entities if e.entity_id in selected_ids]
             self._vdsd_plans, self._unsupported_entities = compute_vdsd_plan(
-                entities, self._device_name
+                filtered, self._device_name
             )
-            # Build choice queue: (entity_info, plan_idx) for every entity needing input
             self._pending_choice_entities = []
             for plan_idx, plan in enumerate(self._vdsd_plans):
                 for candidate in [
@@ -1277,15 +1292,41 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                         self._pending_choice_entities.append((candidate, plan_idx))
             self._pending_choice_idx = 0
             self._pending_vdsd_idx = 0
-
             if self._pending_choice_entities:
                 return await self.async_step_device_entity_user_input()
             return await self.async_step_device_plan_summary()
 
+        # Build list of supported entity options
+        options: list[selector.SelectOptionDict] = []
+        for entity_info in self._device_entities:
+            if entity_info.mapping is not None:
+                options.append(
+                    selector.SelectOptionDict(
+                        value=entity_info.entity_id,
+                        label=f"{entity_info.friendly_name} ({entity_info.domain})",
+                    )
+                )
+
+        if not options:
+            # No supported entities — skip and build empty plan
+            self._vdsd_plans, self._unsupported_entities = compute_vdsd_plan(
+                [], self._device_name
+            )
+            self._pending_choice_entities = []
+            self._pending_choice_idx = 0
+            self._pending_vdsd_idx = 0
+            return await self.async_step_device_plan_summary()
+
         schema = vol.Schema({
-            vol.Required("device_id"): selector.DeviceSelector(),
+            vol.Required("entity_ids", default=[o["value"] for o in options]): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=options, multiple=True)
+            ),
         })
-        return self.async_show_form(step_id="device_picker", data_schema=schema)
+        return self.async_show_form(
+            step_id="device_entity_select",
+            data_schema=schema,
+            description_placeholders={"device_name": self._device_name},
+        )
 
     async def async_step_device_entity_user_input(self, user_input: dict | None = None):
         """Collect per-entity choices (one entity at a time) for the HA-device path."""

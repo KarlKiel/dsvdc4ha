@@ -532,6 +532,10 @@ async def test_device_picker_with_choices_routes_to_entity_user_input():
     mock_entry = MagicMock()
     mock_entry.entity_id = "light.choosy"
     mock_entry.entity_category = None
+    mock_entry.disabled_by = None
+    mock_entry.domain = "light"
+    mock_entry.device_class = None
+    mock_entry.original_device_class = None
     mock_ent_reg.entities.get_entries_for_device_id.return_value = [mock_entry]
 
     mock_state = MagicMock()
@@ -544,15 +548,22 @@ async def test_device_picker_with_choices_routes_to_entity_user_input():
               return_value=mock_dev_reg),
         patch("custom_components.dsvdc4ha.config_flow.er.async_get",
               return_value=mock_ent_reg),
-        patch("custom_components.dsvdc4ha.config_flow.compute_vdsd_plan",
-              return_value=([plan], [])),
     ):
         result = await flow.async_step_device_picker(
             {"device_id": "device-abc-123"}
         )
 
     assert result["type"] == "form"
-    assert result["step_id"] == "device_entity_user_input"
+    assert result["step_id"] == "device_entity_select"
+
+    with patch("custom_components.dsvdc4ha.config_flow.compute_vdsd_plan",
+               return_value=([plan], [])):
+        result2 = await flow.async_step_device_entity_select(
+            {"entity_ids": ["light.choosy"]}
+        )
+
+    assert result2["type"] == "form"
+    assert result2["step_id"] == "device_entity_user_input"
 
 
 @pytest.mark.asyncio
