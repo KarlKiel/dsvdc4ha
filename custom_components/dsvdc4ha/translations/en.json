@@ -234,6 +234,43 @@
           "title": "Bind Output Channels to HA",
           "description": "Select the entities that reflect the channel values of the output."
         },
+        "channel_push_binding": {
+          "title": "HA → dS Binding — {channel}",
+          "description": "Configure how to read a value from Home Assistant and push it to the dS channel '{channel}'.",
+          "data": {
+            "source_entity": "Source entity (watched for changes)",
+            "source_attribute": "Attribute to read (empty = use main state)",
+            "transform": "Value transformation"
+          }
+        },
+        "channel_apply_binding": {
+          "title": "dS → HA Binding — {channel}",
+          "description": "Configure how to translate a dS channel value from '{channel}' into a Home Assistant action.",
+          "data": {
+            "service": "HA service to call (empty = no dS→HA control)",
+            "parameter": "Service data parameter to pass the mapped value to",
+            "transform": "Value transformation (applied to dS channel value)"
+          }
+        },
+        "binary_input_binding": {
+          "title": "Binary Input Binding",
+          "description": "Configure how to derive an on/off value from Home Assistant for this binary input.",
+          "data": {
+            "binding_type": "Binding type",
+            "source_entity": "Source entity",
+            "source_attribute": "Attribute (empty = use state)",
+            "transform": "Value transform"
+          }
+        },
+        "sensor_binding": {
+          "title": "Sensor Input Binding",
+          "description": "Configure how to derive a numeric value from Home Assistant for this sensor input.",
+          "data": {
+            "source_entity": "Source entity",
+            "source_attribute": "Attribute (empty = use state)",
+            "transform": "Value transform"
+          }
+        },
         "model_features": {
           "title": "Model Features",
           "description": "The following model features will be added to the vdSD. Auto-derived features are pre-selected; adjust as needed."

@@ -742,6 +742,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         self._current_sensors: list[dict[str, Any]] = []
         self._current_output: dict[str, Any] | None = None
         self._current_channels: list[dict[str, Any]] = []
+        self._channel_mapping_idx: int = 0
         self._current_button_element_idx: int = 0
         self._current_button_elements_total: int = 1
         self._current_button_type: int = 1
@@ -1892,7 +1893,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "valueType": user_input.get("valueType", "boolean"),
                 "callback_entity": user_input.get("callback_entity"),
             })
-            return await self.async_step_vdsd_overview()
+            return await self.async_step_binary_input_binding()
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
             vol.Required("group", default="8"): selector.SelectSelector(
@@ -1923,6 +1924,36 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         })
         return self.async_show_form(step_id="binary_input", data_schema=schema)
 
+    async def async_step_binary_input_binding(self, user_input: dict | None = None):
+        """Structured binding for binary input callback."""
+        from .binding_transforms import TRANSFORM_OPTIONS
+        if user_input is not None:
+            bi = self._current_binary_inputs[-1]
+            binding_type = user_input.get("binding_type", "entity_state")
+            if binding_type == "entity_state":
+                bi["callback_entity"] = user_input.get("source_entity")
+            elif binding_type == "entity_attribute":
+                bi["callback_entity"] = user_input.get("source_entity")
+                if attr := user_input.get("source_attribute"):
+                    bi["value_attribute"] = attr
+                bi["value_transform"] = user_input.get("transform", "passthrough")
+            return await self.async_step_vdsd_overview()
+
+        schema = vol.Schema({
+            vol.Required("binding_type", default="entity_state"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value="entity_state", label="Use entity on/off state"),
+                    selector.SelectOptionDict(value="entity_attribute", label="Use attribute value with transform"),
+                ], mode=selector.SelectSelectorMode.LIST)
+            ),
+            vol.Optional("source_entity"): selector.EntitySelector(),
+            vol.Optional("source_attribute", default=""): selector.TextSelector(),
+            vol.Optional("transform", default="bool_to_1_0"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=TRANSFORM_OPTIONS)
+            ),
+        })
+        return self.async_show_form(step_id="binary_input_binding", data_schema=schema)
+
     async def async_step_sensor(self, user_input: dict | None = None):
         """Collect sensor configuration."""
         if user_input is not None:
@@ -1941,7 +1972,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "changesOnlyInterval": float(user_input.get("changesOnlyInterval", 0)),
                 "callback_entity": user_input.get("callback_entity"),
             })
-            return await self.async_step_vdsd_overview()
+            return await self.async_step_sensor_binding()
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
             vol.Required("group", default="0"): selector.SelectSelector(
@@ -1977,6 +2008,27 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             vol.Optional("callback_entity"): selector.EntitySelector(),
         })
         return self.async_show_form(step_id="sensor", data_schema=schema)
+
+    async def async_step_sensor_binding(self, user_input: dict | None = None):
+        """Structured binding for sensor input callback."""
+        from .binding_transforms import TRANSFORM_OPTIONS
+        if user_input is not None:
+            si = self._current_sensors[-1]
+            si["callback_entity"] = user_input.get("source_entity")
+            if attr := user_input.get("source_attribute"):
+                si["value_attribute"] = attr
+            if transform := user_input.get("transform"):
+                si["value_transform"] = transform
+            return await self.async_step_vdsd_overview()
+
+        schema = vol.Schema({
+            vol.Optional("source_entity"): selector.EntitySelector(),
+            vol.Optional("source_attribute", default=""): selector.TextSelector(),
+            vol.Optional("transform", default="passthrough"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=TRANSFORM_OPTIONS)
+            ),
+        })
+        return self.async_show_form(step_id="sensor_binding", data_schema=schema)
 
     async def async_step_output(self, user_input: dict | None = None):
         """Collect output configuration."""
@@ -2168,6 +2220,125 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             return await self.async_step_vdsd_overview()
         return self.async_show_form(
             step_id="channel_mapping", data_schema=vol.Schema(schema_dict)
+        )
+
+    async def async_step_channel_push_binding(self, user_input: dict | None = None):
+        """Collect the HA→dS push binding for the current output channel (one channel at a time)."""
+        from .binding_transforms import TRANSFORM_OPTIONS
+        from .binding_compiler import compile_push_binding
+        from .entity_mapping import CHANNEL_TYPE_LABELS
+
+        if user_input is not None:
+            ch = self._current_channels[self._channel_mapping_idx]
+            source_attr = user_input.get("source_attribute") or None
+            binding = {
+                "source_entity": user_input.get("source_entity"),
+                "source_attribute": source_attr,
+                "transform": user_input.get("transform", "passthrough"),
+            }
+            if binding["source_entity"]:
+                ch["read_entity"] = binding["source_entity"]
+            ch["push_expr"] = compile_push_binding(binding)
+            return await self.async_step_channel_apply_binding()
+
+        ch = self._current_channels[self._channel_mapping_idx]
+        ch_type = ch.get("channelType", 0)
+        ch_label = CHANNEL_TYPE_LABELS.get(ch_type, f"Channel {ch_type}")
+
+        attr_options = [
+            {"value": "", "label": "(use main entity state)"},
+            {"value": "brightness", "label": "brightness"},
+            {"value": "color_temp", "label": "color_temp (mired)"},
+            {"value": "color_temp_kelvin", "label": "color_temp_kelvin (K)"},
+            {"value": "current_position", "label": "current_position"},
+            {"value": "current_tilt_position", "label": "current_tilt_position"},
+            {"value": "hs_color", "label": "hs_color (tuple)"},
+            {"value": "percentage", "label": "percentage"},
+            {"value": "volume_level", "label": "volume_level"},
+        ]
+
+        schema = vol.Schema({
+            vol.Required("source_entity"): selector.EntitySelector(),
+            vol.Optional("source_attribute", default=""): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=attr_options, custom_value=True)
+            ),
+            vol.Required("transform", default="passthrough"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=TRANSFORM_OPTIONS)
+            ),
+        })
+        return self.async_show_form(
+            step_id="channel_push_binding",
+            data_schema=schema,
+            description_placeholders={"channel": ch_label},
+        )
+
+    async def async_step_channel_apply_binding(self, user_input: dict | None = None):
+        """Collect the dS→HA apply binding for the current output channel."""
+        from .binding_transforms import TRANSFORM_OPTIONS
+        from .binding_compiler import compile_apply_binding
+        from .entity_mapping import CHANNEL_TYPE_LABELS
+
+        ch = self._current_channels[self._channel_mapping_idx]
+        ch_type = ch.get("channelType", 0)
+        ch_label = CHANNEL_TYPE_LABELS.get(ch_type, f"Channel {ch_type}")
+
+        if user_input is not None:
+            service_raw = user_input.get("service", "")
+            if service_raw:
+                binding = {
+                    "service": service_raw,
+                    "parameter": user_input.get("parameter") or None,
+                    "transform": user_input.get("transform", "passthrough"),
+                }
+                ch["apply_expr"] = compile_apply_binding(binding)
+            # Advance to next channel or finish
+            self._channel_mapping_idx += 1
+            if self._channel_mapping_idx < len(self._current_channels):
+                return await self.async_step_channel_push_binding()
+            if self._current_output is not None:
+                self._current_output["channels"] = self._current_channels
+            return await self.async_step_vdsd_overview()
+
+        service_options = [
+            {"value": "", "label": "(no dS→HA control for this channel)"},
+            {"value": "light.turn_on", "label": "light.turn_on"},
+            {"value": "light.turn_off", "label": "light.turn_off"},
+            {"value": "switch.turn_on", "label": "switch.turn_on"},
+            {"value": "switch.turn_off", "label": "switch.turn_off"},
+            {"value": "cover.set_cover_position", "label": "cover.set_cover_position"},
+            {"value": "cover.set_cover_tilt_position", "label": "cover.set_cover_tilt_position"},
+            {"value": "fan.set_percentage", "label": "fan.set_percentage"},
+            {"value": "number.set_value", "label": "number.set_value"},
+            {"value": "climate.set_temperature", "label": "climate.set_temperature"},
+        ]
+
+        parameter_options = [
+            {"value": "", "label": "(no parameter — value not passed)"},
+            {"value": "brightness", "label": "brightness"},
+            {"value": "color_temp_kelvin", "label": "color_temp_kelvin"},
+            {"value": "position", "label": "position"},
+            {"value": "tilt_position", "label": "tilt_position"},
+            {"value": "percentage", "label": "percentage"},
+            {"value": "value", "label": "value"},
+            {"value": "temperature", "label": "temperature"},
+            {"value": "volume_level", "label": "volume_level"},
+        ]
+
+        schema = vol.Schema({
+            vol.Optional("service", default=""): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=service_options, custom_value=True)
+            ),
+            vol.Optional("parameter", default=""): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=parameter_options, custom_value=True)
+            ),
+            vol.Required("transform", default="passthrough"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=TRANSFORM_OPTIONS)
+            ),
+        })
+        return self.async_show_form(
+            step_id="channel_apply_binding",
+            data_schema=schema,
+            description_placeholders={"channel": ch_label},
         )
 
     async def async_step_device_summary(self, user_input: dict | None = None):
