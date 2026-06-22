@@ -46,18 +46,14 @@ The truncation is not happening in this integration or in pydsvdcapi. The name i
 ## Architecture
 
 ### Structure of config entries needs review
-**Status:** Open
+**Status:** Resolved (PR #43)
 
-The hub / subentry split and how devices are registered in the HA config entry structure needs to be reviewed. Relates to how entities and devices are grouped, cleaned up on removal, and how the flow of adding/editing maps to the entry model.
-Currently there is one integration entry called dsvDC Hub and underneath it there is one entry without a name (showing as "Geräte, die nicht zu einem Untereintrag gehören"), that covers the Integration specific entities, please create an "device" entry with the name "vdc @ Home Assistant" that contains all the integration relevant entities.
-For the generated devices use the improved names as stated in the respective names section in this document.
+`HubConnectivitySensor` is associated with a `DeviceInfo` entry named `"vdc @ Home Assistant"` (identifier `(DOMAIN, entry.entry_id)`), creating the integration-level hub device. All hub-relevant entities (connectivity sensor) are grouped under this device. Per-vdSD entities are grouped under their own per-vdSD devices derived from `DsvdcBaseEntity`.
 
 ### Naming of devices and entities
-**Status:** Partially resolved (PR #43)
+**Status:** Resolved (PR #43)
 
-A name confirmation step (`name_confirm`) has been added to the `from_entity` and `from_ha_device` config flows. It shows pre-filled text fields for both device name and entity name, derived from the HA source device/entity. The `from_scratch` flow uses the names the user already entered explicitly without an extra confirmation screen.
-
-**Remaining:** The "vdc @ Home Assistant" hub device grouping described above is still open.
+A `name_confirm` step has been added to both the `from_entity` and `from_ha_device` config flows. It shows pre-filled text fields for device name and entity name, derived from the HA source device/entity. The `from_scratch` flow uses the names the user entered explicitly (device name from `device_info` step, vdSD name from `vdsd_creation` step) as HA names directly — no extra confirmation screen.
 
 ---
 
@@ -102,11 +98,11 @@ All mirror entities (`ButtonSensorEntity`, `SensorInputEntity`, `OutputChannelEn
 ## Config Flow
 
 ### Binary sensor pre-selection defaults and field label
-**Status:** Partially resolved (PR #43)
+**Status:** Resolved (PR #43)
 
 - The `bi_group` field label has been corrected.
-- Enum selectors now consistently use LIST mode for ≤ 5 options and DROPDOWN for more, via a `_select()` helper applied across all flow steps.
-- The binary sensor group/type pre-selection default (should be Joker / undefined) has not yet been corrected.
+- The binary sensor group pre-selection now defaults to `8` (Joker / undefined) in the from-scratch flow.
+- All enum selectors consistently use `_select()` helper: LIST mode for ≤ 5 options, DROPDOWN for more — applied across all flow steps including the binary input step.
 
 ### No entity selection in "from device" flow
 **Status:** Resolved (PR #43)
