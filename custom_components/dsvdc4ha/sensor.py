@@ -246,58 +246,8 @@ class OutputChannelEntity(DsvdcBaseEntity, SensorEntity):
             self.async_write_ha_state()
 
 
-class OutputSettingsSensorEntity(DsvdcBaseEntity, SensorEntity):
-    """Read-only config sensor for an outputSettings property."""
-
-    _attr_entity_registry_visible_default = False
-    _attr_entity_category = EntityCategory.CONFIG
-    _attr_should_poll = False
-
-    def __init__(
-        self,
-        subentry_id: str,
-        vdsd_index: int,
-        vdsd_data: dict,
-        prop_key: str,
-        prop_value: Any,
-    ) -> None:
-        super().__init__(subentry_id, vdsd_index, vdsd_data, f"setting_{prop_key}")
-        self._prop_key = prop_key
-        self._attr_name = f"Setting: {prop_key}"
-        self._attr_native_value = prop_value
-
-    @property
-    def state(self) -> Any:
-        return self._attr_native_value
-
-
-class OutputDescriptionSensorEntity(DsvdcBaseEntity, SensorEntity):
-    """Read-only diagnostic sensor for an outputDescription property."""
-
-    _attr_entity_registry_visible_default = False
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_should_poll = False
-
-    def __init__(
-        self,
-        subentry_id: str,
-        vdsd_index: int,
-        vdsd_data: dict,
-        prop_key: str,
-        prop_value: Any,
-    ) -> None:
-        super().__init__(subentry_id, vdsd_index, vdsd_data, f"desc_{prop_key}")
-        self._prop_key = prop_key
-        self._attr_name = f"Description: {prop_key}"
-        self._attr_native_value = prop_value
-
-    @property
-    def state(self) -> Any:
-        return self._attr_native_value
-
-
-class OutputStateSensorEntity(DsvdcBaseEntity, SensorEntity):
-    """Sensor for an outputState property (localPriority, transitionTime, error)."""
+class PropertySensorEntity(DsvdcBaseEntity, SensorEntity):
+    """Generic hidden-by-default sensor for any structured vdSD property value."""
 
     _attr_entity_registry_visible_default = False
     _attr_should_poll = False
@@ -307,19 +257,16 @@ class OutputStateSensorEntity(DsvdcBaseEntity, SensorEntity):
         subentry_id: str,
         vdsd_index: int,
         vdsd_data: dict,
-        prop_key: str,
-        prop_value: Any,
+        uid_suffix: str,
+        display_name: str,
+        value: Any,
+        entity_category: EntityCategory | None = None,
     ) -> None:
-        super().__init__(subentry_id, vdsd_index, vdsd_data, f"state_{prop_key}")
-        self._prop_key = prop_key
-        self._attr_name = f"State: {prop_key}"
-        self._attr_native_value = prop_value
+        super().__init__(subentry_id, vdsd_index, vdsd_data, uid_suffix)
+        self._attr_name = display_name
+        self._attr_native_value = value
+        self._attr_entity_category = entity_category
 
     @property
     def state(self) -> Any:
         return self._attr_native_value
-
-    def _handle_state_update(self, new_value: Any) -> None:
-        self._attr_native_value = new_value
-        if self.hass:
-            self.async_write_ha_state()

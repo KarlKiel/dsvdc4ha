@@ -23,14 +23,14 @@ def test_output_channel_entity_hidden_by_default():
     assert getattr(OutputChannelEntity, "__attr_entity_registry_visible_default") is False
 
 
+def test_property_sensor_entity_hidden_by_default():
+    from custom_components.dsvdc4ha.sensor import PropertySensorEntity
+    assert getattr(PropertySensorEntity, "__attr_entity_registry_visible_default") is False
+
+
 def test_binary_input_entity_hidden_by_default():
     from custom_components.dsvdc4ha.binary_sensor import BinaryInputEntity
     assert getattr(BinaryInputEntity, "__attr_entity_registry_visible_default") is False
-
-
-def test_output_settings_sensor_entity_hidden_by_default():
-    from custom_components.dsvdc4ha.sensor import OutputSettingsSensorEntity
-    assert getattr(OutputSettingsSensorEntity, "__attr_entity_registry_visible_default") is False
 
 
 def test_hub_connectivity_sensor_visible_by_default():
