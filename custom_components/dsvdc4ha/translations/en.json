@@ -217,6 +217,15 @@
           "title": "Bind Output Channels to HA",
           "description": "Select the entities that reflect the channel values of the output."
         },
+        "channel_push_binding": {
+          "title": "HA → dS Binding — {channel}",
+          "description": "Configure how to read a value from Home Assistant and push it to the dS channel '{channel}'.",
+          "data": {
+            "source_entity": "Source entity (watched for changes)",
+            "source_attribute": "Attribute to read (empty = use main state)",
+            "transform": "Value transformation"
+          }
+        },
         "model_features": {
           "title": "Model Features",
           "description": "The following model features will be added to the vdSD. Auto-derived features are pre-selected; adjust as needed."
