@@ -67,6 +67,8 @@ def _add_entities_for_subentry(
 class ButtonSensorEntity(DsvdcBaseEntity, SensorEntity):
     """Sensor showing the last click type or action ID forwarded to dS."""
 
+    _attr_entity_registry_enabled_default = False
+
     def __init__(self, subentry_id: str, vdsd_index: int, vdsd_data: dict, btn_data: dict) -> None:
         super().__init__(subentry_id, vdsd_index, vdsd_data, f"button_{btn_data['dsIndex']}")
         self._btn_data = btn_data
@@ -124,6 +126,8 @@ class ButtonSensorEntity(DsvdcBaseEntity, SensorEntity):
 class SensorInputEntity(DsvdcBaseEntity, SensorEntity):
     """Sensor mirroring a dS sensor input value."""
 
+    _attr_entity_registry_enabled_default = False
+
     def __init__(self, subentry_id: str, vdsd_index: int, vdsd_data: dict, si_data: dict) -> None:
         super().__init__(subentry_id, vdsd_index, vdsd_data, f"sensor_{si_data['dsIndex']}")
         self._si_data = si_data
@@ -177,6 +181,8 @@ class SensorInputEntity(DsvdcBaseEntity, SensorEntity):
 
 class OutputChannelEntity(DsvdcBaseEntity, SensorEntity):
     """Sensor mirroring the current value of an output channel."""
+
+    _attr_entity_registry_enabled_default = False
 
     def __init__(
         self,
