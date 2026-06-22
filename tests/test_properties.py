@@ -29,3 +29,18 @@ def test_output_state_sensor_entity_handle_update():
     ent.hass = None
     ent._handle_state_update(5)
     assert ent._attr_native_value == 5
+
+
+def test_output_settings_sensor_entity_has_correct_attributes():
+    from custom_components.dsvdc4ha.sensor import OutputSettingsSensorEntity
+    from homeassistant.helpers.entity import EntityCategory
+    ent = OutputSettingsSensorEntity("sub1", 0, {"name": "MyDevice"}, "mode", 1)
+    assert ent._attr_name == "Setting: mode"
+    assert getattr(ent, "__attr_entity_registry_visible_default", None) is False
+    assert ent._attr_entity_category == EntityCategory.CONFIG
+
+
+def test_output_settings_sensor_entity_state():
+    from custom_components.dsvdc4ha.sensor import OutputSettingsSensorEntity
+    ent = OutputSettingsSensorEntity("sub1", 0, {"name": "MyDevice"}, "pushChanges", True)
+    assert ent.state is True

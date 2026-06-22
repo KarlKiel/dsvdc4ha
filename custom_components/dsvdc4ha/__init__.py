@@ -175,7 +175,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Expose Output description and state properties as diagnostic sensor entities.
     _add_sensor = hass.data[DOMAIN].get("_add_sensor_entities")
     if _add_sensor and coordinator.api:
-        from .sensor import OutputDescriptionSensorEntity, OutputStateSensorEntity
+        from .sensor import (
+            OutputDescriptionSensorEntity,
+            OutputSettingsSensorEntity,
+            OutputStateSensorEntity,
+        )
         for subentry in entry.subentries.values():
             for vdsd_idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):
                 if not vdsd_data.get("output"):
@@ -199,6 +203,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                             subentry.subentry_id, vdsd_idx, vdsd_data, key, val
                         )
                     )
+                for key, val in vdsd.output.get_settings_properties().items():
+                    if isinstance(val, (int, float, bool, str)):
+                        prop_entities.append(
+                            OutputSettingsSensorEntity(
+                                subentry.subentry_id, vdsd_idx, vdsd_data, key, val
+                            )
+                        )
                 if prop_entities:
                     _add_sensor(prop_entities, config_subentry_id=subentry.subentry_id)
 

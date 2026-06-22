@@ -246,6 +246,31 @@ class OutputChannelEntity(DsvdcBaseEntity, SensorEntity):
             self.async_write_ha_state()
 
 
+class OutputSettingsSensorEntity(DsvdcBaseEntity, SensorEntity):
+    """Read-only config sensor for an outputSettings property."""
+
+    _attr_entity_registry_visible_default = False
+    _attr_entity_category = EntityCategory.CONFIG
+    _attr_should_poll = False
+
+    def __init__(
+        self,
+        subentry_id: str,
+        vdsd_index: int,
+        vdsd_data: dict,
+        prop_key: str,
+        prop_value: Any,
+    ) -> None:
+        super().__init__(subentry_id, vdsd_index, vdsd_data, f"setting_{prop_key}")
+        self._prop_key = prop_key
+        self._attr_name = f"Setting: {prop_key}"
+        self._attr_native_value = prop_value
+
+    @property
+    def state(self) -> Any:
+        return self._attr_native_value
+
+
 class OutputDescriptionSensorEntity(DsvdcBaseEntity, SensorEntity):
     """Read-only diagnostic sensor for an outputDescription property."""
 
