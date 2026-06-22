@@ -226,6 +226,15 @@
             "transform": "Value transformation"
           }
         },
+        "channel_apply_binding": {
+          "title": "dS → HA Binding — {channel}",
+          "description": "Configure how to translate a dS channel value from '{channel}' into a Home Assistant action.",
+          "data": {
+            "service": "HA service to call (empty = no dS→HA control)",
+            "parameter": "Service data parameter to pass the mapped value to",
+            "transform": "Value transformation (applied to dS channel value)"
+          }
+        },
         "model_features": {
           "title": "Model Features",
           "description": "The following model features will be added to the vdSD. Auto-derived features are pre-selected; adjust as needed."

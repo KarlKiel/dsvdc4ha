@@ -2154,13 +2154,73 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         )
 
     async def async_step_channel_apply_binding(self, user_input: dict | None = None):
-        """Stub — will be implemented in CB-4. Advances to next channel or finishes mapping."""
-        self._channel_mapping_idx += 1
-        if self._channel_mapping_idx < len(self._current_channels):
-            return await self.async_step_channel_push_binding()
-        if self._current_output is not None:
-            self._current_output["channels"] = self._current_channels
-        return await self.async_step_vdsd_overview()
+        """Collect the dS→HA apply binding for the current output channel."""
+        from .binding_transforms import TRANSFORM_OPTIONS
+        from .binding_compiler import compile_apply_binding
+        from .entity_mapping import CHANNEL_TYPE_LABELS
+
+        ch = self._current_channels[self._channel_mapping_idx]
+        ch_type = ch.get("channelType", 0)
+        ch_label = CHANNEL_TYPE_LABELS.get(ch_type, f"Channel {ch_type}")
+
+        if user_input is not None:
+            service_raw = user_input.get("service", "")
+            if service_raw:
+                binding = {
+                    "service": service_raw,
+                    "parameter": user_input.get("parameter") or None,
+                    "transform": user_input.get("transform", "passthrough"),
+                }
+                ch["apply_expr"] = compile_apply_binding(binding)
+            # Advance to next channel or finish
+            self._channel_mapping_idx += 1
+            if self._channel_mapping_idx < len(self._current_channels):
+                return await self.async_step_channel_push_binding()
+            if self._current_output is not None:
+                self._current_output["channels"] = self._current_channels
+            return await self.async_step_vdsd_overview()
+
+        service_options = [
+            {"value": "", "label": "(no dS→HA control for this channel)"},
+            {"value": "light.turn_on", "label": "light.turn_on"},
+            {"value": "light.turn_off", "label": "light.turn_off"},
+            {"value": "switch.turn_on", "label": "switch.turn_on"},
+            {"value": "switch.turn_off", "label": "switch.turn_off"},
+            {"value": "cover.set_cover_position", "label": "cover.set_cover_position"},
+            {"value": "cover.set_cover_tilt_position", "label": "cover.set_cover_tilt_position"},
+            {"value": "fan.set_percentage", "label": "fan.set_percentage"},
+            {"value": "number.set_value", "label": "number.set_value"},
+            {"value": "climate.set_temperature", "label": "climate.set_temperature"},
+        ]
+
+        parameter_options = [
+            {"value": "", "label": "(no parameter — value not passed)"},
+            {"value": "brightness", "label": "brightness"},
+            {"value": "color_temp_kelvin", "label": "color_temp_kelvin"},
+            {"value": "position", "label": "position"},
+            {"value": "tilt_position", "label": "tilt_position"},
+            {"value": "percentage", "label": "percentage"},
+            {"value": "value", "label": "value"},
+            {"value": "temperature", "label": "temperature"},
+            {"value": "volume_level", "label": "volume_level"},
+        ]
+
+        schema = vol.Schema({
+            vol.Optional("service", default=""): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=service_options, custom_value=True)
+            ),
+            vol.Optional("parameter", default=""): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=parameter_options, custom_value=True)
+            ),
+            vol.Required("transform", default="passthrough"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=TRANSFORM_OPTIONS)
+            ),
+        })
+        return self.async_show_form(
+            step_id="channel_apply_binding",
+            data_schema=schema,
+            description_placeholders={"channel": ch_label},
+        )
 
     async def async_step_device_summary(self, user_input: dict | None = None):
         """Show device summary; allow adding another vdSD or creating the subentry."""
