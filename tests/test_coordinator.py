@@ -101,3 +101,8 @@ async def test_async_setup_entry_hub_starts_coordinator(mock_api):
         assert call_kwargs["zeroconf"] is mock_zeroconf
         assert callable(call_kwargs["on_session_ready"])
         assert callable(call_kwargs["on_disconnect"])
+
+
+def test_hub_device_name_constant():
+    from custom_components.dsvdc4ha.const import VDC_HOST_NAME
+    assert VDC_HOST_NAME == "vdc @ Home Assistant"
