@@ -758,6 +758,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         self._pending_choice_entities: list[tuple[_EntityInfo, int]] = []
         self._pending_choice_idx: int = 0
         self._pending_vdsd_idx: int = 0
+        self._pending_name_confirm_idx: int = 0
         self._creation_mode: str = "from_entity"
 
     async def _resolve_entity_icon(self, entity_id: str) -> tuple[str, str | None]:
@@ -1535,8 +1536,8 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             self._pending_vdsd_idx += 1
             if self._pending_vdsd_idx < len(self._vdsd_plans):
                 return await self.async_step_device_model_features()
-            self._vdsds = [p.resolved_vdsd for p in self._vdsd_plans if p.resolved_vdsd]
-            return await self.async_step_device_summary()
+            self._pending_name_confirm_idx = 0
+            return await self.async_step_name_confirm()
 
         auto_features = derive_model_features_for_config(vdsd)
         options: list[selector.SelectOptionDict] = [
@@ -1760,16 +1761,31 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
     async def async_step_name_confirm(self, user_input: dict | None = None):
         """Let the user confirm or edit device and entity names before saving."""
-        if user_input is not None:
-            if "device_name" in user_input:
-                self._current_vdsd["displayId"] = user_input["device_name"]
-            if "entity_name" in user_input:
-                self._apply_entity_name(user_input["entity_name"])
-            self._vdsds.append(dict(self._current_vdsd))
-            return await self.async_step_entity_completion()
+        if self._creation_mode == "from_ha_device":
+            plan = self._vdsd_plans[self._pending_name_confirm_idx]
+            vdsd = plan.resolved_vdsd or {}
+            if user_input is not None:
+                if plan.resolved_vdsd is not None:
+                    plan.resolved_vdsd["displayId"] = user_input.get("device_name", vdsd.get("displayId", ""))
+                    plan.resolved_vdsd["name"] = user_input.get("entity_name", vdsd.get("name", ""))
+                self._pending_name_confirm_idx += 1
+                if self._pending_name_confirm_idx < len(self._vdsd_plans):
+                    return await self.async_step_name_confirm()
+                self._vdsds = [p.resolved_vdsd for p in self._vdsd_plans if p.resolved_vdsd]
+                return await self.async_step_device_summary()
+            device_name = vdsd.get("displayId", vdsd.get("name", ""))
+            entity_name = vdsd.get("name", "")
+        else:
+            if user_input is not None:
+                if "device_name" in user_input:
+                    self._current_vdsd["displayId"] = user_input["device_name"]
+                if "entity_name" in user_input:
+                    self._apply_entity_name(user_input["entity_name"])
+                self._vdsds.append(dict(self._current_vdsd))
+                return await self.async_step_entity_completion()
+            device_name = self._current_vdsd.get("displayId", self._current_vdsd.get("name", ""))
+            entity_name = self._derive_entity_name_proposal()
 
-        device_name = self._current_vdsd.get("displayId", self._current_vdsd.get("name", ""))
-        entity_name = self._derive_entity_name_proposal()
         schema = vol.Schema({
             vol.Required("device_name", default=device_name): selector.TextSelector(),
             vol.Required("entity_name", default=entity_name): selector.TextSelector(),
