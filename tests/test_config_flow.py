@@ -280,7 +280,10 @@ async def test_vdsd_overview_shows_form_then_next():
     assert result2["step_id"] == "model_features"
 
     result3 = await flow.async_step_model_features({"features": []})
-    assert result3["step_id"] == "entity_completion"
+    assert result3["step_id"] == "name_confirm"
+
+    result4 = await flow.async_step_name_confirm({"device_name": "TestUnit", "entity_name": ""})
+    assert result4["step_id"] == "entity_completion"
 
 
 @pytest.mark.asyncio
@@ -1096,7 +1099,11 @@ async def test_model_features_from_entity_routes_to_entity_completion():
 
     result = await flow.async_step_model_features({"features": []})
     assert result["type"] == FlowResultType.FORM
-    assert result["step_id"] == "entity_completion"
+    assert result["step_id"] == "name_confirm"
+
+    result2 = await flow.async_step_name_confirm({"device_name": "switch", "entity_name": ""})
+    assert result2["type"] == FlowResultType.FORM
+    assert result2["step_id"] == "entity_completion"
 
 
 @pytest.mark.asyncio

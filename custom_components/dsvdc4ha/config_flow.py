@@ -1646,9 +1646,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             self._current_vdsd["binary_inputs"] = self._current_binary_inputs
             self._current_vdsd["sensors"] = self._current_sensors
             self._current_vdsd["output"] = self._current_output
-            self._vdsds.append(dict(self._current_vdsd))
             if self._creation_mode == "from_entity":
-                return await self.async_step_entity_completion()
+                return await self.async_step_name_confirm()
+            self._vdsds.append(dict(self._current_vdsd))
             return await self.async_step_device_summary()
 
         auto_features = derive_model_features_for_config({
@@ -1716,6 +1716,47 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "vdsds": ", ".join(vdsd_summary),
             },
         )
+
+    async def async_step_name_confirm(self, user_input: dict | None = None):
+        """Let the user confirm or edit device and entity names before saving."""
+        if user_input is not None:
+            if "device_name" in user_input:
+                self._current_vdsd["displayId"] = user_input["device_name"]
+            if "entity_name" in user_input:
+                self._apply_entity_name(user_input["entity_name"])
+            self._vdsds.append(dict(self._current_vdsd))
+            return await self.async_step_entity_completion()
+
+        device_name = self._current_vdsd.get("displayId", self._current_vdsd.get("name", ""))
+        entity_name = self._derive_entity_name_proposal()
+        schema = vol.Schema({
+            vol.Required("device_name", default=device_name): selector.TextSelector(),
+            vol.Required("entity_name", default=entity_name): selector.TextSelector(),
+        })
+        return self.async_show_form(step_id="name_confirm", data_schema=schema)
+
+    def _derive_entity_name_proposal(self) -> str:
+        """Return a proposed entity name based on what's configured."""
+        if self._current_output:
+            return self._current_output.get("name", "Output")
+        if self._current_binary_inputs:
+            return self._current_binary_inputs[0].get("name", "Binary Input")
+        if self._current_sensors:
+            return self._current_sensors[0].get("name", "Sensor")
+        if self._current_buttons:
+            return self._current_buttons[0].get("name", "Button")
+        return ""
+
+    def _apply_entity_name(self, name: str) -> None:
+        """Apply the confirmed entity name to the configured component."""
+        if self._current_output:
+            self._current_output["name"] = name
+        elif self._current_binary_inputs:
+            self._current_binary_inputs[0]["name"] = name
+        elif self._current_sensors:
+            self._current_sensors[0]["name"] = name
+        elif self._current_buttons:
+            self._current_buttons[0]["name"] = name
 
     async def async_step_button(self, user_input: dict | None = None):
         """Collect button element configuration."""

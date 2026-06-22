@@ -102,6 +102,14 @@
             "has_tilt": "Device supports tilt / blade angle control"
           }
         },
+        "name_confirm": {
+          "title": "Confirm Names",
+          "description": "Review and confirm the proposed names for the HA device and entity.",
+          "data": {
+            "device_name": "Device name (shown in HA)",
+            "entity_name": "Entity name (shown in HA)"
+          }
+        },
         "entity_channel_mapping": {
           "title": "Bind Output Channels to HA",
           "description": "Select the entities and actions that provide and control each output channel ({channels}). The entity you selected is pre-filled as the read source."
