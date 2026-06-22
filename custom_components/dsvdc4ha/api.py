@@ -521,6 +521,11 @@ class DsvdcApi:
                 if count > 0:
                     self._ever_announced.add(entry_id)
 
+    async def force_reannounce_device(self, entry_id: str) -> None:
+        """Force re-announcement of a device to dSS, ignoring _ever_announced cache."""
+        self._ever_announced.discard(entry_id)
+        await self.announce_device(entry_id)
+
     def _build_vdsd(self, device: Device, idx: int, data: dict[str, Any]) -> Vdsd:
         vdsd = Vdsd(
             device=device,

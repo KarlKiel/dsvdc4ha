@@ -232,9 +232,11 @@ async def _async_subentry_update_listener(
         from .listeners import setup_input_listeners, setup_output_listeners, seed_initial_values
         from . import sensor as _sensor_mod
         from . import binary_sensor as _binary_sensor_mod
+        from . import button as _button_mod
 
         add_sensor = domain_data.get("_add_sensor_entities")
         add_binary = domain_data.get("_add_binary_entities")
+        add_button = domain_data.get("_add_button_entities")
 
         for subentry_id in added:
             subentry = entry.subentries[subentry_id]
@@ -249,6 +251,8 @@ async def _async_subentry_update_listener(
                 _sensor_mod._add_entities_for_subentry(subentry, add_sensor)
             if add_binary:
                 _binary_sensor_mod._add_entities_for_subentry(subentry, add_binary)
+            if add_button:
+                _button_mod._add_entities_for_subentry(subentry, add_button, coordinator)
 
     if removed or added:
         entity_index: dict = domain_data.get("_entity_index", {})
