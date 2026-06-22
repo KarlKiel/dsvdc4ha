@@ -1895,24 +1895,14 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             return await self.async_step_vdsd_overview()
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
-            vol.Required("group", default="8"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_BINARY_INPUT_GROUP_OPTIONS)
-            ),
-            vol.Required("sensorFunction", default="0"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_BINARY_INPUT_TYPE_OPTIONS)
-            ),
-            vol.Required("hardwiredFunction", default="0"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_BINARY_INPUT_TYPE_OPTIONS)
-            ),
+            vol.Required("group", default="8"): _select(_BINARY_INPUT_GROUP_OPTIONS),
+            vol.Required("sensorFunction", default="0"): _select(_BINARY_INPUT_TYPE_OPTIONS),
+            vol.Required("hardwiredFunction", default="0"): _select(_BINARY_INPUT_TYPE_OPTIONS),
             vol.Optional("updateInterval", default=0): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, mode="box")
             ),
-            vol.Required("inputType", default="1"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_INPUT_TYPE_OPTIONS)
-            ),
-            vol.Required("inputUsage", default="0"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_BINARY_INPUT_USAGE_OPTIONS)
-            ),
+            vol.Required("inputType", default="1"): _select(_INPUT_TYPE_OPTIONS),
+            vol.Required("inputUsage", default="0"): _select(_BINARY_INPUT_USAGE_OPTIONS),
             vol.Required("valueType", default="boolean"): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=[
                     selector.SelectOptionDict(value="boolean", label="Boolean (true / false)"),
