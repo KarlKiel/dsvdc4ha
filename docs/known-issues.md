@@ -81,7 +81,7 @@ A `name_confirm` step has been added to both the `from_entity` and `from_ha_devi
 - **Per button input**: description (DIAGNOSTIC), settings (CONFIG), state
 - **Output** (when present): description (DIAGNOSTIC), settings (CONFIG), state
 
-Bidirectional write-back for settings properties is not yet implemented — entities are read-only for now.
+Bidirectional write-back for settings properties is pending a pydsvdcapi API addition. pydsvdcapi needs to expose a method to apply a settings change and send the corresponding `vdc_sendPushNotification` to dSS. Once that is available, the `PropertySensorEntity` for settings (EntityCategory.CONFIG) will be converted to a writable entity type.
 
 ---
 
