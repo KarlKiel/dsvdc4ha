@@ -16,7 +16,9 @@
       "Bash(git merge *)",
       "Bash(.venv/bin/python -m pytest tests/ -x -q)",
       "Bash(.venv/bin/python -m pytest tests/test_listeners.py -v -q)",
-      "Bash(.venv/bin/python -m pytest tests/test_api.py::test_vanish_without_session_queues_pending tests/test_api.py::test_flush_pending_vanish_sends_and_clears tests/test_api.py::test_flush_pending_vanish_skips_failed_and_continues -v)"
+      "Bash(.venv/bin/python -m pytest tests/test_api.py::test_vanish_without_session_queues_pending tests/test_api.py::test_flush_pending_vanish_sends_and_clears tests/test_api.py::test_flush_pending_vanish_skips_failed_and_continues -v)",
+      "Bash(git -C /home/arne/Development/dsvdc4ha/.worktrees/known-issues log main..HEAD --oneline)",
+      "Bash(git -C /home/arne/Development/dsvdc4ha/.worktrees/callback-bindings log main..HEAD --oneline)"
     ]
   }
 }
