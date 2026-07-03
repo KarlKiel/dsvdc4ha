@@ -196,13 +196,30 @@ def setup_input_listeners(
             is_bool = bi_data.get("valueType", "boolean") == "boolean"
 
             invert_bi = bi_data.get("sensorFunction") in _INVERTED_BINARY_SENSOR_FUNCTIONS
+            value_attr = bi_data.get("value_attribute")
+            value_transform_name = bi_data.get("value_transform")
 
             @callback
-            def _on_binary_state(event: Event, _bi=bi, _is_bool=is_bool, _invert=invert_bi) -> None:
+            def _on_binary_state(
+                event: Event,
+                _bi=bi,
+                _is_bool=is_bool,
+                _invert=invert_bi,
+                _attr=value_attr,
+                _transform=value_transform_name,
+            ) -> None:
                 new_state = event.data.get("new_state")
                 if not new_state or new_state.state in ("unknown", "unavailable"):
                     return
-                if _is_bool:
+                if _attr and _transform:
+                    raw = new_state.attributes.get(_attr)
+                    from .binding_transforms import apply_transform
+                    try:
+                        val = apply_transform(_transform, raw)
+                        hass.async_create_task(api.report_binary_value(_bi, val > 0))
+                    except Exception:
+                        pass
+                elif _is_bool:
                     value = new_state.state in ("on", "true", "1", "True")
                     if _invert:
                         value = not value
