@@ -10,6 +10,14 @@ from custom_components.dsvdc4ha.listeners import (
 )
 
 
+def _capture_cb(captured: list):
+    """Return a side_effect for async_track_state_change_event that collects the callback."""
+    def _track(h, entity_id, cb):
+        captured.append(cb)
+        return lambda: None
+    return _track
+
+
 @pytest.mark.asyncio
 async def test_seed_initial_values_uses_push_expr():
     """seed_initial_values should eval push_expr for initial channel value."""
@@ -138,7 +146,7 @@ def test_push_expr_fallback_to_float_state():
 
     registered_cbs = []
     with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
-               side_effect=lambda h, e, cb: (registered_cbs.append(cb), lambda: None)[1]):
+               side_effect=_capture_cb(registered_cbs)):
         setup_output_listeners(hass, api, "entry1", [{"output": {"channels": channels_data}}])
 
     new_state = MagicMock()
@@ -671,7 +679,7 @@ def test_sensor_listener_applies_unit_conversion():
 
     registered_cbs = []
     with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
-               side_effect=lambda h, e, cb: (registered_cbs.append(cb), lambda: None)[1]):
+               side_effect=_capture_cb(registered_cbs)):
         setup_input_listeners(hass, api, "entry1", vdsd_data)
 
     assert len(registered_cbs) == 1
@@ -709,7 +717,7 @@ def test_sensor_listener_no_conversion_when_unit_unknown():
 
     registered_cbs = []
     with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
-               side_effect=lambda h, e, cb: (registered_cbs.append(cb), lambda: None)[1]):
+               side_effect=_capture_cb(registered_cbs)):
         setup_input_listeners(hass, api, "entry1", vdsd_data)
 
     new_state = MagicMock()

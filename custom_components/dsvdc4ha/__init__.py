@@ -148,7 +148,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # HA→dS listeners, then seed current HA state so pydsvdcapi's
     # _wait_for_initial_values() is satisfied before announce() is awaited.
     await _backfill_missing_icons(hass, entry)
-    from homeassistant.helpers import device_registry as dr
     from .listeners import setup_input_listeners, setup_output_listeners, seed_initial_values
     dev_reg = dr.async_get(hass)
     internal_url = (hass.config.internal_url or "http://homeassistant.local:8123").rstrip("/")
