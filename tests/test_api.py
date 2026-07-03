@@ -510,6 +510,14 @@ async def test_vanish_device_removes_from_ever_announced():
     assert "sub1" not in api._ever_announced
 
 
+def test_patch_vdsd_config_urls_skips_unknown_entries():
+    """patch_vdsd_config_urls silently skips unknown entry IDs."""
+    from custom_components.dsvdc4ha.api import DsvdcApi
+    api = DsvdcApi(port=9090, version="1.0", config_url="http://ha.local/config", state_path="/tmp/s")
+    # No devices registered — should not raise
+    api.patch_vdsd_config_urls({("nonexistent-entry", 0): "http://ha.local/device/abc"})
+
+
 def test_add_output_passes_heating_system_params():
     """heating_system_capability and heating_system_type are forwarded as enum instances."""
     from pydsvdcapi.enums import HeatingSystemCapability, HeatingSystemType
