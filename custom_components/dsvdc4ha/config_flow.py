@@ -1851,18 +1851,10 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
-            vol.Required("buttonType", default="1"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_BUTTON_TYPE_OPTIONS)
-            ),
-            vol.Required("group", default="1"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_BUTTON_GROUP_OPTIONS)
-            ),
-            vol.Required("function", default="0"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_BUTTON_FUNCTION_OPTIONS)
-            ),
-            vol.Required("mode", default="0"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_BUTTON_MODE_OPTIONS)
-            ),
+            vol.Required("buttonType", default="1"): _select(_BUTTON_TYPE_OPTIONS),
+            vol.Required("group", default="1"): _select(_BUTTON_GROUP_OPTIONS),
+            vol.Required("function", default="0"): _select(_BUTTON_FUNCTION_OPTIONS),
+            vol.Required("mode", default="0"): _select(_BUTTON_MODE_OPTIONS),
             vol.Optional("channel", default=0): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, max=255, mode="box")
             ),
@@ -1965,15 +1957,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             return await self.async_step_sensor_binding()
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
-            vol.Required("group", default="0"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_SENSOR_GROUP_OPTIONS)
-            ),
-            vol.Required("sensorType", default="1"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_SENSOR_TYPE_OPTIONS)
-            ),
-            vol.Required("sensorUsage", default="1"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_SENSOR_USAGE_OPTIONS)
-            ),
+            vol.Required("group", default="0"): _select(_SENSOR_GROUP_OPTIONS),
+            vol.Required("sensorType", default="1"): _select(_SENSOR_TYPE_OPTIONS),
+            vol.Required("sensorUsage", default="1"): _select(_SENSOR_USAGE_OPTIONS),
             vol.Required("min", default=0): selector.NumberSelector(
                 selector.NumberSelectorConfig(mode="box")
             ),
@@ -2052,28 +2038,16 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             return await self.async_step_channel_mapping()
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
-            vol.Required("groups", default=["1"]): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_COLOR_CLASS_OPTIONS, multiple=True)
-            ),
-            vol.Required("defaultGroup", default="1"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_COLOR_CLASS_OPTIONS)
-            ),
-            vol.Required("function", default="0"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_OUTPUT_FUNCTION_OPTIONS)
-            ),
-            vol.Required("outputUsage", default="0"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_OUTPUT_USAGE_OPTIONS)
-            ),
+            vol.Required("groups", default=["1"]): _select(_COLOR_CLASS_OPTIONS, multiple=True),
+            vol.Required("defaultGroup", default="1"): _select(_COLOR_CLASS_OPTIONS),
+            vol.Required("function", default="0"): _select(_OUTPUT_FUNCTION_OPTIONS),
+            vol.Required("outputUsage", default="0"): _select(_OUTPUT_USAGE_OPTIONS),
             vol.Optional("variableRamp", default=False): selector.BooleanSelector(),
-            vol.Required("mode", default="127"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_OUTPUT_MODE_OPTIONS)
-            ),
-            vol.Required("action", default="next"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="next", label="Continue"),
-                    selector.SelectOptionDict(value="output_optional", label="Optional output settings…"),
-                ])
-            ),
+            vol.Required("mode", default="127"): _select(_OUTPUT_MODE_OPTIONS),
+            vol.Required("action", default="next"): _select([
+                selector.SelectOptionDict(value="next", label="Continue"),
+                selector.SelectOptionDict(value="output_optional", label="Optional output settings…"),
+            ]),
         })
         return self.async_show_form(step_id="output", data_schema=schema)
 
