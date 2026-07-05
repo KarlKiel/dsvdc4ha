@@ -280,7 +280,10 @@ async def test_vdsd_overview_shows_form_then_next():
     assert result2["step_id"] == "model_features"
 
     result3 = await flow.async_step_model_features({"features": []})
-    assert result3["step_id"] == "entity_completion"
+    assert result3["step_id"] == "name_confirm"
+
+    result4 = await flow.async_step_name_confirm({"device_name": "TestUnit", "entity_name": ""})
+    assert result4["step_id"] == "entity_completion"
 
 
 @pytest.mark.asyncio
@@ -535,6 +538,10 @@ async def test_device_picker_with_choices_routes_to_entity_user_input():
     mock_entry = MagicMock()
     mock_entry.entity_id = "light.choosy"
     mock_entry.entity_category = None
+    mock_entry.disabled_by = None
+    mock_entry.domain = "light"
+    mock_entry.device_class = None
+    mock_entry.original_device_class = None
     mock_ent_reg.entities.get_entries_for_device_id.return_value = [mock_entry]
 
     mock_state = MagicMock()
@@ -547,15 +554,22 @@ async def test_device_picker_with_choices_routes_to_entity_user_input():
               return_value=mock_dev_reg),
         patch("custom_components.dsvdc4ha.config_flow.er.async_get",
               return_value=mock_ent_reg),
-        patch("custom_components.dsvdc4ha.config_flow.compute_vdsd_plan",
-              return_value=([plan], [])),
     ):
         result = await flow.async_step_device_picker(
             {"device_id": "device-abc-123"}
         )
 
     assert result["type"] == "form"
-    assert result["step_id"] == "device_entity_user_input"
+    assert result["step_id"] == "device_entity_select"
+
+    with patch("custom_components.dsvdc4ha.config_flow.compute_vdsd_plan",
+               return_value=([plan], [])):
+        result2 = await flow.async_step_device_entity_select(
+            {"entity_ids": ["light.choosy"]}
+        )
+
+    assert result2["type"] == "form"
+    assert result2["step_id"] == "device_entity_user_input"
 
 
 @pytest.mark.asyncio
@@ -612,7 +626,10 @@ async def test_device_plan_summary_proceed_routes_to_device_summary():
         result = await flow.async_step_device_plan_summary({"action": "proceed"})
     assert result["step_id"] == "device_model_features"
 
+    flow._creation_mode = "from_ha_device"
     result = await flow.async_step_device_model_features({"features": []})
+    assert result["step_id"] == "name_confirm"
+    result = await flow.async_step_name_confirm({"device_name": "M", "entity_name": "Lamp — Light"})
     assert result["step_id"] == "device_summary"
 
 
@@ -659,10 +676,22 @@ async def test_device_model_features_cycles_and_routes_to_device_summary():
     assert flow._pending_vdsd_idx == 1
     assert plan1.model_features == ["dontcare"]
 
-    # Submit features for plan 2 → routes to device_summary
+    # Submit features for plan 2 → routes to name_confirm (first plan)
+    flow._creation_mode = "from_ha_device"
     result = await flow.async_step_device_model_features({"features": []})
-    assert result["step_id"] == "device_summary"
+    assert result["step_id"] == "name_confirm"
     assert flow._pending_vdsd_idx == 2
+    assert flow._pending_name_confirm_idx == 0
+
+    # Confirm names for plan 1 → advances to name_confirm for plan 2
+    result = await flow.async_step_name_confirm({"device_name": "Device A", "entity_name": "Light A"})
+    assert result["step_id"] == "name_confirm"
+    assert flow._pending_name_confirm_idx == 1
+    assert plan1.resolved_vdsd["displayId"] == "Device A"
+
+    # Confirm names for plan 2 → routes to device_summary
+    result = await flow.async_step_name_confirm({"device_name": "Device B", "entity_name": "Light B"})
+    assert result["step_id"] == "device_summary"
     assert len(flow._vdsds) == 2
 
 
@@ -696,14 +725,18 @@ async def test_full_ha_device_flow_creates_entry():
     }
     flow._vdsd_plans = [plan]
     flow._pending_vdsd_idx = 0
+    flow._creation_mode = "from_ha_device"
 
-    await flow.async_step_device_model_features({"features": ["blink"]})
+    result = await flow.async_step_device_model_features({"features": ["blink"]})
+    assert result["step_id"] == "name_confirm"
+    result = await flow.async_step_name_confirm({"device_name": "My Lamp Confirmed", "entity_name": "My Lamp — Light"})
+    assert result["step_id"] == "device_summary"
     result = await flow.async_step_device_summary({"action": "create", "confirm": True})
 
     assert result["type"] == "create_entry"
     assert result["title"] == "My Lamp"
     assert len(result["data"]["vdsds"]) == 1
-    assert result["data"]["vdsds"][0]["displayId"] == "LampModel"
+    assert result["data"]["vdsds"][0]["displayId"] == "My Lamp Confirmed"
 
 
 # ---------------------------------------------------------------------------
@@ -1102,7 +1135,11 @@ async def test_model_features_from_entity_routes_to_entity_completion():
 
     result = await flow.async_step_model_features({"features": []})
     assert result["type"] == FlowResultType.FORM
-    assert result["step_id"] == "entity_completion"
+    assert result["step_id"] == "name_confirm"
+
+    result2 = await flow.async_step_name_confirm({"device_name": "switch", "entity_name": ""})
+    assert result2["type"] == FlowResultType.FORM
+    assert result2["step_id"] == "entity_completion"
 
 
 @pytest.mark.asyncio

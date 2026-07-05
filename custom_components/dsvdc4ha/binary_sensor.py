@@ -47,6 +47,8 @@ def _add_entities_for_subentry(
 class BinaryInputEntity(DsvdcBaseEntity, BinarySensorEntity):
     """Binary sensor mirroring a dS binary input value."""
 
+    _attr_entity_registry_visible_default = False
+
     def __init__(self, subentry_id: str, vdsd_index: int, vdsd_data: dict, bi_data: dict) -> None:
         super().__init__(subentry_id, vdsd_index, vdsd_data, f"binary_input_{bi_data['dsIndex']}")
         self._bi_data = bi_data

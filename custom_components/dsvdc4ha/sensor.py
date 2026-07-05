@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, Event, callback
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
@@ -67,6 +68,8 @@ def _add_entities_for_subentry(
 class ButtonSensorEntity(DsvdcBaseEntity, SensorEntity):
     """Sensor showing the last click type or action ID forwarded to dS."""
 
+    _attr_entity_registry_visible_default = False
+
     def __init__(self, subentry_id: str, vdsd_index: int, vdsd_data: dict, btn_data: dict) -> None:
         super().__init__(subentry_id, vdsd_index, vdsd_data, f"button_{btn_data['dsIndex']}")
         self._btn_data = btn_data
@@ -124,6 +127,8 @@ class ButtonSensorEntity(DsvdcBaseEntity, SensorEntity):
 class SensorInputEntity(DsvdcBaseEntity, SensorEntity):
     """Sensor mirroring a dS sensor input value."""
 
+    _attr_entity_registry_visible_default = False
+
     def __init__(self, subentry_id: str, vdsd_index: int, vdsd_data: dict, si_data: dict) -> None:
         super().__init__(subentry_id, vdsd_index, vdsd_data, f"sensor_{si_data['dsIndex']}")
         self._si_data = si_data
@@ -177,6 +182,8 @@ class SensorInputEntity(DsvdcBaseEntity, SensorEntity):
 
 class OutputChannelEntity(DsvdcBaseEntity, SensorEntity):
     """Sensor mirroring the current value of an output channel."""
+
+    _attr_entity_registry_visible_default = False
 
     def __init__(
         self,
@@ -237,3 +244,29 @@ class OutputChannelEntity(DsvdcBaseEntity, SensorEntity):
         self._attr_native_value = value
         if self.hass:
             self.async_write_ha_state()
+
+
+class PropertySensorEntity(DsvdcBaseEntity, SensorEntity):
+    """Generic hidden-by-default sensor for any structured vdSD property value."""
+
+    _attr_entity_registry_visible_default = False
+    _attr_should_poll = False
+
+    def __init__(
+        self,
+        subentry_id: str,
+        vdsd_index: int,
+        vdsd_data: dict,
+        uid_suffix: str,
+        display_name: str,
+        value: Any,
+        entity_category: EntityCategory | None = None,
+    ) -> None:
+        super().__init__(subentry_id, vdsd_index, vdsd_data, uid_suffix)
+        self._attr_name = display_name
+        self._attr_native_value = value
+        self._attr_entity_category = entity_category
+
+    @property
+    def state(self) -> Any:
+        return self._attr_native_value
