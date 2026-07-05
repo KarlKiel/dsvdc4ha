@@ -1896,12 +1896,10 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             ),
             vol.Required("inputType", default="1"): _select(_INPUT_TYPE_OPTIONS),
             vol.Required("inputUsage", default="0"): _select(_BINARY_INPUT_USAGE_OPTIONS),
-            vol.Required("valueType", default="boolean"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="boolean", label="Boolean (true / false)"),
-                    selector.SelectOptionDict(value="integer", label="Integer (extended value)"),
-                ])
-            ),
+            vol.Required("valueType", default="boolean"): _select([
+                selector.SelectOptionDict(value="boolean", label="Boolean (true / false)"),
+                selector.SelectOptionDict(value="integer", label="Integer (extended value)"),
+            ]),
             vol.Optional("callback_entity"): selector.EntitySelector(),
         })
         return self.async_show_form(step_id="binary_input", data_schema=schema)

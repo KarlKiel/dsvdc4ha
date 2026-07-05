@@ -301,9 +301,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if action == "update" and "disabled_by" in event.data.get("changes", {}):
             reg_entry = er.async_get(hass).async_get(entity_id)
             active = reg_entry is not None and reg_entry.disabled_by is None
+            from pydsvdcapi.enums import DeviceLifecycleState
+            lc_state = DeviceLifecycleState.ACTIVE if active else DeviceLifecycleState.INACTIVE
             for subentry_id, vdsd_idx in entity_index[entity_id]:
                 hass.async_create_task(
-                    coordinator.api.set_vdsd_active(subentry_id, vdsd_idx, active)
+                    coordinator.api.set_vdsd_lifecycle(subentry_id, vdsd_idx, lc_state)
                 )
         elif action == "remove":
             for subentry_id, _ in entity_index.pop(entity_id, []):

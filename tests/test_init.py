@@ -150,11 +150,13 @@ def _fire(callback, action: str, entity_id: str, changes: dict | None = None) ->
 
 
 @pytest.mark.asyncio
-async def test_entity_disabled_calls_set_vdsd_active_false():
-    """Disabling an entity triggers set_vdsd_active(subentry_id, 0, False)."""
+async def test_entity_disabled_calls_set_vdsd_lifecycle_inactive():
+    """Disabling an entity triggers set_vdsd_lifecycle(subentry_id, 0, INACTIVE)."""
+    from pydsvdcapi.enums import DeviceLifecycleState
+
     hass, captured = _make_hass_with_listener()
     api = MagicMock()
-    api.set_vdsd_active = AsyncMock()
+    api.set_vdsd_lifecycle = AsyncMock()
     api.vanish_device = AsyncMock()
 
     entity_index = {"light.lamp": [("sub1", 0)]}
@@ -165,11 +167,7 @@ async def test_entity_disabled_calls_set_vdsd_active_false():
     with patch("custom_components.dsvdc4ha.er.async_get") as mock_er:
         mock_er.return_value.async_get.return_value = reg_entry
 
-        # Import and call the private listener builder by simulating setup
-        from custom_components.dsvdc4ha import _build_entity_index
         from homeassistant.helpers import entity_registry as er
-
-        # Build listener manually (mirrors what async_setup_entry does)
         from homeassistant.core import callback
 
         @callback
@@ -181,9 +179,10 @@ async def test_entity_disabled_calls_set_vdsd_active_false():
             if action == "update" and "disabled_by" in event.data.get("changes", {}):
                 reg = er.async_get(hass).async_get(eid)
                 active = reg is not None and reg.disabled_by is None
+                lc_state = DeviceLifecycleState.ACTIVE if active else DeviceLifecycleState.INACTIVE
                 for subentry_id, vdsd_idx in entity_index[eid]:
                     hass.async_create_task(
-                        api.set_vdsd_active(subentry_id, vdsd_idx, active)
+                        api.set_vdsd_lifecycle(subentry_id, vdsd_idx, lc_state)
                     )
             elif action == "remove":
                 for subentry_id, _ in entity_index.pop(eid, []):
@@ -195,15 +194,17 @@ async def test_entity_disabled_calls_set_vdsd_active_false():
     hass.async_create_task.assert_called_once()
     coro = hass.async_create_task.call_args[0][0]
     await coro
-    api.set_vdsd_active.assert_awaited_once_with("sub1", 0, False)
+    api.set_vdsd_lifecycle.assert_awaited_once_with("sub1", 0, DeviceLifecycleState.INACTIVE)
 
 
 @pytest.mark.asyncio
-async def test_entity_enabled_calls_set_vdsd_active_true():
-    """Re-enabling an entity triggers set_vdsd_active(subentry_id, 0, True)."""
+async def test_entity_enabled_calls_set_vdsd_lifecycle_active():
+    """Re-enabling an entity triggers set_vdsd_lifecycle(subentry_id, 0, ACTIVE)."""
+    from pydsvdcapi.enums import DeviceLifecycleState
+
     hass, _ = _make_hass_with_listener()
     api = MagicMock()
-    api.set_vdsd_active = AsyncMock()
+    api.set_vdsd_lifecycle = AsyncMock()
 
     entity_index = {"light.lamp": [("sub1", 0)]}
 
@@ -224,14 +225,15 @@ async def test_entity_enabled_calls_set_vdsd_active_true():
             if event.data.get("action") == "update" and "disabled_by" in event.data.get("changes", {}):
                 reg = er.async_get(hass).async_get(eid)
                 active = reg is not None and reg.disabled_by is None
+                lc_state = DeviceLifecycleState.ACTIVE if active else DeviceLifecycleState.INACTIVE
                 for subentry_id, vdsd_idx in entity_index[eid]:
-                    hass.async_create_task(api.set_vdsd_active(subentry_id, vdsd_idx, active))
+                    hass.async_create_task(api.set_vdsd_lifecycle(subentry_id, vdsd_idx, lc_state))
 
         _fire(_on, "update", "light.lamp", changes={"disabled_by": "user"})
 
     coro = hass.async_create_task.call_args[0][0]
     await coro
-    api.set_vdsd_active.assert_awaited_once_with("sub1", 0, True)
+    api.set_vdsd_lifecycle.assert_awaited_once_with("sub1", 0, DeviceLifecycleState.ACTIVE)
 
 
 @pytest.mark.asyncio

@@ -27,6 +27,7 @@ from pydsvdcapi.enums import (
     ButtonType,
     ColorClass,
     ColorGroup,
+    DeviceLifecycleState,
     HeatingSystemCapability,
     HeatingSystemType,
     OutputChannelType,
@@ -225,6 +226,9 @@ class DsvdcApi:
         self._devices: dict[str, Device] = {}  # entry_id → Device
         self._pending_vanish: dict[str, Device] = {}  # entry_id → Device awaiting session to vanish
         self._ever_announced: set[str] = set()
+        # Per (entry_id, vdsd_idx): set of entity_ids currently unavailable.
+        # When non-empty the vdSD lifecycle is INACTIVE.
+        self._unavailable_entities: dict[tuple[str, int], set[str]] = {}
 
     async def start(
         self,
@@ -612,27 +616,53 @@ class DsvdcApi:
         """Set of entry_ids currently tracked by this API."""
         return set(self._devices.keys())
 
-    async def set_vdsd_active(self, entry_id: str, vdsd_idx: int, active: bool) -> None:
-        """Set the active flag on a single vdSD and push to DSS if connected.
+    async def set_vdsd_lifecycle(
+        self,
+        entry_id: str,
+        vdsd_idx: int,
+        state: DeviceLifecycleState,
+    ) -> None:
+        """Set the lifecycle state of a vdSD and push the change to dSS.
 
-        If the device is currently announced and a session is live, performs a
-        vanish → modify → re-announce cycle so the DSS learns the new state
-        immediately.  Otherwise the flag is applied locally and will be
-        reflected in the next announcement (e.g. on DSS reconnect).
+        pydsvdcapi 0.9.0 pushes ``active=True/False`` via
+        ``VDC_SEND_PUSH_NOTIFICATION`` when the lifecycle state changes —
+        no vanish/re-announce cycle is needed.
         """
         device = self._devices.get(entry_id)
         if device is None:
             return
+        vdsd = device.get_vdsd(vdsd_idx)
+        if vdsd is None:
+            return
+        await vdsd.set_lifecycle_state(state)
 
-        def _apply(dev: Device, _idx: int = vdsd_idx, _val: bool = active) -> None:
-            v = dev.get_vdsd(_idx)
-            if v is not None:
-                v.active = _val
+    async def report_entity_available(
+        self,
+        entry_id: str,
+        vdsd_idx: int,
+        entity_id: str,
+        available: bool,
+    ) -> None:
+        """Track per-entity availability and update vdSD lifecycle accordingly.
 
-        if device.is_announced and self._host and self._host.session:
-            await device.update(self._host.session, _apply)
+        A vdSD transitions to INACTIVE when any of its callback entities is
+        unavailable and back to ACTIVE only when all entities are available.
+        """
+        key = (entry_id, vdsd_idx)
+        unavail = self._unavailable_entities.setdefault(key, set())
+        was_inactive = bool(unavail)
+
+        if available:
+            unavail.discard(entity_id)
         else:
-            _apply(device)
+            unavail.add(entity_id)
+
+        is_inactive = bool(unavail)
+        if was_inactive == is_inactive:
+            return
+
+        new_state = DeviceLifecycleState.INACTIVE if is_inactive else DeviceLifecycleState.ACTIVE
+        await self.set_vdsd_lifecycle(entry_id, vdsd_idx, new_state)
 
     async def report_button_click(self, button: ButtonInput, click_type: int) -> None:
         assert self._host is not None

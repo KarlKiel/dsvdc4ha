@@ -143,10 +143,23 @@ def setup_input_listeners(
                 continue
 
             @callback
-            def _on_button_state(event: Event, _btn=btn, _cb_type=cb_type) -> None:
+            def _on_button_state(
+                event: Event,
+                _btn=btn,
+                _cb_type=cb_type,
+                _entry_id=entry_id,
+                _vdsd_idx=idx,
+                _eid=entity_id,
+            ) -> None:
                 new_state = event.data.get("new_state")
                 if not new_state or new_state.state in ("unknown", "unavailable"):
+                    hass.async_create_task(
+                        api.report_entity_available(_entry_id, _vdsd_idx, _eid, False)
+                    )
                     return
+                hass.async_create_task(
+                    api.report_entity_available(_entry_id, _vdsd_idx, _eid, True)
+                )
                 try:
                     value = int(float(new_state.state))
                 except ValueError:
@@ -169,12 +182,25 @@ def setup_input_listeners(
             _sensor_type: int = si_data.get("sensorType", 0)
 
             @callback
-            def _on_sensor_state(event: Event, _si=si, _st=_sensor_type) -> None:
+            def _on_sensor_state(
+                event: Event,
+                _si=si,
+                _st=_sensor_type,
+                _entry_id=entry_id,
+                _vdsd_idx=idx,
+                _eid=entity_id,
+            ) -> None:
                 from .unit_conversion import convert_sensor_value  # noqa: PLC0415
                 new_state = event.data.get("new_state")
                 if not new_state or new_state.state in ("unknown", "unavailable"):
                     hass.async_create_task(api.report_sensor_value(_si, None))
+                    hass.async_create_task(
+                        api.report_entity_available(_entry_id, _vdsd_idx, _eid, False)
+                    )
                     return
+                hass.async_create_task(
+                    api.report_entity_available(_entry_id, _vdsd_idx, _eid, True)
+                )
                 try:
                     value = float(new_state.state)
                     unit = new_state.attributes.get("unit_of_measurement")
@@ -207,10 +233,19 @@ def setup_input_listeners(
                 _invert=invert_bi,
                 _attr=value_attr,
                 _transform=value_transform_name,
+                _entry_id=entry_id,
+                _vdsd_idx=idx,
+                _eid=entity_id,
             ) -> None:
                 new_state = event.data.get("new_state")
                 if not new_state or new_state.state in ("unknown", "unavailable"):
+                    hass.async_create_task(
+                        api.report_entity_available(_entry_id, _vdsd_idx, _eid, False)
+                    )
                     return
+                hass.async_create_task(
+                    api.report_entity_available(_entry_id, _vdsd_idx, _eid, True)
+                )
                 if _attr and _transform:
                     raw = new_state.attributes.get(_attr)
                     from .binding_transforms import apply_transform
@@ -263,7 +298,8 @@ async def seed_initial_values(
             from .unit_conversion import convert_sensor_value  # noqa: PLC0415
             sensor_type: int = si_data.get("sensorType", 0)
             value: float | None = None
-            if entity_id := si_data.get("callback_entity"):
+            entity_id = si_data.get("callback_entity")
+            if entity_id:
                 state = hass.states.get(entity_id)
                 if state and state.state not in ("unknown", "unavailable"):
                     try:
@@ -272,6 +308,8 @@ async def seed_initial_values(
                         value = convert_sensor_value(sensor_type, unit, raw)
                     except ValueError:
                         pass
+                else:
+                    await api.report_entity_available(entry_id, idx, entity_id, False)
             if value is None:
                 value = si.min_value
             await si.update_value(value=value, session=None)
@@ -284,6 +322,7 @@ async def seed_initial_values(
                 continue
             state = hass.states.get(entity_id)
             if not state or state.state in ("unknown", "unavailable"):
+                await api.report_entity_available(entry_id, idx, entity_id, False)
                 continue
             is_bool = bi_data.get("valueType", "boolean") == "boolean"
             if is_bool:
@@ -305,8 +344,9 @@ async def seed_initial_values(
             if not ch:
                 continue
             ch_value: float = 0.0
-            if entity_id := ch_data.get("read_entity"):
-                state = hass.states.get(entity_id)
+            read_entity = ch_data.get("read_entity")
+            if read_entity:
+                state = hass.states.get(read_entity)
                 if state and state.state not in ("unknown", "unavailable"):
                     push_expr = ch_data.get("push_expr")
                     if push_expr:
@@ -319,6 +359,8 @@ async def seed_initial_values(
                             ch_value = float(state.state)
                         except ValueError:
                             pass
+                else:
+                    await api.report_entity_available(entry_id, idx, read_entity, False)
             await ch.update_value(ch_value)
 
 
@@ -360,10 +402,19 @@ def setup_output_listeners(
                         event: Event,
                         _ch=channel,
                         _expr=push_expr,
+                        _entry_id=entry_id,
+                        _vdsd_idx=idx,
+                        _eid=read_entity,
                     ) -> None:
                         new_state = event.data.get("new_state")
                         if not new_state or new_state.state in ("unknown", "unavailable"):
+                            hass.async_create_task(
+                                api.report_entity_available(_entry_id, _vdsd_idx, _eid, False)
+                            )
                             return
+                        hass.async_create_task(
+                            api.report_entity_available(_entry_id, _vdsd_idx, _eid, True)
+                        )
                         try:
                             val = _eval_push(_expr, new_state)
                             hass.async_create_task(api.report_channel_value(_ch, val))
@@ -374,10 +425,22 @@ def setup_output_listeners(
                     )
                 else:
                     @callback
-                    def _on_channel_state(event: Event, _ch=channel) -> None:
+                    def _on_channel_state(
+                        event: Event,
+                        _ch=channel,
+                        _entry_id=entry_id,
+                        _vdsd_idx=idx,
+                        _eid=read_entity,
+                    ) -> None:
                         new_state = event.data.get("new_state")
                         if not new_state or new_state.state in ("unknown", "unavailable"):
+                            hass.async_create_task(
+                                api.report_entity_available(_entry_id, _vdsd_idx, _eid, False)
+                            )
                             return
+                        hass.async_create_task(
+                            api.report_entity_available(_entry_id, _vdsd_idx, _eid, True)
+                        )
                         try:
                             value = float(new_state.state)
                             hass.async_create_task(api.report_channel_value(_ch, value))

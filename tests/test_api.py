@@ -591,3 +591,147 @@ def test_add_output_wires_channel_converters():
     assert ch.downlink_converter_code == "value = int(round(value * 255.0 / 100.0))"
 
 
+# ── Lifecycle state tests ─────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_set_vdsd_lifecycle_calls_set_lifecycle_state():
+    """set_vdsd_lifecycle delegates to vdsd.set_lifecycle_state with the given state."""
+    from pydsvdcapi.enums import DeviceLifecycleState
+
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+
+    mock_vdsd = MagicMock()
+    mock_vdsd.set_lifecycle_state = AsyncMock()
+    mock_device = MagicMock()
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api._devices["sub1"] = mock_device
+
+    await api.set_vdsd_lifecycle("sub1", 0, DeviceLifecycleState.INACTIVE)
+
+    mock_vdsd.set_lifecycle_state.assert_awaited_once_with(DeviceLifecycleState.INACTIVE)
+
+
+@pytest.mark.asyncio
+async def test_set_vdsd_lifecycle_skips_missing_device():
+    """set_vdsd_lifecycle returns silently when entry_id is not registered."""
+    from pydsvdcapi.enums import DeviceLifecycleState
+
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+    # No devices registered — must not raise
+    await api.set_vdsd_lifecycle("nonexistent", 0, DeviceLifecycleState.INACTIVE)
+
+
+@pytest.mark.asyncio
+async def test_set_vdsd_lifecycle_skips_missing_vdsd():
+    """set_vdsd_lifecycle returns silently when vdsd_idx is out of range."""
+    from pydsvdcapi.enums import DeviceLifecycleState
+
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+
+    mock_device = MagicMock()
+    mock_device.get_vdsd.return_value = None
+    api._devices["sub1"] = mock_device
+
+    await api.set_vdsd_lifecycle("sub1", 99, DeviceLifecycleState.INACTIVE)
+    # No set_lifecycle_state call since vdsd is None
+    mock_device.get_vdsd.assert_called_once_with(99)
+
+
+@pytest.mark.asyncio
+async def test_report_entity_available_first_unavailable_triggers_inactive():
+    """First unavailable entity for a vdSD causes lifecycle to switch to INACTIVE."""
+    from pydsvdcapi.enums import DeviceLifecycleState
+
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+
+    mock_vdsd = MagicMock()
+    mock_vdsd.set_lifecycle_state = AsyncMock()
+    mock_device = MagicMock()
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api._devices["sub1"] = mock_device
+
+    await api.report_entity_available("sub1", 0, "sensor.temp", False)
+
+    mock_vdsd.set_lifecycle_state.assert_awaited_once_with(DeviceLifecycleState.INACTIVE)
+
+
+@pytest.mark.asyncio
+async def test_report_entity_available_second_unavailable_no_duplicate_call():
+    """A second unavailable entity does not trigger another lifecycle change."""
+    from pydsvdcapi.enums import DeviceLifecycleState
+
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+
+    mock_vdsd = MagicMock()
+    mock_vdsd.set_lifecycle_state = AsyncMock()
+    mock_device = MagicMock()
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api._devices["sub1"] = mock_device
+
+    await api.report_entity_available("sub1", 0, "sensor.a", False)  # INACTIVE triggered
+    await api.report_entity_available("sub1", 0, "sensor.b", False)  # already inactive
+
+    mock_vdsd.set_lifecycle_state.assert_awaited_once_with(DeviceLifecycleState.INACTIVE)
+
+
+@pytest.mark.asyncio
+async def test_report_entity_available_partial_recovery_stays_inactive():
+    """When one of two unavailable entities recovers, vdSD stays INACTIVE."""
+    from pydsvdcapi.enums import DeviceLifecycleState
+
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+
+    mock_vdsd = MagicMock()
+    mock_vdsd.set_lifecycle_state = AsyncMock()
+    mock_device = MagicMock()
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api._devices["sub1"] = mock_device
+
+    await api.report_entity_available("sub1", 0, "sensor.a", False)
+    await api.report_entity_available("sub1", 0, "sensor.b", False)
+    mock_vdsd.set_lifecycle_state.reset_mock()
+
+    # Only sensor.a recovers — sensor.b is still unavailable
+    await api.report_entity_available("sub1", 0, "sensor.a", True)
+
+    mock_vdsd.set_lifecycle_state.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_report_entity_available_full_recovery_triggers_active():
+    """When all unavailable entities recover, vdSD transitions to ACTIVE."""
+    from pydsvdcapi.enums import DeviceLifecycleState
+
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+
+    mock_vdsd = MagicMock()
+    mock_vdsd.set_lifecycle_state = AsyncMock()
+    mock_device = MagicMock()
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api._devices["sub1"] = mock_device
+
+    await api.report_entity_available("sub1", 0, "sensor.temp", False)
+    mock_vdsd.set_lifecycle_state.reset_mock()
+
+    await api.report_entity_available("sub1", 0, "sensor.temp", True)
+
+    mock_vdsd.set_lifecycle_state.assert_awaited_once_with(DeviceLifecycleState.ACTIVE)
+
+
+@pytest.mark.asyncio
+async def test_report_entity_available_already_active_no_change():
+    """Marking an already-available entity available again causes no lifecycle call."""
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+
+    mock_vdsd = MagicMock()
+    mock_vdsd.set_lifecycle_state = AsyncMock()
+    mock_device = MagicMock()
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api._devices["sub1"] = mock_device
+
+    # Both calls: entity was never unavailable, set stays empty → no transition
+    await api.report_entity_available("sub1", 0, "sensor.temp", True)
+    await api.report_entity_available("sub1", 0, "sensor.temp", True)
+
+    mock_vdsd.set_lifecycle_state.assert_not_awaited()

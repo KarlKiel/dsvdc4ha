@@ -121,7 +121,6 @@ def test_push_expr_state_change_fires_report():
 
     registered_cbs[0](event)
 
-    hass.async_create_task.assert_called_once()
     api.report_channel_value.assert_called_once_with(mock_ch, 30.0)
 
 
@@ -162,6 +161,7 @@ def test_push_expr_fallback_to_float_state():
 def _make_bi_vdsd(bi_obj):
     """Helper: build the API / device mock stack for a binary-input seed test."""
     api = MagicMock()
+    api.report_entity_available = AsyncMock()
     device = MagicMock()
     vdsd = MagicMock()
     vdsd.output = None
@@ -692,8 +692,7 @@ def test_sensor_listener_applies_unit_conversion():
 
     registered_cbs[0](event)
 
-    # report_sensor_value should have been called with 1500 W (via async_create_task)
-    hass.async_create_task.assert_called_once()
+    # report_sensor_value should have been called with 1500 W
     api.report_sensor_value.assert_called_once_with(mock_si, 1500.0)
 
 
@@ -791,3 +790,261 @@ def test_power_state_apply_expr_off_when_value_zero():
     expr = "{'domain':'switch','service':'turn_on' if value>0 else 'turn_off','service_data':{}}"
     result = _eval_apply(expr, 0.0, state)
     assert result["service"] == "turn_off"
+
+
+# ── Lifecycle state listener tests ───────────────────────────────────────────
+
+
+def _make_sensor_stack():
+    """Return (api, mock_si) with device/vdsd chain wired up."""
+    api = MagicMock()
+    api.report_sensor_value = AsyncMock()
+    api.report_entity_available = AsyncMock()
+    mock_device = MagicMock()
+    mock_vdsd = MagicMock()
+    mock_vdsd.output = None
+    mock_si = MagicMock()
+    mock_vdsd.get_sensor_input.return_value = mock_si
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api.get_device.return_value = mock_device
+    return api, mock_si
+
+
+def test_sensor_unavailable_calls_report_entity_available_false():
+    """Sensor going unavailable calls report_entity_available with False."""
+    hass = MagicMock()
+    hass.async_create_task = MagicMock(side_effect=lambda coro: coro)
+    api, _ = _make_sensor_stack()
+
+    si_data = {"dsIndex": 0, "callback_entity": "sensor.temp", "sensorType": 1}
+    registered_cbs = []
+    with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
+               side_effect=_capture_cb(registered_cbs)):
+        setup_input_listeners(hass, api, "entry1", [{"sensors": [si_data]}])
+
+    new_state = MagicMock()
+    new_state.state = "unavailable"
+    event = MagicMock()
+    event.data = {"new_state": new_state}
+    registered_cbs[0](event)
+
+    api.report_entity_available.assert_called_once_with("entry1", 0, "sensor.temp", False)
+
+
+def test_sensor_recovery_calls_report_entity_available_true():
+    """Sensor recovering from unavailable calls report_entity_available with True."""
+    hass = MagicMock()
+    hass.async_create_task = MagicMock(side_effect=lambda coro: coro)
+    api, _ = _make_sensor_stack()
+
+    si_data = {"dsIndex": 0, "callback_entity": "sensor.temp", "sensorType": 1}
+    registered_cbs = []
+    with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
+               side_effect=_capture_cb(registered_cbs)):
+        setup_input_listeners(hass, api, "entry1", [{"sensors": [si_data]}])
+
+    new_state = MagicMock()
+    new_state.state = "21.5"
+    new_state.attributes = {"unit_of_measurement": "°C"}
+    event = MagicMock()
+    event.data = {"new_state": new_state}
+    registered_cbs[0](event)
+
+    api.report_entity_available.assert_called_once_with("entry1", 0, "sensor.temp", True)
+
+
+def _make_binary_stack():
+    """Return (api, mock_bi) with device/vdsd chain wired up."""
+    api = MagicMock()
+    api.report_binary_value = AsyncMock()
+    api.report_entity_available = AsyncMock()
+    mock_device = MagicMock()
+    mock_vdsd = MagicMock()
+    mock_vdsd.output = None
+    mock_bi = MagicMock()
+    mock_vdsd.get_binary_input.return_value = mock_bi
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api.get_device.return_value = mock_device
+    return api, mock_bi
+
+
+def test_binary_input_unavailable_calls_report_entity_available_false():
+    """Binary input going unavailable calls report_entity_available with False."""
+    hass = MagicMock()
+    hass.async_create_task = MagicMock(side_effect=lambda coro: coro)
+    api, _ = _make_binary_stack()
+
+    bi_data = {"dsIndex": 0, "callback_entity": "binary_sensor.door", "valueType": "boolean"}
+    registered_cbs = []
+    with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
+               side_effect=_capture_cb(registered_cbs)):
+        setup_input_listeners(hass, api, "entry1", [{"binary_inputs": [bi_data]}])
+
+    new_state = MagicMock()
+    new_state.state = "unavailable"
+    event = MagicMock()
+    event.data = {"new_state": new_state}
+    registered_cbs[0](event)
+
+    api.report_entity_available.assert_called_once_with("entry1", 0, "binary_sensor.door", False)
+
+
+def test_binary_input_recovery_calls_report_entity_available_true():
+    """Binary input recovering from unavailable calls report_entity_available with True."""
+    hass = MagicMock()
+    hass.async_create_task = MagicMock(side_effect=lambda coro: coro)
+    api, _ = _make_binary_stack()
+
+    bi_data = {"dsIndex": 0, "callback_entity": "binary_sensor.door", "valueType": "boolean"}
+    registered_cbs = []
+    with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
+               side_effect=_capture_cb(registered_cbs)):
+        setup_input_listeners(hass, api, "entry1", [{"binary_inputs": [bi_data]}])
+
+    new_state = MagicMock()
+    new_state.state = "on"
+    new_state.attributes = {}
+    event = MagicMock()
+    event.data = {"new_state": new_state}
+    registered_cbs[0](event)
+
+    api.report_entity_available.assert_called_once_with("entry1", 0, "binary_sensor.door", True)
+
+
+def _make_output_stack():
+    """Return api with device/vdsd/output/channel chain wired up."""
+    api = MagicMock()
+    api.report_channel_value = AsyncMock()
+    api.report_entity_available = AsyncMock()
+    mock_device = MagicMock()
+    mock_vdsd = MagicMock()
+    mock_output = MagicMock()
+    mock_ch = MagicMock()
+    mock_output.get_channel.return_value = mock_ch
+    mock_vdsd.output = mock_output
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api.get_device.return_value = mock_device
+    return api
+
+
+def test_output_channel_unavailable_calls_report_entity_available_false():
+    """Output read_entity going unavailable calls report_entity_available with False."""
+    hass = MagicMock()
+    hass.async_create_task = MagicMock(side_effect=lambda coro: coro)
+    api = _make_output_stack()
+
+    channels_data = [{"dsIndex": 0, "channelType": 19, "read_entity": "switch.light"}]
+    registered_cbs = []
+    with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
+               side_effect=_capture_cb(registered_cbs)):
+        setup_output_listeners(hass, api, "entry1", [{"output": {"channels": channels_data}}])
+
+    new_state = MagicMock()
+    new_state.state = "unavailable"
+    event = MagicMock()
+    event.data = {"new_state": new_state}
+    registered_cbs[0](event)
+
+    api.report_entity_available.assert_called_once_with("entry1", 0, "switch.light", False)
+
+
+def test_output_channel_recovery_calls_report_entity_available_true():
+    """Output read_entity recovering from unavailable calls report_entity_available with True."""
+    hass = MagicMock()
+    hass.async_create_task = MagicMock(side_effect=lambda coro: coro)
+    api = _make_output_stack()
+
+    channels_data = [{"dsIndex": 0, "channelType": 19, "read_entity": "switch.light"}]
+    registered_cbs = []
+    with patch("custom_components.dsvdc4ha.listeners.async_track_state_change_event",
+               side_effect=_capture_cb(registered_cbs)):
+        setup_output_listeners(hass, api, "entry1", [{"output": {"channels": channels_data}}])
+
+    new_state = MagicMock()
+    new_state.state = "1.0"
+    new_state.attributes = {}
+    event = MagicMock()
+    event.data = {"new_state": new_state}
+    registered_cbs[0](event)
+
+    api.report_entity_available.assert_called_once_with("entry1", 0, "switch.light", True)
+
+
+@pytest.mark.asyncio
+async def test_seed_calls_report_entity_available_for_unavailable_sensor():
+    """seed_initial_values calls report_entity_available(False) for an unavailable sensor."""
+    hass = MagicMock()
+    state = MagicMock()
+    state.state = "unavailable"
+    hass.states.get.return_value = state
+
+    api = MagicMock()
+    api.report_entity_available = AsyncMock()
+    mock_device = MagicMock()
+    mock_vdsd = MagicMock()
+    mock_si = MagicMock()
+    mock_si.min_value = -40.0
+    mock_si.update_value = AsyncMock()
+    mock_vdsd.get_sensor_input.return_value = mock_si
+    mock_vdsd.output = None
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api.get_device.return_value = mock_device
+
+    await seed_initial_values(hass, api, "entry1", [{"sensors": [
+        {"dsIndex": 0, "callback_entity": "sensor.temp", "sensorType": 1}
+    ]}])
+
+    api.report_entity_available.assert_awaited_once_with("entry1", 0, "sensor.temp", False)
+
+
+@pytest.mark.asyncio
+async def test_seed_calls_report_entity_available_for_unavailable_binary_input():
+    """seed_initial_values calls report_entity_available(False) for an unavailable binary input."""
+    hass = MagicMock()
+    state = MagicMock()
+    state.state = "unavailable"
+    hass.states.get.return_value = state
+
+    api = MagicMock()
+    api.report_entity_available = AsyncMock()
+    mock_device = MagicMock()
+    mock_vdsd = MagicMock()
+    mock_bi = MagicMock()
+    mock_bi.update_value = AsyncMock()
+    mock_vdsd.get_binary_input.return_value = mock_bi
+    mock_vdsd.output = None
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api.get_device.return_value = mock_device
+
+    await seed_initial_values(hass, api, "entry1", [{"binary_inputs": [
+        {"dsIndex": 0, "callback_entity": "binary_sensor.door", "valueType": "boolean"}
+    ]}])
+
+    api.report_entity_available.assert_awaited_once_with("entry1", 0, "binary_sensor.door", False)
+
+
+@pytest.mark.asyncio
+async def test_seed_calls_report_entity_available_for_unavailable_output_channel():
+    """seed_initial_values calls report_entity_available(False) for an unavailable read_entity."""
+    hass = MagicMock()
+    state = MagicMock()
+    state.state = "unavailable"
+    hass.states.get.return_value = state
+
+    api = MagicMock()
+    api.report_entity_available = AsyncMock()
+    mock_device = MagicMock()
+    mock_vdsd = MagicMock()
+    mock_output = MagicMock()
+    mock_ch = MagicMock()
+    mock_ch.update_value = AsyncMock()
+    mock_output.get_channel.return_value = mock_ch
+    mock_vdsd.output = mock_output
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api.get_device.return_value = mock_device
+
+    await seed_initial_values(hass, api, "entry1", [{"output": {"channels": [
+        {"dsIndex": 0, "channelType": 19, "read_entity": "switch.light"}
+    ]}}])
+
+    api.report_entity_available.assert_awaited_once_with("entry1", 0, "switch.light", False)
