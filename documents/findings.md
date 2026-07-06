@@ -206,7 +206,7 @@ if self._host is None:
 
 ## Performance
 
-### P1 — `_unavailable_entities` dict never cleaned up in `vanish_device()` (Important)
+### P1 — `_unavailable_entities` dict never cleaned up in `vanish_device()` (Important) — ✅ Fixed
 
 **File:** `api.py`
 
@@ -216,7 +216,7 @@ if self._host is None:
 
 ---
 
-### P2 — `from .unit_conversion import convert_sensor_value` per event (Important)
+### P2 — `from .unit_conversion import convert_sensor_value` per event (Important) — ✅ Fixed
 
 **File:** `listeners.py:193`
 
@@ -226,17 +226,17 @@ if self._host is None:
 
 ---
 
-### P3 — PNG icon cache loaded at import time (Minor)
+### P3 — PNG icon cache loaded at import time (Minor) — ✅ No action needed
 
 **File:** `_icon_utils.py:10-14`
 
 **Problem:** All bundled PNG files are read from disk and base64-encoded into `_ICON_CACHE` at module import time. This is intentionally I/O-free at runtime, which is correct. However, it adds to HA startup latency proportional to the number of bundled icons. Currently bounded by the number of files in `icons/`, so this is low risk but worth monitoring as the icon set grows.
 
-**Recommendation:** If icon count grows beyond ~200 files, switch to lazy loading.
+**Status:** 61 bundled icons — well below the ~200 threshold. No change warranted. Revisit if icon count approaches 200.
 
 ---
 
-### P4 — Two separate icon caching systems (Minor)
+### P4 — Two separate icon caching systems (Minor) — ✅ Fixed
 
 **Files:** `_icon_utils.py`, `config_flow.py`
 
