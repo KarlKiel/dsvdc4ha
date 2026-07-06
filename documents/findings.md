@@ -248,7 +248,7 @@ if self._host is None:
 
 ## Consistency
 
-### C1 — `_do_reconnect()` skips icon backfill (Important)
+### C1 — `_do_reconnect()` skips icon backfill (Important) — ✅ Fixed
 
 **File:** `coordinator.py`
 
@@ -258,7 +258,7 @@ if self._host is None:
 
 ---
 
-### C2 — `mired_to_kelvin` transform has misleading label (Important)
+### C2 — `mired_to_kelvin` transform has misleading label (Important) — ✅ Fixed
 
 **File:** `binding_transforms.py`
 
@@ -268,27 +268,27 @@ if self._host is None:
 
 ---
 
-### C3 — `callbackType: "detect_clicks"` stored in config but not in button callback handling (Important)
+### C3 — `callbackType: "detect_clicks"` stored in config but not in button callback handling (Important) — ✅ Verified correct
 
 **File:** `device_grouper.py:231`
 
 **Problem:** Auto-detected button entities created by the device-picker flow use `"callbackType": "detect_clicks"` (from device_grouper), but the entity-picker manual flow stores `"callbackType": user_input.get("callbackType", "clickTypes")` (from config_flow.py). The listeners code must correctly distinguish these modes. If `"detect_clicks"` is not handled identically in both paths, one flow will silently fail to wire button listeners.
 
-**Fix:** Audit `listeners.py` button setup to confirm `"detect_clicks"` from both code paths is handled identically.
+**Audit result:** Both paths write `"callbackType": "detect_clicks"` to the stored config (config_flow.py also hardcodes `"detect_clicks"` on the entity-picker path at line 1127, not from user input). `listeners.py:131-143` handles `"detect_clicks"` in a single code path that is shared by both flows. No code change needed.
 
 ---
 
-### C4 — Sensor `_convert()` re-imports on every call (Minor)
+### C4 — Sensor `_convert()` re-imports on every call (Minor) — ✅ Fixed (via CQ9)
 
 **File:** `sensor.py:147-152`
 
 **Problem:** `SensorInputEntity._convert()` contains `from .unit_conversion import convert_sensor_value` on every call. Combined with CQ9 and CQ10, there are three separate per-call deferred imports for related concerns in `sensor.py`. Pattern is inconsistent with the rest of the codebase.
 
-**Fix:** Consolidate with CQ9 fix — move all unit_conversion imports to module level.
+**Fix:** Consolidated with CQ9 fix — all unit_conversion imports moved to module level in the same commit.
 
 ---
 
-### C5 — `"callsPresent": True` default differs between manual and auto-detect flows (Minor)
+### C5 — `"callsPresent": True` default differs between manual and auto-detect flows (Minor) — ✅ Fixed
 
 **Files:** `config_flow.py:1837`, `device_grouper.py:229`
 
@@ -298,7 +298,7 @@ if self._host is None:
 
 ---
 
-### C6 — `ENTRY_TYPE_HUB` used without corresponding `ENTRY_TYPE_DEVICE` (Minor)
+### C6 — `ENTRY_TYPE_HUB` used without corresponding `ENTRY_TYPE_DEVICE` (Minor) — ✅ Fixed (via CQ5)
 
 **File:** `const.py`
 
