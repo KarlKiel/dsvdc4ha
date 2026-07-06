@@ -944,7 +944,7 @@ async def test_resolve_entity_icon_uses_mdi_icon_attribute():
     """_resolve_entity_icon returns a PNG when the entity has an explicit mdi: icon."""
     import base64, io
     from PIL import Image
-    from custom_components.dsvdc4ha.config_flow import _MDI_SVG_CACHE
+    from custom_components.dsvdc4ha._icon_utils import _mdi_svg_cache as _MDI_SVG_CACHE
 
     _MDI_SVG_CACHE.clear()
 
@@ -986,7 +986,7 @@ async def test_resolve_entity_icon_uses_domain_fallback_when_no_explicit_icon():
     """_resolve_entity_icon returns a PNG via domain fallback when entity has no icon attr."""
     import base64, io
     from PIL import Image
-    from custom_components.dsvdc4ha.config_flow import _MDI_SVG_CACHE
+    from custom_components.dsvdc4ha._icon_utils import _mdi_svg_cache as _MDI_SVG_CACHE
 
     _MDI_SVG_CACHE.clear()
 
@@ -1026,7 +1026,7 @@ async def test_resolve_entity_icon_uses_domain_fallback_when_no_explicit_icon():
 @pytest.mark.asyncio
 async def test_resolve_entity_icon_returns_none_when_mdi_cdn_unreachable():
     """_resolve_entity_icon returns None when CDN fetch fails and no bundled icon exists."""
-    from custom_components.dsvdc4ha.config_flow import _MDI_SVG_CACHE
+    from custom_components.dsvdc4ha._icon_utils import _mdi_svg_cache as _MDI_SVG_CACHE
 
     _MDI_SVG_CACHE.clear()
 
@@ -1052,7 +1052,7 @@ async def test_resolve_entity_icon_falls_through_to_mdi_when_entity_picture_retu
     """_resolve_entity_icon tries MDI when entity_picture fetch returns a non-200 status."""
     import base64, io
     from PIL import Image
-    from custom_components.dsvdc4ha.config_flow import _MDI_SVG_CACHE
+    from custom_components.dsvdc4ha._icon_utils import _mdi_svg_cache as _MDI_SVG_CACHE
 
     _MDI_SVG_CACHE.clear()
 

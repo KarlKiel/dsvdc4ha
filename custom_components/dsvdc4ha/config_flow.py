@@ -52,7 +52,7 @@ from .const import (
     DOMAIN,
     ENTRY_TYPE_HUB,
 )
-from ._icon_utils import MDI_DOMAIN_ICONS, bundled_icon_b64
+from ._icon_utils import MDI_DOMAIN_ICONS, bundled_icon_b64, get_mdi_svg_cache, put_mdi_svg_cache
 from .device_grouper import (
     EntityInfo as _EntityInfo,
     VdsdPlan,
@@ -674,9 +674,6 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 # MDI icon resolution helpers
 # ---------------------------------------------------------------------------
 
-_MDI_SVG_CACHE: dict[str, bytes] = {}
-
-
 def _mdi_icon_name_for(state: Any, entity_id: str) -> str | None:
     """Return the MDI icon slug for an entity state, or None if not resolvable."""
     icon: str | None = state.attributes.get("icon")
@@ -701,7 +698,7 @@ async def _fetch_mdi_icon_b64(hass: Any, icon_slug: str) -> str | None:
     if not isinstance(icon_slug, str) or not re.fullmatch(r'[a-z0-9\-]+', icon_slug):
         return None
 
-    svg_bytes = _MDI_SVG_CACHE.get(icon_slug)
+    svg_bytes = get_mdi_svg_cache(icon_slug)
     if svg_bytes is None:
         try:
             url = f"https://cdn.jsdelivr.net/npm/@mdi/svg@7.4.47/svg/{icon_slug}.svg"
@@ -710,7 +707,7 @@ async def _fetch_mdi_icon_b64(hass: Any, icon_slug: str) -> str | None:
                 if resp.status != 200:
                     return None
                 svg_bytes = await resp.read()
-            _MDI_SVG_CACHE[icon_slug] = svg_bytes
+            put_mdi_svg_cache(icon_slug, svg_bytes)
         except Exception:
             _LOGGER.debug("Failed to fetch MDI icon %s", icon_slug, exc_info=True)
             return None

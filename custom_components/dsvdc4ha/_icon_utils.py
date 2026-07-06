@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 import base64
+from collections import OrderedDict
 from pathlib import Path
+
+_MDI_SVG_CACHE_MAXSIZE = 256
+_mdi_svg_cache: OrderedDict[str, bytes] = OrderedDict()
 
 ICONS_DIR: Path = Path(__file__).parent / "icons"
 
@@ -98,6 +102,22 @@ MDI_DOMAIN_ICONS: dict[str, str] = {
     "event.doorbell": "doorbell",
     "event.motion": "motion-sensor",
 }
+
+
+def get_mdi_svg_cache(slug: str) -> bytes | None:
+    """Return cached SVG bytes for *slug*, promoting it to most-recently-used."""
+    if slug in _mdi_svg_cache:
+        _mdi_svg_cache.move_to_end(slug)
+        return _mdi_svg_cache[slug]
+    return None
+
+
+def put_mdi_svg_cache(slug: str, data: bytes) -> None:
+    """Store SVG bytes, evicting the oldest entry when the cache is full."""
+    _mdi_svg_cache[slug] = data
+    _mdi_svg_cache.move_to_end(slug)
+    while len(_mdi_svg_cache) > _MDI_SVG_CACHE_MAXSIZE:
+        _mdi_svg_cache.popitem(last=False)
 
 
 def bundled_icon_b64(mdi_slug: str) -> str | None:

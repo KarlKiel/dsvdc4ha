@@ -10,6 +10,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 from pydsvdcapi.enums import BinaryInputType
 
 from .const import DOMAIN
+from .unit_conversion import convert_sensor_value
 
 if TYPE_CHECKING:
     from .api import DsvdcApi
@@ -190,7 +191,6 @@ def setup_input_listeners(
                 _vdsd_idx=idx,
                 _eid=entity_id,
             ) -> None:
-                from .unit_conversion import convert_sensor_value  # noqa: PLC0415
                 new_state = event.data.get("new_state")
                 if not new_state or new_state.state in ("unknown", "unavailable"):
                     hass.async_create_task(api.report_sensor_value(_si, None))
@@ -295,7 +295,6 @@ async def seed_initial_values(
             si = vdsd.get_sensor_input(si_data["dsIndex"])
             if not si:
                 continue
-            from .unit_conversion import convert_sensor_value  # noqa: PLC0415
             sensor_type: int = si_data.get("sensorType", 0)
             value: float | None = None
             entity_id = si_data.get("callback_entity")

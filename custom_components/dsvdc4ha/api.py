@@ -595,6 +595,8 @@ class DsvdcApi:
         session-ready event.
         """
         self._ever_announced.discard(entry_id)
+        for k in [k for k in self._unavailable_entities if k[0] == entry_id]:
+            del self._unavailable_entities[k]
         if device := self._devices.pop(entry_id, None):
             if self._host and self._host.session:
                 await device.vanish(self._host.session)
