@@ -134,3 +134,5 @@ Full reference documentation is in the [`docs/`](docs/) folder:
 - [Entity Mapping](docs/entity-mapping.md) — supported entity types, unit conversion, channel labels
 - [Installation and Setup](docs/installation-and-setup.md) — detailed setup, device creation, diagnostics
 - [Development](docs/development.md) — test suite, adding entity types and transforms, pydsvdcapi integration points
+
+The [`documents/`](documents/) folder contains reference materials: dS protocol PDFs, the entity-mapping spreadsheet (`ha_vdsd_mapping.xlsx`), and other non-markdown source documents. It is not user documentation.

@@ -1,4 +1,3 @@
-# custom_components/dsvdc4ha/unit_conversion.py
 """HA → dS sensor unit conversion table and helper."""
 from __future__ import annotations
 

@@ -1,4 +1,6 @@
 {
   "name": "dsvdc4ha",
-  "render_readme": true
+  "render_readme": true,
+  "filename": "custom_components/dsvdc4ha",
+  "homeassistant": "2024.11.0"
 }

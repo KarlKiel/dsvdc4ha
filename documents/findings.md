@@ -310,63 +310,55 @@ if self._host is None:
 
 ## Documentation
 
-### D1 — No CHANGELOG.md (Important)
+### D1 — No CHANGELOG.md (Important) — ✅ Fixed
 
 **Problem:** The project has no changelog. For a HACS integration, users upgrading between versions have no way to understand what changed or whether breaking changes are involved. The version is currently `0.2.0` in `manifest.json`.
 
-**Fix:** Create `CHANGELOG.md` at the project root following Keep a Changelog format. At minimum document breaking changes from 0.1.x → 0.2.0.
+**Fix:** Created `CHANGELOG.md` at the project root following Keep a Changelog format, covering [Unreleased] (QA session fixes), [0.2.0] (full feature set), and [0.1.0] (initial scaffold).
 
 ---
 
-### D2 — No dedicated tests for `button_translator.py` (see CQ13) (Minor)
+### D2 — No dedicated tests for `button_translator.py` (see CQ13) (Minor) — ✅ Fixed (via CQ13)
 
-Referenced in Code Quality as CQ13. The documentation angle: no developer documentation describes the timing state machine design or references the dS spec tables the constants are derived from (though the code does reference "dS spec Table 8" in comments, which is good).
+Referenced in Code Quality as CQ13. The documentation angle: no developer documentation describes the timing state machine design or references the dS spec tables the constants are derived from (though the code does reference "dS spec Table 8" in comments, which is good). The 24-test suite added in `tests/test_button_translator.py` (CQ13) serves as executable documentation for all state machine paths.
 
 ---
 
-### D3 — `docs/superpowers/plans/` contains 15+ outdated historical plans (Minor)
+### D3 — `docs/superpowers/plans/` contains 15+ outdated historical plans (Minor) — ✅ Fixed
 
 **Path:** `docs/superpowers/plans/`
 
 **Problem:** This directory contains internal implementation planning artifacts from the project's development. They are outdated by definition (completed plans) and are unlikely to be useful to contributors or users. They add noise to the repository and appear in GitHub's file tree.
 
-**Fix:** Either move to a separate `docs/internal/` path not shown prominently, or delete the older plans and retain only active ones.
+**Fix:** All 26 completed plan files moved to `docs/internal/plans/`, separating internal development artifacts from user-facing documentation.
 
 ---
 
-### D4 — `unit_conversion.py` line-1 file-path comment (Minor)
+### D4 — `unit_conversion.py` line-1 file-path comment (Minor) — ✅ Fixed
 
 **File:** `unit_conversion.py:1`
 
 **Problem:** `# custom_components/dsvdc4ha/unit_conversion.py` — the file declares its own path as a comment. This is redundant metadata (git already knows the path) and will become stale if the file is moved.
 
-**Fix:** Remove.
+**Fix:** Comment removed.
 
 ---
 
-### D5 — `hacs.json` missing recommended fields (Minor)
+### D5 — `hacs.json` missing recommended fields (Minor) — ✅ Fixed
 
 **File:** `hacs.json`
 
 **Problem:** The current `hacs.json` only has `name` and `render_readme`. HACS recommends also specifying `filename` (for custom component discovery), `homeassistant` (minimum HA version), and `country` (for regional integrations). Without `filename`, HACS falls back to domain-name discovery which may behave unexpectedly on some HACS versions.
 
-**Fix:**
-```json
-{
-  "name": "dsvdc4ha",
-  "render_readme": true,
-  "filename": "custom_components/dsvdc4ha",
-  "homeassistant": "2024.1.0"
-}
-```
+**Fix:** Added `filename: "custom_components/dsvdc4ha"` and `homeassistant: "2024.11.0"` (minimum version for subentry config flow support).
 
 ---
 
-### D6 — `documents/` and `docs/` serve overlapping purposes (Minor)
+### D6 — `documents/` and `docs/` serve overlapping purposes (Minor) — ✅ Fixed
 
 **Problem:** `documents/` contains reference PDFs, Word docs, and the Excel mapping file. `docs/` contains markdown documentation. A new contributor may not know which folder to look in or add to.
 
-**Fix:** Add a brief `README.md` at the project root (or in `docs/`) clarifying the distinction: `docs/` for markdown documentation, `documents/` for reference materials.
+**Fix:** Added a paragraph to the `## Documentation` section of `README.md` clarifying that `docs/` contains markdown reference documentation and `documents/` contains non-markdown reference materials (PDFs, Word docs, Excel mapping file).
 
 ---
 
