@@ -65,6 +65,8 @@ from .entity_mapping import (
     resolve_entity_mapping,
     needs_user_input,
 )
+from .binding_compiler import compile_apply_binding, compile_push_binding
+from .binding_transforms import TRANSFORM_OPTIONS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -727,6 +729,9 @@ async def _fetch_mdi_icon_b64(hass: Any, icon_slug: str) -> str | None:
 # ---------------------------------------------------------------------------
 # Device subentry flow — handles both "from entity" and "from scratch" paths
 # ---------------------------------------------------------------------------
+
+_OPTIONAL_RETURN_STEPS: frozenset[str] = frozenset({"vdsd_overview"})
+
 
 class VdsdSubentryFlowHandler(ConfigSubentryFlow):
     """Multi-step wizard for adding a virtualDC device as a config subentry."""
@@ -1669,7 +1674,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             self._current_vdsd["optional"].update(
                 {k: v for k, v in user_input.items() if v}
             )
-            return_step = self._optional_return_step or "vdsd_overview"
+            return_step = self._optional_return_step if self._optional_return_step in _OPTIONAL_RETURN_STEPS else "vdsd_overview"
             self._optional_return_step = ""
             return await getattr(self, f"async_step_{return_step}")()
         schema = vol.Schema({
@@ -1905,7 +1910,6 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
     async def async_step_binary_input_binding(self, user_input: dict | None = None):
         """Structured binding for binary input callback."""
-        from .binding_transforms import TRANSFORM_OPTIONS
         if user_input is not None:
             bi = self._current_binary_inputs[-1]
             binding_type = user_input.get("binding_type", "entity_state")
@@ -1984,7 +1988,6 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
     async def async_step_sensor_binding(self, user_input: dict | None = None):
         """Structured binding for sensor input callback."""
-        from .binding_transforms import TRANSFORM_OPTIONS
         if user_input is not None:
             si = self._current_sensors[-1]
             si["callback_entity"] = user_input.get("source_entity")
@@ -2185,10 +2188,6 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
     async def async_step_channel_push_binding(self, user_input: dict | None = None):
         """Collect the HA→dS push binding for the current output channel (one channel at a time)."""
-        from .binding_transforms import TRANSFORM_OPTIONS
-        from .binding_compiler import compile_push_binding
-        from .entity_mapping import CHANNEL_TYPE_LABELS
-
         if user_input is not None:
             ch = self._current_channels[self._channel_mapping_idx]
             source_attr = user_input.get("source_attribute") or None
@@ -2204,7 +2203,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
         ch = self._current_channels[self._channel_mapping_idx]
         ch_type = ch.get("channelType", 0)
-        ch_label = CHANNEL_TYPE_LABELS.get(ch_type, f"Channel {ch_type}")
+        ch_label = _CHANNEL_TYPE_LABELS.get(ch_type, f"Channel {ch_type}")
 
         attr_options = [
             {"value": "", "label": "(use main entity state)"},
@@ -2235,13 +2234,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
     async def async_step_channel_apply_binding(self, user_input: dict | None = None):
         """Collect the dS→HA apply binding for the current output channel."""
-        from .binding_transforms import TRANSFORM_OPTIONS
-        from .binding_compiler import compile_apply_binding
-        from .entity_mapping import CHANNEL_TYPE_LABELS
-
         ch = self._current_channels[self._channel_mapping_idx]
         ch_type = ch.get("channelType", 0)
-        ch_label = CHANNEL_TYPE_LABELS.get(ch_type, f"Channel {ch_type}")
+        ch_label = _CHANNEL_TYPE_LABELS.get(ch_type, f"Channel {ch_type}")
 
         if user_input is not None:
             service_raw = user_input.get("service", "")
