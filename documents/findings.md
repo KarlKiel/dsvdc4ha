@@ -162,7 +162,7 @@ if self._host is None:
 
 ## Security
 
-### S1 — `eval()` used for push/apply expressions (Important)
+### S1 — `eval()` used for push/apply expressions (Important) — ✅ Documented
 
 **File:** `listeners.py:83, 92, 103`
 
@@ -170,37 +170,37 @@ if self._host is None:
 
 **Note:** This is the only practical architecture given the use case (user-defined expressions for channel value mapping), but the risk should be acknowledged.
 
-**Recommendation:** Document the security model explicitly. Consider `ast.literal_eval` or a restricted DSL for simple passthrough cases, reserving `eval` for complex expressions only.
+**Resolution:** Security model documented in a comment block above `_SAFE_EVAL_CONTEXT` in `listeners.py`, covering attack surface, sandbox design, known limitations, mitigations, and accepted risk. The `__builtins__: {}` restriction is acknowledged as insufficient alone; the actual protection comes from the limited context (numeric helpers + HA state attributes only, no module/class references). `ast.literal_eval` is not applicable since expressions like `round(v / 2.55, 1)` are not literals; a custom DSL is out of scope given the power-user audience.
 
 ---
 
-### S2 — `eval()` in `binding_transforms.apply_transform()` (Important)
+### S2 — `eval()` in `binding_transforms.apply_transform()` (Important) — ✅ Fixed
 
 **File:** `binding_transforms.py`
 
 **Problem:** `apply_transform()` also uses `eval()` with a minimal sandbox. The transforms are loaded from the hardcoded `TRANSFORMS` dict, so at present no user-supplied string reaches `eval()` directly. However, if a transform entry were ever user-editable (e.g., via a future config option), this would become a direct injection vector.
 
-**Recommendation:** Audit every path that calls `apply_transform()` to confirm the transform name always comes from the hardcoded `TRANSFORMS` dict and never from user input.
+**Audit result:** The only call site is `listeners.py`. The transform name comes from `bi_data.get("value_transform")` — stored config data written by `async_step_binary_input_binding` from a `SelectSelector` restricted to `TRANSFORM_OPTIONS` keys. Added a `_transform in TRANSFORMS` guard before dispatch so only known names reach `apply_transform()`. Documented in `apply_transform()` docstring. Also moved the import to module level (removing the deferred `from .binding_transforms import apply_transform` inside the hot-path callback).
 
 ---
 
-### S3 — `_MDI_SVG_CACHE` unbounded growth (Important)
+### S3 — `_MDI_SVG_CACHE` unbounded growth (Important) — ✅ Fixed
 
 **File:** `config_flow.py`
 
 **Problem:** MDI SVG icons are fetched from an external URL and cached in `_MDI_SVG_CACHE` (a module-level dict) with no size limit. In a long-running HA instance that processes many config flows across many entity types, this cache grows indefinitely. In theory, a compromised MDI CDN could serve arbitrarily large payloads that fill memory.
 
-**Fix:** Cap the cache with `maxlen` (use `collections.OrderedDict` with eviction) or set a maximum SVG byte size guard before caching.
+**Fix (P4):** Cache moved to `_icon_utils.py` as a 256-entry LRU `OrderedDict` (evicts oldest on overflow). **Fix (S3):** `_fetch_mdi_icon_b64` now reads at most `_MDI_SVG_MAX_BYTES + 1` bytes and drops any response exceeding 32 768 bytes with a warning log. Real `@mdi/svg@7.4.47` icons are 100–8 000 bytes; the 32 KB limit gives a comfortable 4× safety margin while blocking oversized payloads from a compromised CDN.
 
 ---
 
-### S4 — `eval()` sandbox inconsistency between modules (Minor)
+### S4 — `eval()` sandbox inconsistency between modules (Minor) — ✅ Documented
 
 **Files:** `listeners.py`, `binding_transforms.py`
 
 **Problem:** `_SAFE_EVAL_CONTEXT` in `listeners.py` allows `round, float, int, abs, min, max, _norm, _denorm, _light_apply`. `apply_transform()` in `binding_transforms.py` uses a separate context that includes `str` but lacks `_norm`/`_denorm`. The two sandboxes serve related purposes but are independently maintained, risking drift.
 
-**Fix:** Consolidate into a single `_eval_context()` factory in a shared module, or at minimum document the intentional differences.
+**Resolution:** The differences are intentional and documented. `_SAFE_EVAL_CONTEXT` (listeners.py) is richer because it evaluates user-authored expressions that may reference entity state, normalisation helpers, and the light apply function. `apply_transform()`'s context (binding_transforms.py) is deliberately minimal — it only evaluates fixed expressions from the hardcoded `TRANSFORMS` dict and only needs `v`, `round`, `float`, `str`, `max`. Both are documented with cross-references explaining why they differ. Consolidation into a factory would add unnecessary symbols to the transforms context.
 
 ---
 
