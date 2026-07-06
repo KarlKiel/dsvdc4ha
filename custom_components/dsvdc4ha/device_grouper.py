@@ -177,7 +177,6 @@ def resolve_vdsd_plan(
         "modelVersion": "1.0",
         "modelUID": (vendor_name + display_id).replace(" ", ""),
         "name": plan.name,
-        "active": True,
         "identify_action": None,
         "firmwareUpdate_action": None,
         "optional": {},
