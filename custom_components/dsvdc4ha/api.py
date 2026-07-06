@@ -11,8 +11,6 @@ from typing import Any
 from zeroconf import ServiceInfo
 from zeroconf.asyncio import AsyncZeroconf
 
-_VDC_SERVICE_TYPE = "_ds-vdc._tcp.local."
-
 from pydsvdcapi.binary_input import BinaryInput
 from pydsvdcapi.button_input import ButtonInput
 from pydsvdcapi.dsuid import DsUid, DsUidNamespace
@@ -59,6 +57,20 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+_VDC_SERVICE_TYPE = "_ds-vdc._tcp.local."
+
+# ── pydsvdcapi private-attribute access ───────────────────────────────────────
+# The methods _register_zeroconf and _deregister_zeroconf access private
+# attributes of pydsvdcapi's VdcHost that have no public equivalents in 0.9.0:
+#   host._port            — TCP port the host is bound on (used for mDNS)
+#   host._dsuid           — device's dSUID (used as mDNS TXT record)
+#   host._zeroconf        — injected AsyncZeroconf instance
+#   host._service_info    — mDNS ServiceInfo (injected + cleared here)
+#   host._on_session_ready — async hook called after DSS hello handshake
+# If upgrading pydsvdcapi, verify these attributes still exist — an
+# AttributeError at startup will surface the breakage immediately.
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 def _add_button(vdsd: Vdsd, data: dict[str, Any]) -> None:
