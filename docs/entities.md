@@ -1,8 +1,6 @@
-# Entity Mapping Reference
+# Entity Reference
 
 `entity_mapping.py` contains the static map from HA entity domain + device class to dS vdSD configuration. This is the single source of truth for which HA entity types are supported and how they translate to dS parameters.
-
-The file is validated against `documents/ha_vdsd_mapping.xlsx` by the test `test_entity_mapping.py` to ensure code and spec stay in sync.
 
 ---
 
@@ -102,15 +100,3 @@ Each output channel type has a human-readable label used in the config flow UI:
 | AUDIO_VOLUME | 18 | Audio Volume |
 | WATER_TEMPERATURE | 22 | Water Temperature |
 
----
-
-## Excel Spec Alignment
-
-The mapping is kept in sync with `documents/ha_vdsd_mapping.xlsx` which is the authoritative specification. The test `test_mapping_excel.py` validates that:
-
-- All columns present in the Excel sheet exist in the code.
-- All values in `entity_mapping.py` match the corresponding rows in the Excel file.
-
-The audit tool (`tools/audit_mapping.py`) can be run to identify discrepancies between the code and the Excel spec. The Excel file can be regenerated from the current code state using `tools/generate_mapping_excel.py`.
-
-> **Important:** The Excel file must not be modified without explicit confirmation, as it is the source-of-truth specification document.

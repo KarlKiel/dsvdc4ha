@@ -1,9 +1,9 @@
-# Installation and Setup
+# Installation
 
 ## Requirements
 
 - Home Assistant (any recent release with subentry config flow support)
-- `pydsvdcapi == 0.8.9` (installed automatically)
+- `pydsvdcapi == 0.9.0` (installed automatically)
 - `cairosvg == 2.9.0` (installed automatically, used for MDI icon rendering)
 - A digitalSTROM system (dSS / dSM) on the same local network
 

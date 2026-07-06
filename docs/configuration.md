@@ -1,4 +1,4 @@
-# Config Flow Reference
+# Configuration Reference
 
 The integration uses HA's subentry config flow. There are two flow types:
 

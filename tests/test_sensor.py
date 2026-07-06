@@ -1,4 +1,4 @@
-"""Tests for sensor and binary_sensor entities."""
+"""Tests for sensor and binary_sensor entities, including default visibility."""
 from __future__ import annotations
 import pytest
 from unittest.mock import MagicMock
@@ -131,3 +131,30 @@ def test_output_channel_entity_push_expr_failure_returns_none():
     state.state = "on"
     state.attributes = {}
     assert entity._compute_value(state) is None
+
+
+# ── Default visibility ────────────────────────────────────────────────────────
+# HA's CachedProperties metaclass moves `_attr_X = value` class assignments
+# into a private `__attr_X` backing attribute. Tests check that backing store.
+
+
+def test_button_sensor_entity_hidden_by_default():
+    assert getattr(ButtonSensorEntity, "__attr_entity_registry_visible_default") is False
+
+
+def test_sensor_input_entity_hidden_by_default():
+    assert getattr(SensorInputEntity, "__attr_entity_registry_visible_default") is False
+
+
+def test_output_channel_entity_hidden_by_default():
+    assert getattr(OutputChannelEntity, "__attr_entity_registry_visible_default") is False
+
+
+def test_binary_input_entity_hidden_by_default():
+    from custom_components.dsvdc4ha.binary_sensor import BinaryInputEntity
+    assert getattr(BinaryInputEntity, "__attr_entity_registry_visible_default") is False
+
+
+def test_hub_connectivity_sensor_visible_by_default():
+    from custom_components.dsvdc4ha.binary_sensor import HubConnectivitySensor
+    assert getattr(HubConnectivitySensor, "__attr_entity_registry_visible_default", True) is True

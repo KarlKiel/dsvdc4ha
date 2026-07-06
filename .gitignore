@@ -220,5 +220,11 @@ __marimo__/
 # Dev-only documents folder
 documents/
 
+# Local-only archive of old development artifacts (plans, specs, tools)
+old/
+
+# Internal development docs (plans, specs moved here from docs/)
+docs/internal/
+
 # Git worktrees for parallel development
 .worktrees/

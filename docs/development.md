@@ -6,13 +6,13 @@
 dsvdc4ha/
 ├── custom_components/dsvdc4ha/   # Integration source
 ├── tests/                        # pytest test suite
-├── tools/                        # Audit and Excel generator scripts
-├── scripts/                      # Icon generation script
+├── scripts/                      # Developer scripts (icon generation)
 ├── docs/                         # This documentation
-├── documents/                    # ha_vdsd_mapping.xlsx (entity mapping spec)
 ├── requirements_test.txt         # Test dependencies
-└── venv/                         # Local Python virtual environment
+└── venv/                         # Local Python virtual environment (gitignored)
 ```
+
+The `documents/` folder (gitignored, local only) holds reference materials: the entity-mapping spreadsheet (`ha_vdsd_mapping.xlsx`) and dS protocol PDFs. The `old/` folder (gitignored, local only) holds archived implementation plans and dev tools.
 
 ---
 
@@ -33,7 +33,7 @@ source venv/bin/activate
 python -m pytest tests/ -v
 ```
 
-All 399 tests should pass. The test suite uses `pytest-homeassistant-custom-component` which provides HA fixtures and stubs.
+All 443 tests should pass. The test suite uses `pytest-homeassistant-custom-component` which provides HA fixtures and stubs.
 
 Two `RuntimeWarning: coroutine … was never awaited` warnings are expected from the test harness garbage collector — they are not errors in integration code.
 
@@ -43,35 +43,29 @@ Two `RuntimeWarning: coroutine … was never awaited` warnings are expected from
 
 | Test file | What it covers |
 |---|---|
-| `test_api.py` | DsvdcApi device add/announce/vanish lifecycle |
+| `test_api.py` | DsvdcApi device add/announce/vanish lifecycle; re-announce button; guard-clause returns |
 | `test_binding_compiler.py` | push_expr and apply_expr compilation from structured bindings |
 | `test_binding_transforms.py` | Each named transform's push evaluation |
+| `test_button_translator.py` | ButtonEventTranslator timing state machine (all three source modes) |
 | `test_config_flow.py` | Hub flow and device sub-entry flow steps |
 | `test_coordinator.py` | HubCoordinator start/stop delegates to API |
 | `test_device_grouper.py` | Entity→VdsdPlan grouping logic |
-| `test_entities.py` | Entity class-level visibility defaults |
-| `test_entity_mapping.py` | entity_mapping.py values match Excel spec rows |
 | `test_entity_mapping_bindings.py` | push_expr/apply_expr in mapping compile correctly |
 | `test_icon_utils.py` | MDI icon resolution and fallback |
 | `test_init.py` | _build_entity_index and entity-registry listener |
 | `test_light_mapping.py` | Light channel derivation from color modes |
 | `test_listeners.py` | push_expr eval, apply_expr eval, seed_initial_values, sensor unit conversion, _light_apply |
-| `test_mapping_excel.py` | Excel schema columns match code |
 | `test_properties.py` | PropertySensorEntity uid suffixes and entity categories |
-| `test_reannounce.py` | ReannounceButtonEntity fires force_reannounce_device |
-| `test_sensor.py` | ButtonSensorEntity, SensorInputEntity, OutputChannelEntity state management |
+| `test_sensor.py` | ButtonSensorEntity, SensorInputEntity, OutputChannelEntity state management; entity visibility defaults |
 | `test_unit_conversion.py` | convert_sensor_value for all sensor types and unit strings |
 
 ---
 
 ## Adding a New HA Entity Type
 
-1. Add a row to `documents/ha_vdsd_mapping.xlsx` (confirm with the project owner before modifying).
-2. Add the corresponding entry to `entity_mapping.py`. Follow the existing pattern for the entity's domain.
-3. If the entity needs unit conversion, add it to `unit_conversion.py`.
-4. Run `python tools/audit_mapping.py` to check alignment.
-5. Run `python tools/generate_mapping_excel.py` to regenerate the Excel from updated code if needed.
-6. Add/update tests in `test_entity_mapping.py` and `test_unit_conversion.py`.
+1. Add the entry to `entity_mapping.py`. Follow the existing pattern for the entity's domain.
+2. If the entity needs unit conversion, add it to `unit_conversion.py`.
+3. Add tests in `test_entity_mapping_bindings.py` and `test_unit_conversion.py` as needed.
 
 ---
 
@@ -135,7 +129,7 @@ pydsvdcapi version is pinned in `manifest.json` → `requirements`. Version chec
 
 ## Expression Security
 
-`eval()` is used in three places (`listeners.py`) and one place (`binding_transforms.py`) to evaluate push/apply expressions at runtime. All calls use a restricted context:
+`eval()` is used in `listeners.py` (push/apply expressions) and `binding_transforms.py` (transform evaluation) with a restricted context:
 
 ```python
 _SAFE_EVAL_CONTEXT = {
@@ -146,7 +140,7 @@ _SAFE_EVAL_CONTEXT = {
 }
 ```
 
-Setting `__builtins__` to `{}` prevents access to `__import__`, `open`, `exec`, and other dangerous builtins. Expressions are compiled by the config flow from user-entered structured bindings (not from raw user text in the expression field), which limits attack surface. The `# noqa: S307` comment suppresses the security linter warning at each call site.
+Setting `__builtins__` to `{}` removes access to `__import__`, `open`, `exec`, and other dangerous builtins. Expressions are compiled at config-save time from structured binding dicts (not free-form user input), which limits the attack surface. The full security model is documented in the comment block above `_SAFE_EVAL_CONTEXT` in `listeners.py`.
 
 ---
 
@@ -159,7 +153,7 @@ Icons for vdSDs are resolved in `_icon_utils.py`:
 3. If cairosvg fails or no MDI match, fall back to a bundled PNG from `icons/`.
 4. The resulting PNG bytes are stored in vdSD config data as base64 (`icon_data_b64`) and passed to pydsvdcapi as `device_icon_16`.
 
-Bundled icons are generated by `scripts/generate_icons.py` from MDI SVG sources.
+Bundled icons are regenerated by running `scripts/generate_icons.py` from the repo root. The script downloads MDI SVG sources from the jsDelivr CDN and renders them to 16×16 PNGs.
 
 ---
 

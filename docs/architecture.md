@@ -1,4 +1,4 @@
-# dSVDC for Home Assistant — Architecture
+# Architecture
 
 ## Overview
 
