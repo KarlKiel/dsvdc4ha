@@ -128,14 +128,31 @@ class HubCoordinator:
                     setup_output_listeners,
                     seed_initial_values,
                 )
+                from homeassistant.helpers import device_registry as dr
+                dev_reg = dr.async_get(self.hass)
+                internal_url = (
+                    self.hass.config.internal_url or "http://homeassistant.local:8123"
+                ).rstrip("/")
                 for subentry in self._entry.subentries.values():
                     vdsds = subentry.data.get("vdsds", [])
                     if self.api:
                         self.api.add_device(subentry.subentry_id, vdsds)
+                        url_map: dict[tuple[str, int], str] = {}
+                        for vdsd_idx in range(len(vdsds)):
+                            identifier = (DOMAIN, f"{subentry.subentry_id}_{vdsd_idx}")
+                            ha_device = dev_reg.async_get_device(identifiers={identifier})
+                            if ha_device is not None:
+                                url_map[(subentry.subentry_id, vdsd_idx)] = (
+                                    f"{internal_url}/config/devices/device/{ha_device.id}"
+                                )
+                        if url_map:
+                            self.api.patch_vdsd_config_urls(url_map)
                         setup_input_listeners(self.hass, self.api, subentry.subentry_id, vdsds)
                         setup_output_listeners(self.hass, self.api, subentry.subentry_id, vdsds)
                         await seed_initial_values(self.hass, self.api, subentry.subentry_id, vdsds)
                         await self.api.announce_device(subentry.subentry_id)
+                from . import _backfill_missing_icons
+                await _backfill_missing_icons(self.hass, self._entry)
             _LOGGER.info("dsvdc4ha hub reconnected successfully")
         except Exception:
             _LOGGER.exception("Reconnect failed — will retry")

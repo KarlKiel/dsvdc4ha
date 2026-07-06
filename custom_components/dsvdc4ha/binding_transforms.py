@@ -34,7 +34,7 @@ TRANSFORMS: dict[str, dict[str, str]] = {
         "apply_expr": "round(100.0 - float(v), 1)",
     },
     "mired_to_kelvin": {
-        "label": "HA color_temp (mired) → dS color temperature (mired)",
+        "label": "HA color_temp (mired) → dS color temperature (mired — passthrough, dS uses mired)",
         "push_expr": "float(v)",
         "apply_expr": "float(v)",
     },

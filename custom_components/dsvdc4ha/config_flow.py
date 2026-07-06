@@ -1122,7 +1122,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "channel": 0,
                 "supportsLocalKeyMode": b.get("supports_local_key_mode", False),
                 "setsLocalPriority": False,
-                "callsPresent": b.get("calls_present", False),
+                "callsPresent": b.get("calls_present", True),
                 "buttonID": 0,
                 "callbackType": "detect_clicks",
                 "callback_entity": entity_id,
