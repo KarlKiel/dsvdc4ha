@@ -735,3 +735,33 @@ async def test_report_entity_available_already_active_no_change():
     await api.report_entity_available("sub1", 0, "sensor.temp", True)
 
     mock_vdsd.set_lifecycle_state.assert_not_awaited()
+
+
+# ── Guard clause tests (CQ1) ──────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_report_button_click_returns_if_host_none():
+    """report_button_click should return without raising when _host is None."""
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+    mock_btn = MagicMock()
+    await api.report_button_click(mock_btn, 7)
+    mock_btn.update_click.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_report_sensor_value_returns_if_host_none():
+    """report_sensor_value should return without raising when _host is None."""
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+    mock_si = MagicMock()
+    await api.report_sensor_value(mock_si, 42.0)
+    mock_si.update_value.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_report_channel_value_returns_if_host_none():
+    """report_channel_value should return without raising when _host is None."""
+    api = DsvdcApi(port=9090, version="0.1.0", config_url="http://ha.local", state_path="/tmp")
+    mock_ch = MagicMock()
+    await api.report_channel_value(mock_ch, 50.0)
+    mock_ch.update_value.assert_not_called()

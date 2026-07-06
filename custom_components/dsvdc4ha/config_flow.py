@@ -1016,7 +1016,8 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
     async def _build_entity_vdsd_and_continue(self, user_input: dict) -> Any:
         """Build the vdSD data dict from the mapping + user choices, then continue."""
         mapping = self._entity_mapping
-        assert mapping is not None
+        if mapping is None:
+            return await self.async_step_creation_mode()
         entity_id = self._entity_id
         state = self.hass.states.get(entity_id)
         friendly_name: str = (state.name if state else None) or entity_id.split(".")[-1]

@@ -505,7 +505,9 @@ class DsvdcApi:
         Call announce_device(entry_id) after seeding initial values to trigger
         an immediate announcement when a session is already active.
         """
-        assert self._vdc is not None and self._host is not None
+        if self._vdc is None or self._host is None:
+            _LOGGER.warning("add_device called before DsvdcApi is started")
+            return
         dsuid = self._build_device_dsuid(entry_id)
         device = Device(vdc=self._vdc, dsuid=dsuid)
         for idx, vdsd_data in enumerate(vdsds_data):
@@ -518,7 +520,8 @@ class DsvdcApi:
         """Announce a device to DSS if not already known and a session is active."""
         if entry_id in self._ever_announced:
             return  # DSS already has this device; skip to avoid unnecessary disruption
-        assert self._host is not None
+        if self._host is None:
+            return
         if device := self._devices.get(entry_id):
             if self._host.session is not None:
                 count = await device.announce(self._host.session)
@@ -665,27 +668,33 @@ class DsvdcApi:
         await self.set_vdsd_lifecycle(entry_id, vdsd_idx, new_state)
 
     async def report_button_click(self, button: ButtonInput, click_type: int) -> None:
-        assert self._host is not None
+        if self._host is None:
+            return
         await button.update_click(click_type=click_type, session=self._host.session)
 
     async def report_button_action(self, button: ButtonInput, action_id: int) -> None:
-        assert self._host is not None
+        if self._host is None:
+            return
         await button.update_action(action_id=action_id, session=self._host.session)
 
     async def report_sensor_value(self, sensor: SensorInput, value: float | None) -> None:
-        assert self._host is not None
+        if self._host is None:
+            return
         await sensor.update_value(value=value, session=self._host.session)
 
     async def report_binary_value(self, bi: BinaryInput, value: bool | None) -> None:
-        assert self._host is not None
+        if self._host is None:
+            return
         await bi.update_value(value=value, session=self._host.session)
 
     async def report_binary_extended_value(self, bi: BinaryInput, value: int | None) -> None:
-        assert self._host is not None
+        if self._host is None:
+            return
         await bi.update_extended_value(value=value, session=self._host.session)
 
     async def report_channel_value(self, channel: OutputChannel, value: float) -> None:
-        assert self._host is not None
+        if self._host is None:
+            return
         await channel.update_value(value)
 
     def set_channel_applied_callback(
