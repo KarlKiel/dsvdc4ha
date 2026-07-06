@@ -57,7 +57,19 @@ TRANSFORMS: dict[str, dict[str, str]] = {
 
 
 def apply_transform(name: str, value: Any) -> float:
-    """Apply a transform by name. For testing and runtime use."""
+    """Apply a transform by name. For testing and runtime use.
+
+    Security note (S2): the expr evaluated here always comes from the hardcoded
+    TRANSFORMS dict above — never from user input or the network.  Callers are
+    required to validate that *name* is a key in TRANSFORMS before calling this
+    function (listeners.py checks ``name in TRANSFORMS`` before dispatch).
+
+    Security note (S4): this context is intentionally smaller than the
+    _SAFE_EVAL_CONTEXT in listeners.py.  It adds ``str`` (required by
+    bool_to_1_0 / bool_to_100_0) but omits ``int``, ``abs``, ``_norm``,
+    ``_denorm``, and ``_light_apply`` which are only needed for the richer
+    user-authored push/apply expressions evaluated in listeners.py.
+    """
     t = TRANSFORMS.get(name)
     if t is None:
         raise ValueError(f"Unknown transform: {name!r}")

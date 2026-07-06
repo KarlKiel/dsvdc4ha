@@ -6,6 +6,10 @@ from collections import OrderedDict
 from pathlib import Path
 
 _MDI_SVG_CACHE_MAXSIZE = 256
+# Real @mdi/svg icons are single-path SVGs typically 100–5 000 bytes.
+# The largest in @mdi/svg 7.x are under 8 KB.  32 KB gives a ~4× safety
+# margin while still preventing a compromised CDN from filling memory.
+_MDI_SVG_MAX_BYTES = 32_768
 _mdi_svg_cache: OrderedDict[str, bytes] = OrderedDict()
 
 ICONS_DIR: Path = Path(__file__).parent / "icons"

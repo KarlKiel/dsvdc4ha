@@ -52,7 +52,13 @@ from .const import (
     DOMAIN,
     ENTRY_TYPE_HUB,
 )
-from ._icon_utils import MDI_DOMAIN_ICONS, bundled_icon_b64, get_mdi_svg_cache, put_mdi_svg_cache
+from ._icon_utils import (
+    MDI_DOMAIN_ICONS,
+    bundled_icon_b64,
+    get_mdi_svg_cache,
+    put_mdi_svg_cache,
+    _MDI_SVG_MAX_BYTES,
+)
 from .device_grouper import (
     EntityInfo as _EntityInfo,
     VdsdPlan,
@@ -706,7 +712,10 @@ async def _fetch_mdi_icon_b64(hass: Any, icon_slug: str) -> str | None:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=5)) as resp:
                 if resp.status != 200:
                     return None
-                svg_bytes = await resp.read()
+                svg_bytes = await resp.read(_MDI_SVG_MAX_BYTES + 1)
+            if len(svg_bytes) > _MDI_SVG_MAX_BYTES:
+                _LOGGER.warning("MDI icon %s exceeds size limit (%d bytes) — skipped", icon_slug, len(svg_bytes))
+                return None
             put_mdi_svg_cache(icon_slug, svg_bytes)
         except Exception:
             _LOGGER.debug("Failed to fetch MDI icon %s", icon_slug, exc_info=True)
