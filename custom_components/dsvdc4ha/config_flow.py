@@ -1394,7 +1394,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                         entity_states[e.entity_id] = dict(state.attributes) if state else {}
             for plan in self._vdsd_plans:
                 plan.resolved_vdsd = resolve_vdsd_plan(
-                    plan, self._device_name, self._vendor_name,
+                    plan, self._vendor_name,
                     self._display_id, entity_states,
                 )
                 primary_e = (

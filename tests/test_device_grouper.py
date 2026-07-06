@@ -223,7 +223,7 @@ def test_resolve_basic_output():
         primary_group=1, name="Lamp — Light",
         output_entity=_entity("light.lamp", "light", _LIGHT_MAPPING),
     )
-    result = resolve_vdsd_plan(plan, "Lamp", "Acme", "LampModel", {})
+    result = resolve_vdsd_plan(plan, "Acme", "LampModel", {})
     assert result["primaryGroup"] == 1
     assert result["name"] == "Lamp — Light"
     assert result["vendorName"] == "Acme"
@@ -252,7 +252,7 @@ def test_resolve_output_usage_choices_applied():
         output_entity=_entity("cover.blind", "cover", blind_mapping),
         user_choices={"cover.blind": {"output_usage": "2"}},
     )
-    result = resolve_vdsd_plan(plan, "Blind", "Vendor", "BlindModel", {})
+    result = resolve_vdsd_plan(plan, "Vendor", "BlindModel", {})
     assert result["output"]["channels"][0]["channelType"] == 7  # outdoor channel
 
 
@@ -272,7 +272,7 @@ def test_resolve_min_max_user_reads_entity_states():
         sensor_entities=[_entity("number.val", "number", number_mapping)],
     )
     entity_states = {"number.val": {"min": 10.0, "max": 50.0, "step": 0.5}}
-    result = resolve_vdsd_plan(plan, "Device", "Vendor", "Model", entity_states)
+    result = resolve_vdsd_plan(plan, "Vendor", "Model", entity_states)
     sensor = result["sensors"][0]
     assert sensor["min"] == 10.0
     assert sensor["max"] == 50.0
@@ -285,7 +285,7 @@ def test_resolve_binary_input_included():
         binary_input_entity=_entity("binary_sensor.window", "binary_sensor",
                                     _BINARY_MAPPING),
     )
-    result = resolve_vdsd_plan(plan, "Device", "V", "M", {})
+    result = resolve_vdsd_plan(plan, "V", "M", {})
     assert len(result["binary_inputs"]) == 1
     assert result["binary_inputs"][0]["callback_entity"] == "binary_sensor.window"
 
@@ -295,7 +295,7 @@ def test_resolve_button_included():
         primary_group=8, name="Device — Joker",
         button_entity=_entity("event.btn", "event", _BUTTON_MAPPING),
     )
-    result = resolve_vdsd_plan(plan, "Device", "V", "M", {})
+    result = resolve_vdsd_plan(plan, "V", "M", {})
     assert len(result["buttons"]) == 1
     assert result["buttons"][0]["callback_entity"] == "event.btn"
 
@@ -317,7 +317,7 @@ def test_resolve_vdsd_plan_copies_apply_expr_and_push_expr():
     e = _entity("light.lamp", "light", mapping)
     plan = VdsdPlan(primary_group=1, name="Test — Light", output_entity=e)
 
-    vdsd = resolve_vdsd_plan(plan, "Test", "Vendor", "Model", {})
+    vdsd = resolve_vdsd_plan(plan, "Vendor", "Model", {})
 
     channels = vdsd["output"]["channels"]
     assert len(channels) == 1
@@ -346,7 +346,7 @@ def test_resolve_vdsd_plan_optional_tilt_has_binding():
         user_choices={"cover.window": {"has_tilt": True}},
     )
 
-    vdsd = resolve_vdsd_plan(plan, "Test", "Vendor", "Model", {})
+    vdsd = resolve_vdsd_plan(plan, "Vendor", "Model", {})
 
     channels = vdsd["output"]["channels"]
     assert len(channels) == 2
@@ -371,7 +371,7 @@ def test_resolve_vdsd_plan_channel_without_binding_stays_clean():
     e = _entity("light.lamp", "light", mapping)
     plan = VdsdPlan(primary_group=1, name="Test", output_entity=e)
 
-    vdsd = resolve_vdsd_plan(plan, "Test", "Vendor", "Model", {})
+    vdsd = resolve_vdsd_plan(plan, "Vendor", "Model", {})
 
     channels = vdsd["output"]["channels"]
     assert "apply_expr" not in channels[0]
@@ -394,7 +394,7 @@ def test_resolve_bi_group_user_choice_applied():
         binary_input_entity=_entity("binary_sensor.motion", "binary_sensor", mapping),
         user_choices={"binary_sensor.motion": {"bi_group": "6"}},
     )
-    result = resolve_vdsd_plan(plan, "Device", "Vendor", "Model", {})
+    result = resolve_vdsd_plan(plan, "Vendor", "Model", {})
     assert result["binary_inputs"][0]["group"] == 6
 
 
@@ -413,7 +413,7 @@ def test_resolve_bi_group_uses_mapping_default_when_no_choice():
         primary_group=8, name="Motion — Binary",
         binary_input_entity=_entity("binary_sensor.motion", "binary_sensor", mapping),
     )
-    result = resolve_vdsd_plan(plan, "Device", "Vendor", "Model", {})
+    result = resolve_vdsd_plan(plan, "Vendor", "Model", {})
     assert result["binary_inputs"][0]["group"] == 1
 
 
@@ -435,7 +435,7 @@ def test_resolve_sensor_usage_user_choice_applied():
         sensor_entities=[_entity("sensor.temperature", "sensor", mapping)],
         user_choices={"sensor.temperature": {"sensor_usage": "2"}},
     )
-    result = resolve_vdsd_plan(plan, "Device", "Vendor", "Model", {})
+    result = resolve_vdsd_plan(plan, "Vendor", "Model", {})
     assert result["sensors"][0]["sensorUsage"] == 2
 
 
@@ -456,7 +456,7 @@ def test_resolve_sensor_usage_uses_mapping_default_when_no_choice():
         primary_group=8, name="Temp — Sensor",
         sensor_entities=[_entity("sensor.temperature", "sensor", mapping)],
     )
-    result = resolve_vdsd_plan(plan, "Device", "Vendor", "Model", {})
+    result = resolve_vdsd_plan(plan, "Vendor", "Model", {})
     assert result["sensors"][0]["sensorUsage"] == 1
 
 
@@ -486,7 +486,7 @@ def test_resolve_vdsd_plan_shadow_timing_forwarded():
         }},
     )
 
-    vdsd = resolve_vdsd_plan(plan, "Test", "Vendor", "Model", {})
+    vdsd = resolve_vdsd_plan(plan, "Vendor", "Model", {})
 
     out = vdsd["output"]
     assert out.get("openTime") == 30.0
@@ -511,7 +511,7 @@ def test_resolve_vdsd_plan_timing_absent_when_not_in_choices():
     e = _entity("cover.shade", "cover", mapping)
     plan = VdsdPlan(primary_group=2, name="Test — Cover", output_entity=e)
 
-    vdsd = resolve_vdsd_plan(plan, "Test", "Vendor", "Model", {})
+    vdsd = resolve_vdsd_plan(plan, "Vendor", "Model", {})
 
     out = vdsd["output"]
     assert "openTime" not in out
