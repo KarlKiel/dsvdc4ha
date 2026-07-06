@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from custom_components.dsvdc4ha.listeners import (
-    _eval_push,
+    eval_push as _eval_push,
     seed_initial_values,
     setup_input_listeners,
     setup_output_listeners,

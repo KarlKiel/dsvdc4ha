@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Awaitable, Callable
 
@@ -165,7 +166,6 @@ class ButtonEventTranslator:
 
     def _bs_on(self) -> None:
         """Binary sensor went active (button pressed)."""
-        import time
         self._press_start = time.monotonic()
         self._cancel_gap_task()
         # Start HOLD_START timer — cancelled on release if < 500 ms.
@@ -176,8 +176,6 @@ class ButtonEventTranslator:
 
     def _bs_off(self) -> None:
         """Binary sensor went inactive (button released)."""
-        import time
-
         # Cancel the pending HOLD_START timer if it hasn't fired yet.
         if self._hold_task and not self._hold_task.done():
             self._hold_task.cancel()

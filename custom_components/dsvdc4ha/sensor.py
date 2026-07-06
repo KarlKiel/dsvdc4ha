@@ -14,6 +14,8 @@ from homeassistant.helpers.event import async_track_state_change_event
 from .base_entity import DsvdcBaseEntity
 from .const import CLICK_TYPE_NAMES, DOMAIN
 from .api import get_channel_spec
+from .unit_conversion import DS_TARGET_UNIT, convert_sensor_value
+from .listeners import eval_push as _eval_push_channel
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -136,7 +138,6 @@ class SensorInputEntity(DsvdcBaseEntity, SensorEntity):
         self._attr_native_value: float | None = None
         self._source_entity_id: str | None = si_data.get("callback_entity")
         self._sensor_type: int = si_data.get("sensorType", 0)
-        from .unit_conversion import DS_TARGET_UNIT
         self._attr_native_unit_of_measurement = DS_TARGET_UNIT.get(self._sensor_type)
 
     @property
@@ -145,7 +146,6 @@ class SensorInputEntity(DsvdcBaseEntity, SensorEntity):
 
     def _convert(self, state) -> float | None:
         try:
-            from .unit_conversion import convert_sensor_value
             raw = float(state.state)
             unit = state.attributes.get("unit_of_measurement")
             return convert_sensor_value(self._sensor_type, unit, raw)
@@ -209,8 +209,7 @@ class OutputChannelEntity(DsvdcBaseEntity, SensorEntity):
     def _compute_value(self, state) -> float | None:
         if self._push_expr:
             try:
-                from .listeners import _eval_push
-                return _eval_push(self._push_expr, state)
+                return _eval_push_channel(self._push_expr, state)
             except Exception:
                 return None
         try:

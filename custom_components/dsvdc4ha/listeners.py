@@ -71,7 +71,7 @@ _SAFE_EVAL_CONTEXT: dict = {
 }
 
 
-def _eval_push(expr: str, state) -> float:
+def eval_push(expr: str, state) -> float:
     """Evaluate a push_expr with entity/attrs in context. Returns float."""
     ctx = dict(_SAFE_EVAL_CONTEXT)
     ctx["entity"] = state
@@ -351,7 +351,7 @@ async def seed_initial_values(
                     push_expr = ch_data.get("push_expr")
                     if push_expr:
                         try:
-                            ch_value = _eval_push(push_expr, state)
+                            ch_value = eval_push(push_expr, state)
                         except Exception:
                             _LOGGER.warning("push_expr eval failed during seed: %s", push_expr, exc_info=True)
                     else:
@@ -416,7 +416,7 @@ def setup_output_listeners(
                             api.report_entity_available(_entry_id, _vdsd_idx, _eid, True)
                         )
                         try:
-                            val = _eval_push(_expr, new_state)
+                            val = eval_push(_expr, new_state)
                             hass.async_create_task(api.report_channel_value(_ch, val))
                         except Exception:
                             _LOGGER.warning("push_expr eval failed: %s", _expr, exc_info=True)

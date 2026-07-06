@@ -126,7 +126,7 @@ def test_full_color_channel_order_matches_pydsvdcapi():
 
 def test_brightness_push_expr_returns_zero_when_off():
     """BRIGHTNESS push_expr for DIMMER returns 0.0 when entity state is 'off'."""
-    from custom_components.dsvdc4ha.listeners import _eval_push
+    from custom_components.dsvdc4ha.listeners import eval_push as _eval_push
     result = _derive_light_output_config("light.test", _make_state({"brightness"}))
     expr = result["output"]["channels"][0]["push_expr"]
     state_off = MagicMock()
@@ -137,7 +137,7 @@ def test_brightness_push_expr_returns_zero_when_off():
 
 def test_brightness_push_expr_handles_none_brightness():
     """BRIGHTNESS push_expr treats None brightness as 0 (no crash, no TypeError)."""
-    from custom_components.dsvdc4ha.listeners import _eval_push
+    from custom_components.dsvdc4ha.listeners import eval_push as _eval_push
     result = _derive_light_output_config("light.test", _make_state({"brightness"}))
     expr = result["output"]["channels"][0]["push_expr"]
     state_none = MagicMock()
@@ -148,7 +148,7 @@ def test_brightness_push_expr_handles_none_brightness():
 
 def test_hs_push_expr_handles_none_hs_color():
     """HUE/SAT push_expr treats None hs_color as (0, 0) — both default to 0 (no color)."""
-    from custom_components.dsvdc4ha.listeners import _eval_push
+    from custom_components.dsvdc4ha.listeners import eval_push as _eval_push
     result = _derive_light_output_config("light.test", _make_state({"hs"}))
     channels = result["output"]["channels"]
     hue_ch = next(ch for ch in channels if ch["channel_type"] == OutputChannelType.HUE)
@@ -162,7 +162,7 @@ def test_hs_push_expr_handles_none_hs_color():
 
 def test_xy_push_expr_handles_none_xy_color():
     """CIE_X/CIE_Y push_expr treats None xy_color as (0.3127, 0.3290) without crashing."""
-    from custom_components.dsvdc4ha.listeners import _eval_push
+    from custom_components.dsvdc4ha.listeners import eval_push as _eval_push
     result = _derive_light_output_config("light.test", _make_state({"hs"}))
     channels = result["output"]["channels"]
     cie_x = next(ch for ch in channels if ch["channel_type"] == OutputChannelType.CIE_X)
