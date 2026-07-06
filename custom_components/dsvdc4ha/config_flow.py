@@ -733,6 +733,117 @@ async def _fetch_mdi_icon_b64(hass: Any, icon_slug: str) -> str | None:
 _OPTIONAL_RETURN_STEPS: frozenset[str] = frozenset({"vdsd_overview"})
 
 
+def _build_entity_choices_schema(
+    mapping: dict,
+    state_attrs: dict | None = None,
+) -> dict:
+    """Build voluptuous schema_dict for entity-specific user choices.
+
+    Both async_step_entity_user_input and async_step_device_entity_user_input
+    present the same fields; the device variant passes live state attributes
+    so min/max/resolution are pre-filled with current values.
+    """
+    attrs = state_attrs or {}
+    bi = mapping.get("binary_input", {})
+    sen = mapping.get("sensor", {})
+    btn = mapping.get("button", {})
+    out = mapping.get("output", {})
+    schema_dict: dict = {}
+
+    sfc = bi.get("sensor_function_choices")
+    if sfc == "any":
+        schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
+            selector.SelectSelector(selector.SelectSelectorConfig(options=_BINARY_INPUT_TYPE_OPTIONS))
+        )
+    elif sfc:
+        schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
+            _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in sfc])
+        )
+
+    if btn.get("group_choices"):
+        schema_dict[vol.Required("group", default=str(btn["group"]))] = (
+            _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in btn["group_choices"]])
+        )
+
+    if bi.get("group_choices"):
+        schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
+            _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in bi["group_choices"]])
+        )
+
+    if bi.get("input_usage_choices"):
+        schema_dict[vol.Required("input_usage", default=str(bi["input_usage"]))] = (
+            _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in bi["input_usage_choices"]])
+        )
+
+    stc = sen.get("sensor_type_choices")
+    if stc == "any":
+        schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
+            selector.SelectSelector(selector.SelectSelectorConfig(options=_SENSOR_TYPE_OPTIONS))
+        )
+    elif stc:
+        schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
+            selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                selector.SelectOptionDict(value=str(v), label=lbl)
+                for v, lbl in stc
+            ]))
+        )
+
+    if sen.get("min_max_user"):
+        schema_dict[vol.Required("min", default=attrs.get("min", sen.get("min", 0)))] = (
+            selector.NumberSelector(selector.NumberSelectorConfig(mode="box"))
+        )
+        schema_dict[vol.Required("max", default=attrs.get("max", sen.get("max", 100)))] = (
+            selector.NumberSelector(selector.NumberSelectorConfig(mode="box"))
+        )
+        schema_dict[vol.Required("resolution", default=attrs.get("step", sen.get("resolution", 0.4)))] = (
+            selector.NumberSelector(selector.NumberSelectorConfig(min=0, step=0.01, mode="box"))
+        )
+
+    suc = sen.get("sensor_usage_choices")
+    if suc == "any":
+        schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
+            selector.SelectSelector(selector.SelectSelectorConfig(options=_SENSOR_USAGE_OPTIONS))
+        )
+    elif suc:
+        schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
+            _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in suc])
+        )
+
+    if out.get("output_usage_choices"):
+        schema_dict[vol.Required("output_usage", default=str(out["output_usage"]))] = (
+            _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in out["output_usage_choices"]])
+        )
+
+    if out.get("function_choices"):
+        schema_dict[vol.Required("function", default=str(out["function"]))] = (
+            _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in out["function_choices"]])
+        )
+
+    if out.get("optional_tilt"):
+        schema_dict[vol.Optional("has_tilt", default=False)] = selector.BooleanSelector()
+
+    if out.get("placement_choice"):
+        schema_dict[vol.Required("cover_placement", default="indoor")] = (
+            selector.SelectSelector(selector.SelectSelectorConfig(options=_COVER_PLACEMENT_OPTIONS))
+        )
+
+    def _timing_field(key: str):
+        v = out.get(key)
+        return vol.Optional(key, default=v) if v is not None else vol.Optional(key)
+
+    if out.get("shadow_position_timing"):
+        _ns = selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+        schema_dict[_timing_field("openTime")]      = selector.NumberSelector(_ns)
+        schema_dict[_timing_field("closeTime")]     = selector.NumberSelector(_ns)
+        schema_dict[_timing_field("stopDelayTime")] = selector.NumberSelector(_ns)
+    if out.get("shadow_angle_timing"):
+        _ns = selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+        schema_dict[_timing_field("angleOpenTime")]  = selector.NumberSelector(_ns)
+        schema_dict[_timing_field("angleCloseTime")] = selector.NumberSelector(_ns)
+
+    return schema_dict
+
+
 class VdsdSubentryFlowHandler(ConfigSubentryFlow):
     """Multi-step wizard for adding a virtualDC device as a config subentry."""
 
@@ -916,103 +1027,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         if user_input is not None:
             return await self._build_entity_vdsd_and_continue(user_input)
 
-        schema_dict: dict = {}
-        bi = mapping.get("binary_input", {})
-        sen = mapping.get("sensor", {})
-        btn = mapping.get("button", {})
-        out = mapping.get("output", {})
-
-        sfc = bi.get("sensor_function_choices")
-        if sfc == "any":
-            schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=_BINARY_INPUT_TYPE_OPTIONS))
-            )
-        elif sfc:
-            schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
-                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in sfc])
-            )
-
-        if btn.get("group_choices"):
-            schema_dict[vol.Required("group", default=str(btn["group"]))] = (
-                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in btn["group_choices"]])
-            )
-
-        if bi.get("group_choices"):
-            schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
-                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in bi["group_choices"]])
-            )
-
-        if bi.get("input_usage_choices"):
-            schema_dict[vol.Required("input_usage", default=str(bi["input_usage"]))] = (
-                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in bi["input_usage_choices"]])
-            )
-
-        stc = sen.get("sensor_type_choices")
-        if stc == "any":
-            schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=_SENSOR_TYPE_OPTIONS))
-            )
-        elif stc:
-            schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in stc
-                ]))
-            )
-
-        if sen.get("min_max_user"):
-            schema_dict[vol.Required("min", default=sen["min"])] = selector.NumberSelector(
-                selector.NumberSelectorConfig(mode="box")
-            )
-            schema_dict[vol.Required("max", default=sen["max"])] = selector.NumberSelector(
-                selector.NumberSelectorConfig(mode="box")
-            )
-            schema_dict[vol.Required("resolution", default=sen["resolution"])] = selector.NumberSelector(
-                selector.NumberSelectorConfig(min=0, step=0.01, mode="box")
-            )
-
-        suc = sen.get("sensor_usage_choices")
-        if suc == "any":
-            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=_SENSOR_USAGE_OPTIONS))
-            )
-        elif suc:
-            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
-                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in suc])
-            )
-
-        if out.get("output_usage_choices"):
-            schema_dict[vol.Required("output_usage", default=str(out["output_usage"]))] = (
-                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in out["output_usage_choices"]])
-            )
-
-        if out.get("function_choices"):
-            schema_dict[vol.Required("function", default=str(out["function"]))] = (
-                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in out["function_choices"]])
-            )
-
-        if out.get("optional_tilt"):
-            schema_dict[vol.Optional("has_tilt", default=False)] = selector.BooleanSelector()
-
-        if out.get("placement_choice"):
-            schema_dict[vol.Required("cover_placement", default="indoor")] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=_COVER_PLACEMENT_OPTIONS))
-            )
-
-        def _timing_field(key: str):
-            v = out.get(key)
-            return vol.Optional(key, default=v) if v is not None else vol.Optional(key)
-
-        if out.get("shadow_position_timing"):
-            _ns = selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-            schema_dict[_timing_field("openTime")]      = selector.NumberSelector(_ns)
-            schema_dict[_timing_field("closeTime")]     = selector.NumberSelector(_ns)
-            schema_dict[_timing_field("stopDelayTime")] = selector.NumberSelector(_ns)
-        if out.get("shadow_angle_timing"):
-            _ns = selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-            schema_dict[_timing_field("angleOpenTime")]  = selector.NumberSelector(_ns)
-            schema_dict[_timing_field("angleCloseTime")] = selector.NumberSelector(_ns)
-
+        schema_dict = _build_entity_choices_schema(mapping)
         return self.async_show_form(
             step_id="entity_user_input",
             data_schema=vol.Schema(schema_dict),
@@ -1347,98 +1362,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 return await self.async_step_device_entity_user_input()
             return await self.async_step_device_plan_summary()
 
-        # Build same schema as async_step_entity_user_input
-        schema_dict: dict = {}
-        bi = mapping.get("binary_input", {})
-        sen = mapping.get("sensor", {})
-        btn = mapping.get("button", {})
-        out = mapping.get("output", {})
-
-        sfc = bi.get("sensor_function_choices")
-        if sfc == "any":
-            schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=_BINARY_INPUT_TYPE_OPTIONS))
-            )
-        elif sfc:
-            schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
-                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in sfc])
-            )
-
-        if btn.get("group_choices"):
-            schema_dict[vol.Required("group", default=str(btn["group"]))] = (
-                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in btn["group_choices"]])
-            )
-        if bi.get("group_choices"):
-            schema_dict[vol.Required("bi_group", default=str(bi["group"]))] = (
-                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in bi["group_choices"]])
-            )
-        if bi.get("input_usage_choices"):
-            schema_dict[vol.Required("input_usage", default=str(bi["input_usage"]))] = (
-                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in bi["input_usage_choices"]])
-            )
-        stc = sen.get("sensor_type_choices")
-        if stc == "any":
-            schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=_SENSOR_TYPE_OPTIONS))
-            )
-        elif stc:
-            schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=str(v), label=lbl)
-                    for v, lbl in stc
-                ]))
-            )
         state = self.hass.states.get(entity_info.entity_id)
-        # Prefer live state attributes so repeat-visits pre-fill current values
         attrs = state.attributes if state else {}
-        if sen.get("min_max_user"):
-            schema_dict[vol.Required("min", default=attrs.get("min", sen.get("min", 0)))] = (
-                selector.NumberSelector(selector.NumberSelectorConfig(mode="box"))
-            )
-            schema_dict[vol.Required("max", default=attrs.get("max", sen.get("max", 100)))] = (
-                selector.NumberSelector(selector.NumberSelectorConfig(mode="box"))
-            )
-            schema_dict[vol.Required("resolution", default=attrs.get("step", sen.get("resolution", 0.4)))] = (
-                selector.NumberSelector(selector.NumberSelectorConfig(min=0, step=0.01, mode="box"))
-            )
-        suc = sen.get("sensor_usage_choices")
-        if suc == "any":
-            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=_SENSOR_USAGE_OPTIONS))
-            )
-        elif suc:
-            schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
-                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in suc])
-            )
-        if out.get("output_usage_choices"):
-            schema_dict[vol.Required("output_usage", default=str(out["output_usage"]))] = (
-                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in out["output_usage_choices"]])
-            )
-        if out.get("function_choices"):
-            schema_dict[vol.Required("function", default=str(out["function"]))] = (
-                _select([selector.SelectOptionDict(value=str(v), label=lbl) for v, lbl in out["function_choices"]])
-            )
-        if out.get("optional_tilt"):
-            schema_dict[vol.Optional("has_tilt", default=False)] = selector.BooleanSelector()
-
-        if out.get("placement_choice"):
-            schema_dict[vol.Required("cover_placement", default="indoor")] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=_COVER_PLACEMENT_OPTIONS))
-            )
-
-        def _timing_field(key: str):
-            v = out.get(key)
-            return vol.Optional(key, default=v) if v is not None else vol.Optional(key)
-
-        if out.get("shadow_position_timing"):
-            _ns = selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-            schema_dict[_timing_field("openTime")]      = selector.NumberSelector(_ns)
-            schema_dict[_timing_field("closeTime")]     = selector.NumberSelector(_ns)
-            schema_dict[_timing_field("stopDelayTime")] = selector.NumberSelector(_ns)
-        if out.get("shadow_angle_timing"):
-            _ns = selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
-            schema_dict[_timing_field("angleOpenTime")]  = selector.NumberSelector(_ns)
-            schema_dict[_timing_field("angleCloseTime")] = selector.NumberSelector(_ns)
+        schema_dict = _build_entity_choices_schema(mapping, state_attrs=attrs)
 
         current = self._pending_choice_idx + 1
         total = len(self._pending_choice_entities)
