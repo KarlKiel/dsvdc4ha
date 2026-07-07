@@ -17,17 +17,11 @@ def mock_hass():
 @pytest.mark.asyncio
 async def test_coordinator_start_delegates_to_api(mock_hass, mock_api):
     mock_zeroconf = MagicMock()
-    mock_integration = MagicMock()
-    mock_integration.version = "1.2.3"
     with (
         patch("custom_components.dsvdc4ha.coordinator.DsvdcApi", return_value=mock_api),
         patch(
             "custom_components.dsvdc4ha.coordinator.async_get_instance",
             new=AsyncMock(return_value=mock_zeroconf),
-        ),
-        patch(
-            "custom_components.dsvdc4ha.coordinator.async_get_integration",
-            new=AsyncMock(return_value=mock_integration),
         ),
     ):
         from custom_components.dsvdc4ha.coordinator import HubCoordinator
@@ -43,17 +37,11 @@ async def test_coordinator_start_delegates_to_api(mock_hass, mock_api):
 @pytest.mark.asyncio
 async def test_coordinator_stop_delegates_to_api(mock_hass, mock_api):
     mock_zeroconf = MagicMock()
-    mock_integration = MagicMock()
-    mock_integration.version = "1.2.3"
     with (
         patch("custom_components.dsvdc4ha.coordinator.DsvdcApi", return_value=mock_api),
         patch(
             "custom_components.dsvdc4ha.coordinator.async_get_instance",
             new=AsyncMock(return_value=mock_zeroconf),
-        ),
-        patch(
-            "custom_components.dsvdc4ha.coordinator.async_get_integration",
-            new=AsyncMock(return_value=mock_integration),
         ),
     ):
         from custom_components.dsvdc4ha.coordinator import HubCoordinator
@@ -71,18 +59,12 @@ async def test_async_setup_entry_hub_starts_coordinator(mock_api):
     mock_hass.config.path = MagicMock(return_value="/tmp/dsvdc4ha_state")
     mock_hass.config_entries = MagicMock()
     mock_zeroconf = MagicMock()
-    mock_integration = MagicMock()
-    mock_integration.version = "1.2.3"
 
     with (
         patch("custom_components.dsvdc4ha.coordinator.DsvdcApi", return_value=mock_api),
         patch(
             "custom_components.dsvdc4ha.coordinator.async_get_instance",
             new=AsyncMock(return_value=mock_zeroconf),
-        ),
-        patch(
-            "custom_components.dsvdc4ha.coordinator.async_get_integration",
-            new=AsyncMock(return_value=mock_integration),
         ),
     ):
         entry = MagicMock(spec=ConfigEntry)
@@ -112,13 +94,10 @@ def test_hub_device_name_constant():
 async def test_coordinator_schedules_reconnect_on_disconnect(mock_hass, mock_api):
     """On disconnect, coordinator marks itself disconnected and schedules reconnect."""
     mock_zeroconf = MagicMock()
-    mock_integration = MagicMock()
-    mock_integration.version = "1.2.3"
 
     with (
         patch("custom_components.dsvdc4ha.coordinator.DsvdcApi", return_value=mock_api),
         patch("custom_components.dsvdc4ha.coordinator.async_get_instance", new=AsyncMock(return_value=mock_zeroconf)),
-        patch("custom_components.dsvdc4ha.coordinator.async_get_integration", new=AsyncMock(return_value=mock_integration)),
     ):
         from custom_components.dsvdc4ha.coordinator import HubCoordinator
         coord = HubCoordinator(mock_hass, port=9090)

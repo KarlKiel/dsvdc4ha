@@ -112,6 +112,157 @@ async def _backfill_missing_icons(hass: HomeAssistant, entry: ConfigEntry) -> No
             )
 
 
+def _scalar(val: Any) -> bool:
+    return isinstance(val, (int, float, bool, str)) and val is not None
+
+
+def _create_property_entities(
+    api: Any,
+    subentry: Any,
+    add_sensor: Any,
+    add_number: Any,
+    EntityCategory: Any,
+    PropertySensorEntity: Any,
+    WritableSettingNumberEntity: Any,
+) -> None:
+    """Create read-only sensor and writable number property entities for a subentry."""
+    for vdsd_idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):
+        device = api.get_device(subentry.subentry_id)
+        if not device:
+            continue
+        vdsd = device.get_vdsd(vdsd_idx)
+        if not vdsd:
+            continue
+        sid = subentry.subentry_id
+        prop_entities: list = []
+        num_entities: list = []
+
+        # vdSD identity/description properties (all read-only)
+        for key, val in vdsd.get_properties().items():
+            if _scalar(val) and add_sensor:
+                prop_entities.append(PropertySensorEntity(
+                    sid, vdsd_idx, vdsd_data,
+                    f"vdsd_{key}", f"vdSD: {key}", val, EntityCategory.DIAGNOSTIC,
+                ))
+
+        # Binary input properties
+        for bi_idx, bi in vdsd.binary_inputs.items():
+            for key, val in bi.get_description_properties().items():
+                if _scalar(val) and add_sensor:
+                    prop_entities.append(PropertySensorEntity(
+                        sid, vdsd_idx, vdsd_data,
+                        f"bi_{bi_idx}_desc_{key}", f"BI {bi_idx} Desc: {key}", val, EntityCategory.DIAGNOSTIC,
+                    ))
+            for key, val in bi.get_settings_properties().items():
+                if _scalar(val):
+                    if add_sensor:
+                        prop_entities.append(PropertySensorEntity(
+                            sid, vdsd_idx, vdsd_data,
+                            f"bi_{bi_idx}_setting_{key}", f"BI {bi_idx} Setting: {key}", val, EntityCategory.CONFIG,
+                        ))
+                    if add_number:
+                        num_entities.append(WritableSettingNumberEntity(
+                            sid, vdsd_idx, vdsd_data,
+                            f"bi_{bi_idx}_writable_{key}", f"BI {bi_idx} {key}",
+                            val, "bi", bi_idx, key,
+                        ))
+            for key, val in bi.get_state_properties().items():
+                if _scalar(val) and add_sensor:
+                    prop_entities.append(PropertySensorEntity(
+                        sid, vdsd_idx, vdsd_data,
+                        f"bi_{bi_idx}_state_{key}", f"BI {bi_idx} State: {key}", val, EntityCategory.DIAGNOSTIC,
+                    ))
+
+        # Sensor input properties
+        for si_idx, si in vdsd.sensor_inputs.items():
+            for key, val in si.get_description_properties().items():
+                if _scalar(val) and add_sensor:
+                    prop_entities.append(PropertySensorEntity(
+                        sid, vdsd_idx, vdsd_data,
+                        f"si_{si_idx}_desc_{key}", f"Sensor {si_idx} Desc: {key}", val, EntityCategory.DIAGNOSTIC,
+                    ))
+            for key, val in si.get_settings_properties().items():
+                if _scalar(val):
+                    if add_sensor:
+                        prop_entities.append(PropertySensorEntity(
+                            sid, vdsd_idx, vdsd_data,
+                            f"si_{si_idx}_setting_{key}", f"Sensor {si_idx} Setting: {key}", val, EntityCategory.CONFIG,
+                        ))
+                    if add_number:
+                        num_entities.append(WritableSettingNumberEntity(
+                            sid, vdsd_idx, vdsd_data,
+                            f"si_{si_idx}_writable_{key}", f"Sensor {si_idx} {key}",
+                            val, "si", si_idx, key,
+                        ))
+            for key, val in si.get_state_properties().items():
+                if _scalar(val) and add_sensor:
+                    prop_entities.append(PropertySensorEntity(
+                        sid, vdsd_idx, vdsd_data,
+                        f"si_{si_idx}_state_{key}", f"Sensor {si_idx} State: {key}", val, EntityCategory.DIAGNOSTIC,
+                    ))
+
+        # Button input properties
+        for btn_idx, btn in vdsd.button_inputs.items():
+            for key, val in btn.get_description_properties().items():
+                if _scalar(val) and add_sensor:
+                    prop_entities.append(PropertySensorEntity(
+                        sid, vdsd_idx, vdsd_data,
+                        f"btn_{btn_idx}_desc_{key}", f"Button {btn_idx} Desc: {key}", val, EntityCategory.DIAGNOSTIC,
+                    ))
+            for key, val in btn.get_settings_properties().items():
+                if _scalar(val):
+                    if add_sensor:
+                        prop_entities.append(PropertySensorEntity(
+                            sid, vdsd_idx, vdsd_data,
+                            f"btn_{btn_idx}_setting_{key}", f"Button {btn_idx} Setting: {key}", val, EntityCategory.CONFIG,
+                        ))
+                    if add_number:
+                        num_entities.append(WritableSettingNumberEntity(
+                            sid, vdsd_idx, vdsd_data,
+                            f"btn_{btn_idx}_writable_{key}", f"Button {btn_idx} {key}",
+                            val, "btn", btn_idx, key,
+                        ))
+            for key, val in btn.get_state_properties().items():
+                if _scalar(val) and add_sensor:
+                    prop_entities.append(PropertySensorEntity(
+                        sid, vdsd_idx, vdsd_data,
+                        f"btn_{btn_idx}_state_{key}", f"Button {btn_idx} State: {key}", val, EntityCategory.DIAGNOSTIC,
+                    ))
+
+        # Output properties (present only for vdSDs with an output)
+        if vdsd.output:
+            for key, val in vdsd.output.get_description_properties().items():
+                if _scalar(val) and add_sensor:
+                    prop_entities.append(PropertySensorEntity(
+                        sid, vdsd_idx, vdsd_data,
+                        f"out_desc_{key}", f"Output Desc: {key}", val, EntityCategory.DIAGNOSTIC,
+                    ))
+            for key, val in vdsd.output.get_state_properties().items():
+                if _scalar(val) and add_sensor:
+                    prop_entities.append(PropertySensorEntity(
+                        sid, vdsd_idx, vdsd_data,
+                        f"out_state_{key}", f"Output State: {key}", val, EntityCategory.DIAGNOSTIC,
+                    ))
+            for key, val in vdsd.output.get_settings_properties().items():
+                if _scalar(val):
+                    if add_sensor:
+                        prop_entities.append(PropertySensorEntity(
+                            sid, vdsd_idx, vdsd_data,
+                            f"out_setting_{key}", f"Output Setting: {key}", val, EntityCategory.CONFIG,
+                        ))
+                    if add_number:
+                        num_entities.append(WritableSettingNumberEntity(
+                            sid, vdsd_idx, vdsd_data,
+                            f"out_writable_{key}", f"Output {key}",
+                            val, "out", None, key,
+                        ))
+
+        if prop_entities and add_sensor:
+            add_sensor(prop_entities, config_subentry_id=sid)
+        if num_entities and add_number:
+            add_number(num_entities, config_subentry_id=sid)
+
+
 async def _vanish_deleted_devices(coordinator: HubCoordinator, entry: ConfigEntry) -> None:
     """Vanish devices that were removed from entry.subentries since last setup."""
     if coordinator.api is None:
@@ -171,119 +322,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await seed_initial_values(hass, coordinator.api, subentry.subentry_id, vdsds)
         await coordinator.api.announce_device(subentry.subentry_id)
 
-    # Expose vdSD and input property groups as hidden diagnostic/config sensor entities.
+    # Expose vdSD and input property groups as hidden diagnostic/config sensor entities,
+    # and expose all writable settings as hidden CONFIG number entities.
     _add_sensor = hass.data[DOMAIN].get("_add_sensor_entities")
-    if _add_sensor and coordinator.api:
+    _add_number = hass.data[DOMAIN].get("_add_number_entities")
+    if coordinator.api and (_add_sensor or _add_number):
         from homeassistant.helpers.entity import EntityCategory
         from .sensor import PropertySensorEntity
+        from .number import WritableSettingNumberEntity
         for subentry in entry.subentries.values():
-            for vdsd_idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):
-                device = coordinator.api.get_device(subentry.subentry_id)
-                if not device:
-                    continue
-                vdsd = device.get_vdsd(vdsd_idx)
-                if not vdsd:
-                    continue
-                sid = subentry.subentry_id
-                prop_entities: list[PropertySensorEntity] = []
-
-                def _scalar(val: Any) -> bool:
-                    return isinstance(val, (int, float, bool, str)) and val is not None
-
-                # vdSD identity/description properties
-                for key, val in vdsd.get_properties().items():
-                    if _scalar(val):
-                        prop_entities.append(PropertySensorEntity(
-                            sid, vdsd_idx, vdsd_data,
-                            f"vdsd_{key}", f"vdSD: {key}", val, EntityCategory.DIAGNOSTIC,
-                        ))
-
-                # Binary input properties
-                for bi_idx, bi in vdsd.binary_inputs.items():
-                    for key, val in bi.get_description_properties().items():
-                        if _scalar(val):
-                            prop_entities.append(PropertySensorEntity(
-                                sid, vdsd_idx, vdsd_data,
-                                f"bi_{bi_idx}_desc_{key}", f"BI {bi_idx} Desc: {key}", val, EntityCategory.DIAGNOSTIC,
-                            ))
-                    for key, val in bi.get_settings_properties().items():
-                        if _scalar(val):
-                            prop_entities.append(PropertySensorEntity(
-                                sid, vdsd_idx, vdsd_data,
-                                f"bi_{bi_idx}_setting_{key}", f"BI {bi_idx} Setting: {key}", val, EntityCategory.CONFIG,
-                            ))
-                    for key, val in bi.get_state_properties().items():
-                        if _scalar(val):
-                            prop_entities.append(PropertySensorEntity(
-                                sid, vdsd_idx, vdsd_data,
-                                f"bi_{bi_idx}_state_{key}", f"BI {bi_idx} State: {key}", val,
-                            ))
-
-                # Sensor input properties
-                for si_idx, si in vdsd.sensor_inputs.items():
-                    for key, val in si.get_description_properties().items():
-                        if _scalar(val):
-                            prop_entities.append(PropertySensorEntity(
-                                sid, vdsd_idx, vdsd_data,
-                                f"si_{si_idx}_desc_{key}", f"Sensor {si_idx} Desc: {key}", val, EntityCategory.DIAGNOSTIC,
-                            ))
-                    for key, val in si.get_settings_properties().items():
-                        if _scalar(val):
-                            prop_entities.append(PropertySensorEntity(
-                                sid, vdsd_idx, vdsd_data,
-                                f"si_{si_idx}_setting_{key}", f"Sensor {si_idx} Setting: {key}", val, EntityCategory.CONFIG,
-                            ))
-                    for key, val in si.get_state_properties().items():
-                        if _scalar(val):
-                            prop_entities.append(PropertySensorEntity(
-                                sid, vdsd_idx, vdsd_data,
-                                f"si_{si_idx}_state_{key}", f"Sensor {si_idx} State: {key}", val,
-                            ))
-
-                # Button input properties
-                for btn_idx, btn in vdsd.button_inputs.items():
-                    for key, val in btn.get_description_properties().items():
-                        if _scalar(val):
-                            prop_entities.append(PropertySensorEntity(
-                                sid, vdsd_idx, vdsd_data,
-                                f"btn_{btn_idx}_desc_{key}", f"Button {btn_idx} Desc: {key}", val, EntityCategory.DIAGNOSTIC,
-                            ))
-                    for key, val in btn.get_settings_properties().items():
-                        if _scalar(val):
-                            prop_entities.append(PropertySensorEntity(
-                                sid, vdsd_idx, vdsd_data,
-                                f"btn_{btn_idx}_setting_{key}", f"Button {btn_idx} Setting: {key}", val, EntityCategory.CONFIG,
-                            ))
-                    for key, val in btn.get_state_properties().items():
-                        if _scalar(val):
-                            prop_entities.append(PropertySensorEntity(
-                                sid, vdsd_idx, vdsd_data,
-                                f"btn_{btn_idx}_state_{key}", f"Button {btn_idx} State: {key}", val,
-                            ))
-
-                # Output properties (present only for vdSDs with an output)
-                if vdsd.output:
-                    for key, val in vdsd.output.get_description_properties().items():
-                        if _scalar(val):
-                            prop_entities.append(PropertySensorEntity(
-                                sid, vdsd_idx, vdsd_data,
-                                f"out_desc_{key}", f"Output Desc: {key}", val, EntityCategory.DIAGNOSTIC,
-                            ))
-                    for key, val in vdsd.output.get_state_properties().items():
-                        if _scalar(val):
-                            prop_entities.append(PropertySensorEntity(
-                                sid, vdsd_idx, vdsd_data,
-                                f"out_state_{key}", f"Output State: {key}", val,
-                            ))
-                    for key, val in vdsd.output.get_settings_properties().items():
-                        if _scalar(val):
-                            prop_entities.append(PropertySensorEntity(
-                                sid, vdsd_idx, vdsd_data,
-                                f"out_setting_{key}", f"Output Setting: {key}", val, EntityCategory.CONFIG,
-                            ))
-
-                if prop_entities:
-                    _add_sensor(prop_entities, config_subentry_id=subentry.subentry_id)
+            _create_property_entities(
+                coordinator.api, subentry, _add_sensor, _add_number,
+                EntityCategory, PropertySensorEntity, WritableSettingNumberEntity,
+            )
 
     # React to entity enable/disable and deletion in the HA entity registry.
     # Store in domain_data so the subentry delta listener can update it in-place.
@@ -349,10 +400,14 @@ async def _async_subentry_update_listener(
         from . import sensor as _sensor_mod
         from . import binary_sensor as _binary_sensor_mod
         from . import button as _button_mod
+        from homeassistant.helpers.entity import EntityCategory
+        from .sensor import PropertySensorEntity
+        from .number import WritableSettingNumberEntity
 
         add_sensor = domain_data.get("_add_sensor_entities")
         add_binary = domain_data.get("_add_binary_entities")
         add_button = domain_data.get("_add_button_entities")
+        add_number = domain_data.get("_add_number_entities")
 
         for subentry_id in added:
             subentry = entry.subentries[subentry_id]
@@ -369,6 +424,11 @@ async def _async_subentry_update_listener(
                 _binary_sensor_mod._add_entities_for_subentry(subentry, add_binary)
             if add_button:
                 _button_mod._add_entities_for_subentry(subentry, add_button, coordinator)
+            if add_sensor or add_number:
+                _create_property_entities(
+                    coordinator.api, subentry, add_sensor, add_number,
+                    EntityCategory, PropertySensorEntity, WritableSettingNumberEntity,
+                )
 
     if removed or added:
         entity_index: dict = domain_data.get("_entity_index", {})

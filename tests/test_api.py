@@ -771,8 +771,8 @@ async def test_report_channel_value_returns_if_host_none():
 
 
 @pytest.mark.asyncio
-async def test_force_reannounce_clears_announced_flag():
-    """force_reannounce_device removes entry from _ever_announced and calls announce."""
+async def test_force_reannounce_no_session():
+    """force_reannounce_device removes from _ever_announced and returns early when no session."""
     api = DsvdcApi(port=9090, version="1.0", config_url="http://ha", state_path="/tmp/s")
     api._ever_announced = {"subentry-1"}
     api._devices = {}
@@ -780,3 +780,35 @@ async def test_force_reannounce_clears_announced_flag():
     api._host.session = None
     await api.force_reannounce_device("subentry-1")
     assert "subentry-1" not in api._ever_announced
+
+
+@pytest.mark.asyncio
+async def test_force_reannounce_not_announced_calls_announce():
+    """force_reannounce_device calls device.announce() when device is not yet announced."""
+    api = DsvdcApi(port=9090, version="1.0", config_url="http://ha", state_path="/tmp/s")
+    api._ever_announced = {"subentry-1"}
+    mock_device = MagicMock()
+    mock_device.is_announced = False
+    mock_device.announce = AsyncMock(return_value=1)
+    api._devices = {"subentry-1": mock_device}
+    api._host = MagicMock()
+    api._host.session = MagicMock()
+    await api.force_reannounce_device("subentry-1")
+    mock_device.announce.assert_called_once_with(api._host.session)
+    assert "subentry-1" in api._ever_announced
+
+
+@pytest.mark.asyncio
+async def test_force_reannounce_already_announced_calls_update():
+    """force_reannounce_device calls device.update() when device is already announced."""
+    api = DsvdcApi(port=9090, version="1.0", config_url="http://ha", state_path="/tmp/s")
+    api._ever_announced = {"subentry-1"}
+    mock_device = MagicMock()
+    mock_device.is_announced = True
+    mock_device.update = AsyncMock(return_value=1)
+    api._devices = {"subentry-1": mock_device}
+    api._host = MagicMock()
+    api._host.session = MagicMock()
+    await api.force_reannounce_device("subentry-1")
+    mock_device.update.assert_called_once()
+    assert "subentry-1" in api._ever_announced

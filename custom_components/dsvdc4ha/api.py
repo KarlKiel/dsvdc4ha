@@ -541,9 +541,20 @@ class DsvdcApi:
                     self._ever_announced.add(entry_id)
 
     async def force_reannounce_device(self, entry_id: str) -> None:
-        """Force re-announcement of a device to dSS, ignoring _ever_announced cache."""
+        """Force re-announcement of a device to dSS by vanishing and re-announcing."""
         self._ever_announced.discard(entry_id)
-        await self.announce_device(entry_id)
+        if self._host is None:
+            return
+        device = self._devices.get(entry_id)
+        if device is None:
+            return
+        if self._host.session is not None:
+            if device.is_announced:
+                count = await device.update(self._host.session, lambda dev: None)
+            else:
+                count = await device.announce(self._host.session)
+            if count > 0:
+                self._ever_announced.add(entry_id)
 
     def _build_vdsd(self, device: Device, idx: int, data: dict[str, Any]) -> Vdsd:
         vdsd = Vdsd(

@@ -2,16 +2,21 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import pathlib
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.zeroconf import async_get_instance
 from homeassistant.core import HomeAssistant
-from homeassistant.loader import async_get_integration
 
 from .api import DsvdcApi
 from .const import DOMAIN
+
+_MANIFEST_VERSION: str = json.loads(
+    (pathlib.Path(__file__).parent / "manifest.json").read_text()
+).get("version", "0.0.0")
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -65,8 +70,7 @@ class HubCoordinator:
                 _LOGGER.exception("Error in connection status callback")
 
     async def async_start(self, on_session_ready=None) -> None:
-        integration = await async_get_integration(self.hass, DOMAIN)
-        self._version = str(integration.version) if integration.version else "0.0.0"
+        self._version = _MANIFEST_VERSION
         config_url = (
             f"{self.hass.config.internal_url}/config/integrations"
             if self.hass.config.internal_url
