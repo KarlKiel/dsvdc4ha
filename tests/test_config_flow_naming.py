@@ -73,8 +73,7 @@ async def test_config_entry_name_step_shows_form_without_input():
 # Test 4: _count_artefacts with single sensor
 # ---------------------------------------------------------------------------
 
-@pytest.mark.asyncio
-async def test_count_artefacts_single_sensor():
+def test_count_artefacts_single_sensor():
     """Verify _count_artefacts() == 1 when only one sensor exists."""
     flow = _make_subentry_flow()
 
@@ -92,8 +91,7 @@ async def test_count_artefacts_single_sensor():
 # Test 5: _count_artefacts with multiple artefact types
 # ---------------------------------------------------------------------------
 
-@pytest.mark.asyncio
-async def test_count_artefacts_multiple():
+def test_count_artefacts_multiple():
     """Verify _count_artefacts() == 4 when one of each type exists."""
     flow = _make_subentry_flow()
 
@@ -111,8 +109,7 @@ async def test_count_artefacts_multiple():
 # Test 6: _count_artefacts does not count None output
 # ---------------------------------------------------------------------------
 
-@pytest.mark.asyncio
-async def test_count_artefacts_no_output_not_counted():
+def test_count_artefacts_no_output_not_counted():
     """Verify _count_artefacts() == 1 when output is None and one sensor exists."""
     flow = _make_subentry_flow()
 
@@ -130,8 +127,7 @@ async def test_count_artefacts_no_output_not_counted():
 # Test 7: _auto_apply_single_artefact_name with single sensor
 # ---------------------------------------------------------------------------
 
-@pytest.mark.asyncio
-async def test_auto_apply_single_artefact_name_uses_sensor_name():
+def test_auto_apply_single_artefact_name_uses_sensor_name():
     """Verify _auto_apply_single_artefact_name uses sensor name when single artefact."""
     flow = _make_subentry_flow()
 
@@ -156,8 +152,7 @@ async def test_auto_apply_single_artefact_name_uses_sensor_name():
 # Test 8: _auto_apply_single_artefact_name with single output
 # ---------------------------------------------------------------------------
 
-@pytest.mark.asyncio
-async def test_auto_apply_single_artefact_name_uses_output_name():
+def test_auto_apply_single_artefact_name_uses_output_name():
     """Verify _auto_apply_single_artefact_name uses output name when single artefact."""
     flow = _make_subentry_flow()
 
@@ -182,8 +177,7 @@ async def test_auto_apply_single_artefact_name_uses_output_name():
 # Additional edge case tests
 # ---------------------------------------------------------------------------
 
-@pytest.mark.asyncio
-async def test_auto_apply_single_artefact_name_with_button():
+def test_auto_apply_single_artefact_name_with_button():
     """Verify _auto_apply_single_artefact_name uses button name when single artefact."""
     flow = _make_subentry_flow()
 
@@ -201,8 +195,7 @@ async def test_auto_apply_single_artefact_name_with_button():
     assert flow._current_vdsd["displayId"] == "Power Button"
 
 
-@pytest.mark.asyncio
-async def test_auto_apply_single_artefact_name_with_binary_input():
+def test_auto_apply_single_artefact_name_with_binary_input():
     """Verify _auto_apply_single_artefact_name uses binary input name when single artefact."""
     flow = _make_subentry_flow()
 
@@ -220,8 +213,7 @@ async def test_auto_apply_single_artefact_name_with_binary_input():
     assert flow._current_vdsd["displayId"] == "Motion Sensor"
 
 
-@pytest.mark.asyncio
-async def test_auto_apply_single_artefact_name_empty_artefacts():
+def test_auto_apply_single_artefact_name_empty_artefacts():
     """Verify _auto_apply_single_artefact_name does nothing when no artefacts exist."""
     flow = _make_subentry_flow()
 
@@ -240,8 +232,7 @@ async def test_auto_apply_single_artefact_name_empty_artefacts():
     assert flow._current_vdsd["displayId"] == "original"
 
 
-@pytest.mark.asyncio
-async def test_count_artefacts_multiple_sensors():
+def test_count_artefacts_multiple_sensors():
     """Verify _count_artefacts counts all sensors."""
     flow = _make_subentry_flow()
 
@@ -259,8 +250,7 @@ async def test_count_artefacts_multiple_sensors():
     assert count == 3
 
 
-@pytest.mark.asyncio
-async def test_count_artefacts_multiple_buttons():
+def test_count_artefacts_multiple_buttons():
     """Verify _count_artefacts counts all buttons."""
     flow = _make_subentry_flow()
 
