@@ -234,7 +234,7 @@ def _create_property_entities(
     )
 
     _ENUM_MAP: dict[tuple[str, str], type] = {
-        ("bi", "inputType"): BinaryInputType,
+        # inputType is NOT BinaryInputType — it's a 0/1 poll-mode flag, handled below
         ("bi", "inputUsage"): BinaryInputUsage,
         ("bi", "sensorFunction"): BinaryInputType,
         ("bi", "error"): InputError,
@@ -252,8 +252,18 @@ def _create_property_entities(
         ("vdsd", "primaryGroup"): ColorGroup,
     }
 
+    _INPUT_TYPE_LABELS: dict[int, str] = {
+        0: "Poll Only",
+        1: "Detects Changes",
+    }
+
     def _resolve(input_type: str, key: str, val: Any) -> Any:
         """Return enum name string if the key maps to a known enum, else raw value."""
+        if key == "inputType":
+            try:
+                return _INPUT_TYPE_LABELS.get(int(val), str(val))
+            except (ValueError, TypeError):
+                return val
         enum_cls = _ENUM_MAP.get((input_type, key))
         if enum_cls is not None:
             try:
@@ -295,46 +305,99 @@ def _create_property_entities(
                 ))
 
         # ── vdSD writable properties ─────────────────────────────────────────
+        _vdsd_active_ent = None
+        _vdsd_name_ent = None
+        _vdsd_zone_ent = None
+        _vdsd_prog_ent = None
         if add_switch:
-            sw_entities.append(VdsdActiveSwitchEntity(sid, vdsd_idx, vdsd_data, vdsd.active))
+            _vdsd_active_ent = VdsdActiveSwitchEntity(sid, vdsd_idx, vdsd_data, vdsd.active)
+            sw_entities.append(_vdsd_active_ent)
         if add_text:
-            txt_entities.append(TextSettingEntity(
+            _vdsd_name_ent = TextSettingEntity(
                 sid, vdsd_idx, vdsd_data, "vdsd_name", "Name", vdsd.name,
-            ))
+            )
+            txt_entities.append(_vdsd_name_ent)
         if add_number:
-            num_entities.append(WritableSettingNumberEntity(
+            _vdsd_zone_ent = WritableSettingNumberEntity(
                 sid, vdsd_idx, vdsd_data,
                 "vdsd_writable_zoneID", "Zone ID",
                 vdsd.zone_id, "vdsd", None, "zoneID",
-            ))
+            )
+            num_entities.append(_vdsd_zone_ent)
         if add_switch and vdsd.prog_mode is not None:
-            sw_entities.append(BoolSettingEntity(
+            _vdsd_prog_ent = BoolSettingEntity(
                 sid, vdsd_idx, vdsd_data,
                 "vdsd_writable_progMode", "Programming Mode",
                 vdsd.prog_mode, "vdsd", None, "progMode",
-            ))
+            )
+            sw_entities.append(_vdsd_prog_ent)
+
+        # Wire up DSS→HA callback for vdSD-level property changes (pydsvdcapi 0.9.1+)
+        if any([_vdsd_name_ent, _vdsd_zone_ent, _vdsd_prog_ent, _vdsd_active_ent]):
+            def _make_vdsd_cb(name_ent, zone_ent, prog_ent, active_ent):
+                async def cb(changed_vdsd: Any, changed: dict) -> None:
+                    if "name" in changed and name_ent is not None:
+                        name_ent._attr_native_value = str(changed["name"])
+                        name_ent.async_write_ha_state()
+                    if "zoneID" in changed and zone_ent is not None and changed["zoneID"] is not None:
+                        zone_ent._attr_native_value = float(int(changed["zoneID"]))
+                        zone_ent.async_write_ha_state()
+                    if "progMode" in changed and prog_ent is not None:
+                        val = changed["progMode"]
+                        prog_ent._attr_is_on = bool(val) if val is not None else False
+                        prog_ent.async_write_ha_state()
+                    if "active" in changed and active_ent is not None:
+                        active_ent._attr_is_on = bool(changed["active"])
+                        active_ent.async_write_ha_state()
+                return cb
+            vdsd.on_settings_changed = _make_vdsd_cb(
+                _vdsd_name_ent, _vdsd_zone_ent, _vdsd_prog_ent, _vdsd_active_ent
+            )
 
         # ── helper: create one writable setting entity ───────────────────────
-        def _make_writable(input_type: str, idx: int | None, key: str, val: Any, prefix: str, label_prefix: str) -> None:
+        def _make_writable(input_type: str, idx: int | None, key: str, val: Any, prefix: str, label_prefix: str) -> Any:
             setting_label = _PROP_DISPLAY.get(key, key)
             display = f"{label_prefix}{setting_label}" if label_prefix else setting_label
             uid = f"{prefix}_writable_{key}"
             opt_key = (input_type, key)
             if opt_key in SETTING_OPTIONS and add_select:
-                sel_entities.append(SelectableSettingEntity(
+                ent = SelectableSettingEntity(
                     sid, vdsd_idx, vdsd_data, uid, display,
                     int(val), input_type, idx, key, SETTING_OPTIONS[opt_key],
-                ))
+                )
+                sel_entities.append(ent)
             elif opt_key in BOOL_SETTING_KEYS and add_switch:
-                sw_entities.append(BoolSettingEntity(
+                ent = BoolSettingEntity(
                     sid, vdsd_idx, vdsd_data, uid, display,
                     val, input_type, idx, key,
-                ))
+                )
+                sw_entities.append(ent)
             elif add_number:
-                num_entities.append(WritableSettingNumberEntity(
+                ent = WritableSettingNumberEntity(
                     sid, vdsd_idx, vdsd_data, uid, display,
                     val, input_type, idx, key,
-                ))
+                )
+                num_entities.append(ent)
+            else:
+                return None
+            return ent
+
+        def _make_settings_changed_cb(entity_map: dict) -> Any:
+            async def cb(component: Any, changed: dict) -> None:
+                for key, new_val in changed.items():
+                    ent = entity_map.get(key)
+                    if ent is None:
+                        continue
+                    if isinstance(ent, SelectableSettingEntity):
+                        ent._attr_current_option = ent._reverse_map.get(int(new_val))
+                        ent.async_write_ha_state()
+                    elif isinstance(ent, BoolSettingEntity):
+                        ent._attr_is_on = bool(new_val)
+                        ent.async_write_ha_state()
+                    elif isinstance(ent, WritableSettingNumberEntity):
+                        ent._attr_native_value = float(new_val)
+                        ent.async_write_ha_state()
+            return cb
 
         n_bi = len(vdsd.binary_inputs)
         n_si = len(vdsd.sensor_inputs)
@@ -354,9 +417,14 @@ def _create_property_entities(
                         f"bi_{bi_idx}_desc_{key}", label,
                         _resolve("bi", key, val), EntityCategory.DIAGNOSTIC,
                     ))
+            bi_entity_map: dict = {}
             for key, val in bi.get_settings_properties().items():
                 if _scalar(val):
-                    _make_writable("bi", bi_idx, key, val, f"bi_{bi_idx}", bi_prefix)
+                    ent = _make_writable("bi", bi_idx, key, val, f"bi_{bi_idx}", bi_prefix)
+                    if ent is not None:
+                        bi_entity_map[key] = ent
+            if bi_entity_map:
+                bi.on_settings_changed = _make_settings_changed_cb(bi_entity_map)
             for key, val in bi.get_state_properties().items():
                 if key in _INPUT_EXCLUDED_KEYS or not _scalar(val):
                     continue
@@ -382,9 +450,14 @@ def _create_property_entities(
                         f"si_{si_idx}_desc_{key}", label,
                         _resolve("si", key, val), EntityCategory.DIAGNOSTIC,
                     ))
+            si_entity_map: dict = {}
             for key, val in si.get_settings_properties().items():
                 if _scalar(val):
-                    _make_writable("si", si_idx, key, val, f"si_{si_idx}", si_prefix)
+                    ent = _make_writable("si", si_idx, key, val, f"si_{si_idx}", si_prefix)
+                    if ent is not None:
+                        si_entity_map[key] = ent
+            if si_entity_map:
+                si.on_settings_changed = _make_settings_changed_cb(si_entity_map)
             for key, val in si.get_state_properties().items():
                 if key in _INPUT_EXCLUDED_KEYS or not _scalar(val):
                     continue
@@ -410,9 +483,14 @@ def _create_property_entities(
                         f"btn_{btn_idx}_desc_{key}", label,
                         _resolve("btn", key, val), EntityCategory.DIAGNOSTIC,
                     ))
+            btn_entity_map: dict = {}
             for key, val in btn.get_settings_properties().items():
                 if _scalar(val):
-                    _make_writable("btn", btn_idx, key, val, f"btn_{btn_idx}", btn_prefix)
+                    ent = _make_writable("btn", btn_idx, key, val, f"btn_{btn_idx}", btn_prefix)
+                    if ent is not None:
+                        btn_entity_map[key] = ent
+            if btn_entity_map:
+                btn.on_settings_changed = _make_settings_changed_cb(btn_entity_map)
             for key, val in btn.get_state_properties().items():
                 if key in _INPUT_EXCLUDED_KEYS or not _scalar(val):
                     continue
@@ -444,9 +522,14 @@ def _create_property_entities(
                         f"out_state_{key}", _PROP_DISPLAY.get(key, key),
                         _resolve("out", key, val), EntityCategory.DIAGNOSTIC,
                     ))
+            out_entity_map: dict = {}
             for key, val in vdsd.output.get_settings_properties().items():
                 if _scalar(val):
-                    _make_writable("out", None, key, val, "out", "")
+                    ent = _make_writable("out", None, key, val, "out", "")
+                    if ent is not None:
+                        out_entity_map[key] = ent
+            if out_entity_map:
+                vdsd.output.on_settings_changed = _make_settings_changed_cb(out_entity_map)
 
         if prop_entities and add_sensor:
             add_sensor(prop_entities, config_subentry_id=sid)

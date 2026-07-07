@@ -171,7 +171,7 @@ class BoolSettingEntity(DsvdcBaseEntity, SwitchEntity):
                     await vdsd.output.push_settings()
             elif self._input_type == "vdsd":
                 vdsd.prog_mode = new_val
-                await coordinator.api.push_vdsd_changes(self._subentry_id)
+                await vdsd.push_property({"progMode": new_val})
         except Exception:
             _LOGGER.exception(
                 "Failed to write bool setting %s on %s[%s]",

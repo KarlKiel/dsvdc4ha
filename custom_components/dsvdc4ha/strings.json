@@ -111,6 +111,11 @@
             "name": "Name of the device (e.g. Livingroom Ceiling Lamp)",
             "vendorName": "Vendor name of your device (e.g. Occhio)",
             "displayId": "Device type name (e.g. Lunanova)"
+          },
+          "data_description": {
+            "name": "Human-readable name for the device as shown in the dSS configurator.",
+            "vendorName": "Manufacturer or vendor of the physical hardware device (free-form string).",
+            "displayId": "Device model/type name as printed on the physical device or used for identification (e.g. 'Lunanova')."
           }
         },
         "vdsd_creation": {
@@ -121,6 +126,13 @@
             "modelVersion": "Exact model name of this component (e.g. Lunanova PowerUnit)",
             "identify_action": "HA action to identify the device (optional)",
             "firmwareUpdate_action": "HA action to trigger firmware update of device / component (optional)"
+          },
+          "data_description": {
+            "displayId": "Name or label for this virtualDC sub-device component as it will appear in the dSS configurator.",
+            "primaryGroup": "Main dS color group / device class for this vdSD: 1=lights, 2=blinds, 3=climate/heating.",
+            "modelVersion": "Exact model variant string, used to distinguish different configurations or firmware variants.",
+            "identify_action": "Home Assistant action to call when dSS requests visual identification of this device (e.g. blink an indicator light).",
+            "firmwareUpdate_action": "Home Assistant action to call when dSS requests a firmware update for this device."
           }
         },
         "optional_settings": {
@@ -147,6 +159,18 @@
             "callsPresent": "Button press sets absence state to present",
             "callbackType": "How should button presses be forwarded to dS?",
             "callback_entity": "Entity providing button press events"
+          },
+          "data_description": {
+            "name": "Human-readable label for this button element, matching the physical hardware connector or panel label.",
+            "buttonType": "Physical button type: 0=undefined, 1=single pushbutton, 2=two-way rocker, 3=4-way navigation, 4=4-way with center, 5=8-way with center, 6=on/off switch.",
+            "group": "dS color group this button sends commands to, e.g. 1=lights, 2=blinds, 3=climate.",
+            "function": "Scope of the button's action: 5=room, higher values expand to zone or apartment level.",
+            "mode": "Button pairing and behavior mode: 0=standard, 5–8=button 1–4 down (paired), 9–12=button 1–4 up, 255=inactive.",
+            "channel": "Which output channel this button controls: 0=default channel, 1–191=standard dS channel types.",
+            "supportsLocalKeyMode": "If enabled, this button can operate locally on the device without requiring a dSS connection.",
+            "setsLocalPriority": "If enabled, pressing this button sets local priority on the output, causing it to ignore scene calls until priority is cleared.",
+            "callsPresent": "If enabled, pressing this button switches the system presence state from absent to present.",
+            "callbackType": "How button press events are delivered to dSS: 'clickTypes' passes the raw click type as entity state, 'detect_clicks' auto-detects event type from binary sensor, event, or button entities."
           }
         },
         "binary_input": {
@@ -161,6 +185,15 @@
             "inputUsage": "Usage field of the binary input",
             "valueType": "Does the binary input deliver boolean or integer values?",
             "callback_entity": "Entity providing binary input state value"
+          },
+          "data_description": {
+            "name": "Human-readable label for this binary input, matching the physical hardware connector or panel label.",
+            "group": "dS color group this binary input belongs to.",
+            "sensorFunction": "What this binary input detects: e.g. 1=presence, 5=motion, 7=smoke, 13=window contact, 15=window handle.",
+            "hardwiredFunction": "If non-zero, the sensor function is fixed by hardware and cannot be changed at runtime. Value 0 means freely configurable.",
+            "updateInterval": "How frequently the hardware tracks and reports the physical value, in seconds.",
+            "inputType": "How the dSS receives the value: 0=polled by dSS on request, 1=the hardware pushes updates when the value changes.",
+            "inputUsage": "Usage context of this input: 0=undefined, 1=room climate, 2=outdoor climate, 3=climate setting."
           }
         },
         "sensor": {
@@ -178,6 +211,19 @@
             "minPushInterval": "Minimum time (in seconds) to wait between pushes of changed sensor values (default: 2 s)",
             "changesOnlyInterval": "Minimum time (in seconds) between pushes of unchanged values (0 = push all updates)",
             "callback_entity": "Entity providing the sensor value"
+          },
+          "data_description": {
+            "name": "Human-readable label for this sensor, matching the physical hardware connector or panel label.",
+            "group": "dS color group this sensor belongs to.",
+            "sensorType": "Physical quantity this sensor measures: e.g. 1=temperature (°C), 2=humidity (%), 3=illuminance (lux), 5=CO (ppm), 13=wind speed (m/s), 14=active power (W).",
+            "sensorUsage": "Usage context: 0=undefined, 1=room, 2=outdoor, 3=user interaction/dial, 4=device total, 5=device last-run, 6=device average.",
+            "min": "Minimum physical value the sensor hardware can deliver (in the unit defined by sensorType).",
+            "max": "Maximum physical value the sensor hardware can deliver (in the unit defined by sensorType).",
+            "resolution": "Smallest value change the sensor hardware can detect — the size of one LSB of the hardware sensor.",
+            "updateInterval": "Approximate time between hardware value updates in seconds.",
+            "aliveSignInterval": "Maximum time in seconds between sensor updates before the sensor is considered out-of-order.",
+            "minPushInterval": "Minimum time in seconds between consecutive push reports to dSS (throttle). Default is 2 seconds.",
+            "changesOnlyInterval": "Minimum time in seconds between pushes of the same (unchanged) value. Default 0 means every update triggers a push."
           }
         },
         "output": {
@@ -191,6 +237,15 @@
             "variableRamp": "Output supports variable / configurable ramps",
             "mode": "Operating mode of the output",
             "action": "Next step"
+          },
+          "data_description": {
+            "name": "Human-readable label for this output, matching the physical hardware connector or panel label.",
+            "groups": "Set of dS color groups this output can operate in, e.g. 1=lights, 2=blinds, 3=climate. An output may belong to multiple groups.",
+            "defaultGroup": "Primary dS color group for this output, used when no explicit group is specified.",
+            "function": "Output capability: 0=on/off only, 1=dimmer, 2=positional (blinds/valves), 3=dimmer+color temp, 4=full color (RGB+CT), 5=bipolar (heating/cooling valve).",
+            "outputUsage": "Usage context of this output: 0=undefined, 1=room, 2=outdoors, 3=user display/indicator.",
+            "variableRamp": "If enabled, this output supports configurable ramp/transition speeds (dimTimeUp/dimTimeDown settings become meaningful).",
+            "mode": "Operating mode: 0=disabled, 1=binary (on/off), 2=gradual (continuous), 127=default (use device default)."
           }
         },
         "output_optional": {
@@ -200,6 +255,12 @@
             "minBrightness": "Minimum output value the hardware supports (e.g. dimming value at which a bulb ignites)",
             "maxPower": "Maximum power the output can deliver (W)",
             "activeCoolingMode": "Output provides active cooling capabilities (e.g. air-conditioning, FCU)"
+          },
+          "data_description": {
+            "onThreshold": "For on/off and dimmable outputs, the brightness level (0–100%) at which the output switches ON. Defaults to 50%.",
+            "minBrightness": "Minimum brightness level (0–100%) the hardware supports, e.g. the ignition threshold for certain bulbs.",
+            "maxPower": "Maximum power output in watts. If not set, the power capability is undefined.",
+            "activeCoolingMode": "If enabled, this output can actively cool (e.g. air conditioning unit or fan coil unit)."
           }
         },
         "channel": {
@@ -211,6 +272,13 @@
             "max": "Maximum value for the channel",
             "resolution": "Channel resolution — smallest deviation that can be displayed (LSB)",
             "action": "Next step"
+          },
+          "data_description": {
+            "channelType": "Numerical type ID of this control channel as defined by digitalSTROM: e.g. brightness, hue, saturation, color temperature, position, angle.",
+            "name": "Human-readable label for this output channel, matching the physical hardware connector or panel label.",
+            "min": "Minimum physical value this channel can accept or deliver.",
+            "max": "Maximum physical value this channel can accept or deliver.",
+            "resolution": "Smallest step (LSB) this channel can resolve — the finest granularity of control available."
           }
         },
         "channel_mapping": {

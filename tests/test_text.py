@@ -41,11 +41,11 @@ async def test_set_value_updates_vdsd_name():
     ent.async_write_ha_state = MagicMock()
 
     mock_vdsd = MagicMock()
+    mock_vdsd.push_property = AsyncMock()
     mock_device = MagicMock()
     mock_device.get_vdsd = MagicMock(return_value=mock_vdsd)
     mock_api = MagicMock()
     mock_api.get_device = MagicMock(return_value=mock_device)
-    mock_api.push_vdsd_changes = AsyncMock()
     mock_coordinator = MagicMock()
     mock_coordinator.api = mock_api
     ent.hass = MagicMock()
@@ -53,7 +53,7 @@ async def test_set_value_updates_vdsd_name():
 
     await ent.async_set_value("New Name")
     assert mock_vdsd.name == "New Name"
-    mock_api.push_vdsd_changes.assert_awaited_once_with("sub1")
+    mock_vdsd.push_property.assert_awaited_once_with({"name": "New Name"})
     assert ent._attr_native_value == "New Name"
     ent.async_write_ha_state.assert_called_once()
 
