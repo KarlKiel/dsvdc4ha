@@ -1644,10 +1644,10 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             self._current_vdsd["sensors"] = self._current_sensors
             self._current_vdsd["output"] = self._current_output
             if self._creation_mode == "from_entity":
-                self._init_name_inputs("name_confirm")
+                self._init_name_inputs("_vdsd_name_dispatch")
                 if self._pending_name_input_items:
                     return await self.async_step_name_inputs()
-                return await self.async_step_name_confirm()
+                return await self.async_step__vdsd_name_dispatch()
             self._vdsds.append(dict(self._current_vdsd))
             return await self.async_step_device_summary()
 
@@ -1940,6 +1940,45 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             self._current_sensors[0]["name"] = name
         elif self._current_buttons:
             self._current_buttons[0]["name"] = name
+
+    def _count_artefacts(self) -> int:
+        """Count configured artefacts: buttons + binary_inputs + sensors + 1 if output."""
+        return (
+            len(self._current_buttons)
+            + len(self._current_binary_inputs)
+            + len(self._current_sensors)
+            + (1 if self._current_output else 0)
+        )
+
+    def _auto_apply_single_artefact_name(self) -> None:
+        """When exactly one artefact exists, set the vdSD name = that artefact's name."""
+        name = self._derive_entity_name_proposal()
+        if not name:
+            return
+        self._current_vdsd["name"] = name
+        self._current_vdsd["displayId"] = name
+
+    async def async_step_vdsd_name(self, user_input: dict | None = None):
+        """Ask for the vdSD / HA device name when the vdSD has more than one artefact."""
+        if user_input is not None:
+            confirmed = user_input["name"].strip()
+            self._current_vdsd["name"] = confirmed
+            self._current_vdsd["displayId"] = confirmed
+            self._vdsds.append(dict(self._current_vdsd))
+            return await self.async_step_entity_completion()
+        proposal = self._derive_entity_name_proposal()
+        schema = vol.Schema({
+            vol.Required("name", default=proposal): selector.TextSelector(),
+        })
+        return self.async_show_form(step_id="vdsd_name", data_schema=schema)
+
+    async def async_step__vdsd_name_dispatch(self, user_input: dict | None = None):
+        """After name_inputs: auto-name if single artefact, else ask via vdsd_name."""
+        if self._count_artefacts() == 1:
+            self._auto_apply_single_artefact_name()
+            self._vdsds.append(dict(self._current_vdsd))
+            return await self.async_step_entity_completion()
+        return await self.async_step_vdsd_name()
 
     async def async_step_button(self, user_input: dict | None = None):
         """Collect button element configuration."""

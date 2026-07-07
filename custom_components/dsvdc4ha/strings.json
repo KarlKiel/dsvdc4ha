@@ -300,6 +300,16 @@
             "name": "Name"
           }
         },
+        "vdsd_name": {
+          "title": "Name this Device",
+          "description": "This vdSD has multiple artefacts. Enter a name for the Home Assistant device and the digitalSTROM virtual device.",
+          "data": {
+            "name": "Device name"
+          },
+          "data_description": {
+            "name": "Name shown in the Home Assistant device page and in the digitalSTROM configurator."
+          }
+        },
         "model_features": {
           "title": "Model Features",
           "description": "The following model features will be added to the vdSD. Auto-derived features are pre-selected; adjust as needed."

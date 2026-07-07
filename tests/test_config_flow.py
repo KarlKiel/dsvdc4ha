@@ -264,7 +264,10 @@ async def test_device_info_step_advances_to_vdsd_creation():
 
 @pytest.mark.asyncio
 async def test_vdsd_overview_shows_form_then_next():
-    """Test vdsd_overview shows form, then model_features form, then entity_completion."""
+    """Test vdsd_overview shows form, then model_features form, then entity_completion.
+
+    With 0 artefacts (_count_artefacts() != 1), routing goes through vdsd_name.
+    """
     flow = _make_subentry_flow()
     flow._current_vdsd = {"displayId": "TestUnit", "optional": {}}
     flow._current_buttons = []
@@ -279,10 +282,11 @@ async def test_vdsd_overview_shows_form_then_next():
     result2 = await flow.async_step_vdsd_overview({"action": "next"})
     assert result2["step_id"] == "model_features"
 
+    # 0 artefacts → _count_artefacts() != 1 → vdsd_name form
     result3 = await flow.async_step_model_features({"features": []})
-    assert result3["step_id"] == "name_confirm"
+    assert result3["step_id"] == "vdsd_name"
 
-    result4 = await flow.async_step_name_confirm({"device_name": "TestUnit", "entity_name": ""})
+    result4 = await flow.async_step_vdsd_name({"name": "TestUnit"})
     assert result4["step_id"] == "entity_completion"
 
 
@@ -1121,7 +1125,11 @@ async def test_resolve_entity_icon_falls_through_to_mdi_when_entity_picture_retu
 
 @pytest.mark.asyncio
 async def test_model_features_from_entity_routes_to_entity_completion():
-    """model_features submit routes to entity_completion when mode is from_entity."""
+    """model_features submit routes through _vdsd_name_dispatch when mode is from_entity.
+
+    With 0 artefacts (_count_artefacts() != 1), routing shows the vdsd_name form.
+    Submitting vdsd_name appends the vdSD and routes to entity_completion.
+    """
     flow = _make_subentry_flow()
     flow._creation_mode = "from_entity"
     flow._current_vdsd = {
@@ -1135,11 +1143,12 @@ async def test_model_features_from_entity_routes_to_entity_completion():
     flow._current_sensors = []
     flow._current_output = None
 
+    # 0 artefacts → _count_artefacts() != 1 → vdsd_name form
     result = await flow.async_step_model_features({"features": []})
     assert result["type"] == FlowResultType.FORM
-    assert result["step_id"] == "name_confirm"
+    assert result["step_id"] == "vdsd_name"
 
-    result2 = await flow.async_step_name_confirm({"device_name": "switch", "entity_name": ""})
+    result2 = await flow.async_step_vdsd_name({"name": "switch"})
     assert result2["type"] == FlowResultType.FORM
     assert result2["step_id"] == "entity_completion"
 
