@@ -25,7 +25,7 @@ class DsvdcBaseEntity(Entity):
         self._attr_unique_id = f"{subentry_id}_{vdsd_index}_{unique_id_suffix}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{subentry_id}_{vdsd_index}")},
-            name=vdsd_data.get("displayId", vdsd_data.get("name", "vdSD")),
+            name=vdsd_data.get("name", vdsd_data.get("displayId", "vdSD")),
             manufacturer=vdsd_data.get("vendorName"),
             model=vdsd_data.get("model"),
             sw_version=vdsd_data.get("modelVersion"),
