@@ -219,6 +219,7 @@ def _create_property_entities(
     add_select: Any,
     add_switch: Any,
     add_text: Any,
+    hass: Any = None,
 ) -> None:
     """Create diagnostic/config sensor entities and all writable setting entities."""
     from homeassistant.helpers.entity import EntityCategory
@@ -334,11 +335,34 @@ def _create_property_entities(
 
         # Wire up DSS→HA callback for vdSD-level property changes (pydsvdcapi 0.9.1+)
         if any([_vdsd_name_ent, _vdsd_zone_ent, _vdsd_prog_ent, _vdsd_active_ent]):
-            def _make_vdsd_cb(name_ent, zone_ent, prog_ent, active_ent):
+            def _make_vdsd_cb(name_ent, zone_ent, prog_ent, active_ent, _hass, _sid, _vdsd_idx):
                 async def cb(changed_vdsd: Any, changed: dict) -> None:
                     if "name" in changed and name_ent is not None:
-                        name_ent._attr_native_value = str(changed["name"])
+                        new_name = str(changed["name"])
+                        name_ent._attr_native_value = new_name
                         name_ent.async_write_ha_state()
+                        if _hass is not None:
+                            _dev_reg = dr.async_get(_hass)
+                            identifier = (DOMAIN, f"{_sid}_{_vdsd_idx}")
+                            ha_device = _dev_reg.async_get_device(identifiers={identifier})
+                            if ha_device is not None:
+                                _dev_reg.async_update_device(ha_device.id, name=new_name)
+                            for _entry in _hass.config_entries.async_entries(DOMAIN):
+                                _subentry = _entry.subentries.get(_sid)
+                                if _subentry is None:
+                                    continue
+                                vdsds = list(_subentry.data.get("vdsds", []))
+                                if _vdsd_idx < len(vdsds):
+                                    vdsds[_vdsd_idx] = {
+                                        **vdsds[_vdsd_idx],
+                                        "name": new_name,
+                                        "displayId": new_name,
+                                    }
+                                    _hass.config_entries.async_update_subentry(
+                                        _entry, _subentry,
+                                        data={**_subentry.data, "vdsds": vdsds},
+                                    )
+                                break
                     if "zoneID" in changed and zone_ent is not None and changed["zoneID"] is not None:
                         zone_ent._attr_native_value = float(int(changed["zoneID"]))
                         zone_ent.async_write_ha_state()
@@ -351,7 +375,8 @@ def _create_property_entities(
                         active_ent.async_write_ha_state()
                 return cb
             vdsd.on_settings_changed = _make_vdsd_cb(
-                _vdsd_name_ent, _vdsd_zone_ent, _vdsd_prog_ent, _vdsd_active_ent
+                _vdsd_name_ent, _vdsd_zone_ent, _vdsd_prog_ent, _vdsd_active_ent,
+                hass, sid, vdsd_idx,
             )
 
         # ── helper: create one writable setting entity ───────────────────────
@@ -613,6 +638,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _create_property_entities(
                 coordinator.api, subentry,
                 _add_sensor, _add_number, _add_select, _add_switch, _add_text,
+                hass=hass,
             )
 
     # React to entity enable/disable and deletion in the HA entity registry.
@@ -707,6 +733,7 @@ async def _async_subentry_update_listener(
                 _create_property_entities(
                     coordinator.api, subentry,
                     add_sensor, add_number, add_select, add_switch, add_text,
+                    hass=hass,
                 )
 
     if removed or added:
