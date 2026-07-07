@@ -480,12 +480,9 @@ async def test_creation_mode_option_labels_and_order():
 
 
 @pytest.mark.asyncio
-async def test_device_picker_no_choices_routes_to_plan_summary():
+async def test_device_picker_routes_to_device_entity_build():
+    """device_picker now routes to the iterative device_entity_build step."""
     flow = _make_subentry_flow()
-    plan = _make_vdsd_plan()
-    plan.resolved_vdsd = {"primaryGroup": 1, "displayId": "M", "buttons": [],
-                          "binary_inputs": [], "sensors": [], "output": None,
-                          "name": "Lamp"}
 
     mock_dev_reg = MagicMock()
     mock_device = MagicMock()
@@ -499,6 +496,9 @@ async def test_device_picker_no_choices_routes_to_plan_summary():
     mock_entry = MagicMock()
     mock_entry.entity_id = "light.lamp"
     mock_entry.entity_category = None
+    mock_entry.disabled_by = None
+    mock_entry.device_class = None
+    mock_entry.original_device_class = None
     mock_ent_reg.entities.get_entries_for_device_id.return_value = [mock_entry]
 
     mock_state = MagicMock()
@@ -511,70 +511,56 @@ async def test_device_picker_no_choices_routes_to_plan_summary():
               return_value=mock_dev_reg),
         patch("custom_components.dsvdc4ha.config_flow.er.async_get",
               return_value=mock_ent_reg),
-        patch("custom_components.dsvdc4ha.config_flow.compute_vdsd_plan",
-              return_value=([plan], [])),
+        patch("custom_components.dsvdc4ha.config_flow.resolve_entity_mapping",
+              return_value=None),
     ):
         result = await flow.async_step_device_picker(
             {"device_id": "device-abc-123"}
         )
 
     assert result["type"] == "form"
-    assert result["step_id"] == "device_plan_summary"
+    assert result["step_id"] == "device_entity_build"
 
 
 @pytest.mark.asyncio
-async def test_device_picker_with_choices_routes_to_entity_user_input():
+async def test_device_entity_build_shows_remaining_and_routes_to_add():
+    """device_entity_build shows remaining entities and routes to device_entity_add."""
     flow = _make_subentry_flow()
-    plan = _make_vdsd_plan()
-    entity_with_choices = _make_entity_info("light.choosy")
-    entity_with_choices.needs_choices = True
+    entity_info = _make_entity_info("light.choosy")
+    flow._device_remaining_entities = [entity_info]
+    flow._device_added_summary = []
 
-    plan.output_entity = entity_with_choices
-
-    mock_dev_reg = MagicMock()
-    mock_device = MagicMock()
-    mock_device.name = "Lamp"
-    mock_device.name_by_user = None
-    mock_device.manufacturer = "Acme"
-    mock_device.model = "LampModel"
-    mock_dev_reg.async_get.return_value = mock_device
-
-    mock_ent_reg = MagicMock()
-    mock_entry = MagicMock()
-    mock_entry.entity_id = "light.choosy"
-    mock_entry.entity_category = None
-    mock_entry.disabled_by = None
-    mock_entry.domain = "light"
-    mock_entry.device_class = None
-    mock_entry.original_device_class = None
-    mock_ent_reg.entities.get_entries_for_device_id.return_value = [mock_entry]
-
-    mock_state = MagicMock()
-    mock_state.name = "Choosy"
-    mock_state.attributes = {"device_class": None}
-    flow.hass.states.get.return_value = mock_state
-
-    with (
-        patch("custom_components.dsvdc4ha.config_flow.dr.async_get",
-              return_value=mock_dev_reg),
-        patch("custom_components.dsvdc4ha.config_flow.er.async_get",
-              return_value=mock_ent_reg),
-    ):
-        result = await flow.async_step_device_picker(
-            {"device_id": "device-abc-123"}
-        )
-
+    # No user_input → show form
+    result = await flow.async_step_device_entity_build(user_input=None)
     assert result["type"] == "form"
-    assert result["step_id"] == "device_entity_select"
+    assert result["step_id"] == "device_entity_build"
 
-    with patch("custom_components.dsvdc4ha.config_flow.compute_vdsd_plan",
-               return_value=([plan], [])):
-        result2 = await flow.async_step_device_entity_select(
-            {"entity_ids": ["light.choosy"]}
-        )
-
+    # User picks "add" → routes to device_entity_add
+    result2 = await flow.async_step_device_entity_build(user_input={"action": "add"})
     assert result2["type"] == "form"
-    assert result2["step_id"] == "device_entity_user_input"
+    assert result2["step_id"] == "device_entity_add"
+
+
+@pytest.mark.asyncio
+async def test_device_entity_build_done_routes_to_model_features():
+    """device_entity_build 'done' sets creation_mode and routes to model_features."""
+    flow = _make_subentry_flow()
+    flow._device_remaining_entities = []
+    flow._device_added_summary = ["Lamp"]
+    flow._current_vdsd = {
+        "displayId": "LampModel", "primaryGroup": 1, "model": "LampModel",
+        "vendorName": "Acme", "modelVersion": "1.0", "modelUID": "AcmeLampModel",
+        "name": "Lamp", "identify_action": None, "firmwareUpdate_action": None, "optional": {},
+    }
+    flow._current_buttons = []
+    flow._current_binary_inputs = []
+    flow._current_sensors = []
+    flow._current_output = None
+
+    result = await flow.async_step_device_entity_build(user_input={"action": "done"})
+    assert result["type"] == "form"
+    assert result["step_id"] == "model_features"
+    assert flow._creation_mode == "from_ha_device"
 
 
 @pytest.mark.asyncio

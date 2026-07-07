@@ -62,6 +62,20 @@
             "device_id": "Home Assistant device"
           }
         },
+        "device_entity_build": {
+          "title": "Add Entities to vdSD",
+          "description": "Already added:\n{added}\n\nRemaining supported entities on this device:\n{remaining}",
+          "data": {
+            "action": "Action"
+          }
+        },
+        "device_entity_add": {
+          "title": "Select Entity to Add",
+          "description": "Pick one entity from the remaining supported entities on this HA device.",
+          "data": {
+            "entity_id": "Entity"
+          }
+        },
         "device_entity_user_input": {
           "title": "Entity Options ({current} of {total})",
           "description": "Entity: {entity_name} ({domain}). Some settings for this entity type require your input.",

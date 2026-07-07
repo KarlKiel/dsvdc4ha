@@ -1051,6 +1051,8 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             return await self.async_step_creation_mode()
 
         if user_input is not None:
+            if getattr(self, "_device_entity_add_return", False):
+                return await self._apply_entity_artefact_to_current(user_input)
             return await self._build_entity_vdsd_and_continue(user_input)
 
         schema_dict = _build_entity_choices_schema(mapping)
@@ -1312,12 +1314,265 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 entities.append(entity_info)
 
             self._device_entities = entities
-            return await self.async_step_device_entity_select()
+
+            # Iterative device flow: only keep supported entities
+            supported = [e for e in entities if e.mapping is not None]
+            self._device_remaining_entities = list(supported)
+            self._device_added_summary = []
+
+            # Reset per-vdSD artefact state for a fresh iterative build
+            self._current_vdsd = {
+                "displayId": self._display_id,
+                "primaryGroup": 1,
+                "model": self._display_id,
+                "vendorName": self._vendor_name,
+                "modelVersion": "1.0",
+                "modelUID": f"{self._vendor_name}{self._display_id}".replace(" ", ""),
+                "name": self._device_name,
+                "identify_action": None,
+                "firmwareUpdate_action": None,
+                "optional": {},
+            }
+            self._current_buttons = []
+            self._current_binary_inputs = []
+            self._current_sensors = []
+            self._current_output = None
+            self._current_channels = []
+
+            return await self.async_step_device_entity_build()
 
         schema = vol.Schema({
             vol.Required("device_id"): selector.DeviceSelector(),
         })
         return self.async_show_form(step_id="device_picker", data_schema=schema)
+
+    async def async_step_device_entity_build(self, user_input: dict | None = None):
+        """Iterative screen: shows added entities and offers to add more or finish."""
+        if user_input is not None:
+            action = user_input.get("action", "done")
+            if action == "add":
+                return await self.async_step_device_entity_add()
+            # "done" — go to model features
+            self._creation_mode = "from_ha_device"
+            return await self.async_step_model_features()
+
+        has_remaining = bool(self._device_remaining_entities)
+        options = []
+        if has_remaining:
+            options.append(selector.SelectOptionDict(value="add", label="Add entity →"))
+        options.append(selector.SelectOptionDict(value="done", label="Done — create vdSD"))
+
+        schema = vol.Schema({
+            vol.Required("action", default="add" if has_remaining else "done"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=options)
+            ),
+        })
+        added_text = "\n".join(f"• {s}" for s in self._device_added_summary) or "(none yet)"
+        remaining_text = "\n".join(
+            f"• {e.friendly_name} ({e.domain})" for e in self._device_remaining_entities
+        ) or "(all added)"
+        return self.async_show_form(
+            step_id="device_entity_build",
+            data_schema=schema,
+            description_placeholders={
+                "added": added_text,
+                "remaining": remaining_text,
+            },
+        )
+
+    async def async_step_device_entity_add(self, user_input: dict | None = None):
+        """Pick one entity from the remaining supported entities on this HA device."""
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            entity_id: str = user_input["entity_id"]
+            state = self.hass.states.get(entity_id)
+            domain = entity_id.split(".")[0]
+            device_class = state.attributes.get("device_class") if state else None
+            mapping = resolve_entity_mapping(entity_id, state, domain, device_class)
+            if mapping is None:
+                errors["entity_id"] = "entity_not_supported"
+            else:
+                self._entity_id = entity_id
+                self._entity_mapping = mapping
+                # Remove from remaining
+                self._device_remaining_entities = [
+                    e for e in self._device_remaining_entities
+                    if e.entity_id != entity_id
+                ]
+                if needs_user_input(mapping):
+                    self._device_entity_add_return = True
+                    return await self.async_step_entity_user_input()
+                return await self._apply_entity_artefact_to_current({})
+
+        options = [
+            selector.SelectOptionDict(
+                value=e.entity_id,
+                label=f"{e.friendly_name} ({e.domain})",
+            )
+            for e in self._device_remaining_entities
+        ]
+        schema = vol.Schema({
+            vol.Required("entity_id"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=options)
+            ),
+        })
+        return self.async_show_form(step_id="device_entity_add", errors=errors, data_schema=schema)
+
+    async def _apply_entity_artefact_to_current(self, user_input: dict) -> Any:
+        """Add artefact(s) from self._entity_id/mapping to _current_* lists, then name them."""
+        self._device_entity_add_return = False
+        mapping = self._entity_mapping
+        if mapping is None:
+            return await self.async_step_device_entity_build()
+        entity_id = self._entity_id
+        state = self.hass.states.get(entity_id)
+        friendly_name: str = (state.name if state else None) or entity_id.split(".")[-1]
+
+        if "binary_input" in mapping:
+            bi = mapping["binary_input"]
+            sf = int(user_input.get("sensor_function", bi["sensor_function"]))
+            self._current_binary_inputs.append({
+                "dsIndex": len(self._current_binary_inputs),
+                "name": friendly_name,
+                "group": int(user_input.get("bi_group", bi["group"])),
+                "sensorFunction": sf,
+                "hardwiredFunction": sf,
+                "updateInterval": bi["update_interval"],
+                "inputType": bi["input_type"],
+                "inputUsage": int(user_input.get("input_usage", bi["input_usage"])),
+                "valueType": "boolean",
+                "callback_entity": entity_id,
+            })
+
+        if "sensor" in mapping:
+            s = mapping["sensor"]
+            st = int(user_input.get("sensor_type", s["sensor_type"]))
+            self._current_sensors.append({
+                "dsIndex": len(self._current_sensors),
+                "name": friendly_name,
+                "group": s["group"],
+                "sensorType": st,
+                "sensorUsage": int(user_input.get("sensor_usage", s["sensor_usage"])),
+                "min": float(user_input.get("min", s["min"])),
+                "max": float(user_input.get("max", s["max"])),
+                "resolution": float(user_input.get("resolution", s["resolution"])),
+                "updateInterval": s["update_interval"],
+                "aliveSignInterval": s["alive_sign_interval"],
+                "minPushInterval": s["min_push_interval"],
+                "changesOnlyInterval": s["changes_only_interval"],
+                "callback_entity": entity_id,
+            })
+
+        if "button" in mapping:
+            b = mapping["button"]
+            group = int(user_input.get("group", b["group"]))
+            if "group_choices" in b and "group" in user_input:
+                function = 15 if group == 8 else 5
+            else:
+                function = b["function"]
+            self._current_buttons.append({
+                "dsIndex": len(self._current_buttons),
+                "name": friendly_name,
+                "buttonType": b["button_type"],
+                "buttonElementID": 0,
+                "group": group,
+                "function": function,
+                "mode": b["mode"],
+                "channel": 0,
+                "supportsLocalKeyMode": b.get("supports_local_key_mode", False),
+                "setsLocalPriority": False,
+                "callsPresent": b.get("calls_present", True),
+                "buttonID": 0,
+                "callbackType": "detect_clicks",
+                "callback_entity": entity_id,
+            })
+
+        if "output" in mapping and self._current_output is None:
+            o = mapping["output"]
+            fn = int(user_input.get("function", o["function"]))
+            usage = int(user_input.get("output_usage", o["output_usage"]))
+
+            # Resolve channels
+            placement = user_input.get("cover_placement", "indoor")
+            if o.get("placement_choice") and placement == "outdoor":
+                channels_def = list(o["channels_outdoor"])
+            elif "channels_by_usage" in o:
+                channels_def = o["channels_by_usage"].get(usage, o["channels"])
+            else:
+                channels_def = list(o.get("channels", []))
+
+            # Optional tilt channel
+            if o.get("optional_tilt") and user_input.get("has_tilt"):
+                tilt_ch = 9 if placement == "outdoor" else 10
+                channels_def = channels_def + [{
+                    "channel_type": tilt_ch,
+                    "apply_expr": "{'domain':'cover','service':'set_cover_tilt_position','service_data':{'tilt_position':round(value)}}",
+                    "push_expr": "attrs.get('current_tilt_position',0)",
+                }]
+
+            # Mode derived from function when function was a user choice
+            if "function_choices" in o:
+                mode = 1 if fn == 0 else 2
+            else:
+                mode = o["mode"]
+
+            channels = [
+                {
+                    "dsIndex": i,
+                    "channelType": ch["channel_type"],
+                    "read_entity": entity_id,
+                    "write_action": None,
+                    **({"apply_expr": ch["apply_expr"]} if ch.get("apply_expr") else {}),
+                    **({"push_expr": ch["push_expr"]} if ch.get("push_expr") else {}),
+                }
+                for i, ch in enumerate(channels_def)
+            ]
+            self._current_output = {
+                "name": "Output",
+                "groups": o["groups"],
+                "defaultGroup": o["default_group"],
+                "activeGroup": o["default_group"],
+                "function": fn,
+                "outputUsage": usage,
+                "variableRamp": o["variable_ramp"],
+                "mode": mode,
+                "onThreshold": 50,
+                "channels": channels,
+                **({"apply_all_expr": o["apply_all_expr"]} if o.get("apply_all_expr") else {}),
+                **{
+                    k: float(user_input[k])
+                    for k in ("openTime", "closeTime", "angleOpenTime", "angleCloseTime", "stopDelayTime")
+                    if k in user_input and user_input[k] is not None
+                },
+            }
+            self._current_channels = channels
+
+        # Track what was added for the build screen summary
+        entity_info = next(
+            (e for e in self._device_entities if e.entity_id == entity_id), None
+        )
+        label = entity_info.friendly_name if entity_info else entity_id
+        self._device_added_summary.append(label)
+
+        # Set hardwareGuid and icon from first entity added
+        if len(self._device_added_summary) == 1:
+            ent_entry = er.async_get(self.hass).async_get(entity_id)
+            _unique_id = str(ent_entry.unique_id) if ent_entry else entity_id
+            self._current_vdsd["hardwareGuid"] = "uuid:" + str(_uuid.uuid5(_VDC_NS, _unique_id))
+            icon_name, icon_b64 = await self._resolve_entity_icon(entity_id)
+            self._current_vdsd["icon_name"] = icon_name
+            if icon_b64:
+                self._current_vdsd["icon_data_b64"] = icon_b64
+            _state_for_slug = self.hass.states.get(entity_id)
+            self._current_vdsd["icon_slug"] = (
+                _mdi_icon_name_for(_state_for_slug, entity_id) if _state_for_slug else None
+            )
+
+        # Name the newly added artefact(s)
+        self._init_name_inputs("device_entity_build")
+        if self._pending_name_input_items:
+            return await self.async_step_name_inputs()
+        return await self.async_step_device_entity_build()
 
     async def async_step_device_entity_select(self, user_input: dict | None = None):
         """Let the user select which device entities to expose as vdSDs."""
@@ -1647,7 +1902,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             self._current_vdsd["binary_inputs"] = self._current_binary_inputs
             self._current_vdsd["sensors"] = self._current_sensors
             self._current_vdsd["output"] = self._current_output
-            if self._creation_mode == "from_entity":
+            if self._creation_mode in ("from_entity", "from_ha_device"):
                 self._init_name_inputs("_vdsd_name_dispatch")
                 if self._pending_name_input_items:
                     return await self.async_step_name_inputs()
