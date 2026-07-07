@@ -3,7 +3,7 @@ from __future__ import annotations
 
 DOMAIN = "dsvdc4ha"
 
-PLATFORMS = ["sensor", "binary_sensor", "button", "number"]
+PLATFORMS = ["sensor", "binary_sensor", "button", "number", "select", "switch", "text"]
 
 VDC_HOST_NAME = "vdc @ Home Assistant"
 VDC_HOST_MODEL = "vDC-host @ Home Assistant"

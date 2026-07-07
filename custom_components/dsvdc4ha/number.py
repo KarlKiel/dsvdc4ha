@@ -15,19 +15,13 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
-# (native_min, native_max, native_step) per setting key
+# (native_min, native_max, native_step) per setting key.
+# Enum-type and bool-type settings are handled by select.py / switch.py and
+# are intentionally absent from this table.
 _SETTING_RANGES: dict[str, tuple[float, float, float]] = {
-    "group": (0, 255, 1),
-    "function": (0, 15, 1),
-    "mode": (0, 255, 1),
     "channel": (0, 255, 1),
-    "setsLocalPriority": (0, 1, 1),
-    "callsPresent": (0, 1, 1),
-    "sensorFunction": (0, 23, 1),
     "minPushInterval": (0, 3600, 0.1),
     "changesOnlyInterval": (0, 3600, 0.1),
-    "activeGroup": (0, 255, 1),
-    "pushChanges": (0, 1, 1),
     "onThreshold": (0, 100, 0.1),
     "minBrightness": (0, 100, 0.1),
     "dimTimeUp": (0, 255, 1),
@@ -36,13 +30,13 @@ _SETTING_RANGES: dict[str, tuple[float, float, float]] = {
     "dimTimeDownAlt1": (0, 255, 1),
     "dimTimeUpAlt2": (0, 255, 1),
     "dimTimeDownAlt2": (0, 255, 1),
-    "heatingSystemCapability": (0, 255, 1),
-    "heatingSystemType": (0, 255, 1),
     "openTime": (0, 3600, 0.1),
     "closeTime": (0, 3600, 0.1),
     "angleOpenTime": (0, 3600, 0.1),
     "angleCloseTime": (0, 3600, 0.1),
     "stopDelayTime": (0, 3600, 0.1),
+    # vdSD-level writable properties
+    "zoneID": (0, 65535, 1),
 }
 _DEFAULT_RANGE: tuple[float, float, float] = (0, 255, 1)
 
@@ -127,6 +121,11 @@ class WritableSettingNumberEntity(DsvdcBaseEntity, NumberEntity):
                 if vdsd.output:
                     vdsd.output.apply_settings({self._setting_key: typed})
                     await vdsd.output.push_settings()
+            elif self._input_type == "vdsd":
+                # Only "zoneID" is routed here; maps to vdsd.zone_id
+                if self._setting_key == "zoneID":
+                    vdsd.zone_id = int(round(value))
+                    await coordinator.api.push_vdsd_changes(self._subentry_id)
         except Exception:
             _LOGGER.exception(
                 "Failed to write setting %s on %s[%s]",

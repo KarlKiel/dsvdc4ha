@@ -556,6 +556,35 @@ class DsvdcApi:
             if count > 0:
                 self._ever_announced.add(entry_id)
 
+    async def push_vdsd_changes(self, entry_id: str) -> None:
+        """Re-announce a device to push vdSD property changes (name, zoneID, progMode)."""
+        if self._host is None or self._host.session is None:
+            return
+        device = self._devices.get(entry_id)
+        if device is None:
+            return
+        if device.is_announced:
+            count = await device.update(self._host.session, lambda dev: None)
+        else:
+            count = await device.announce(self._host.session)
+        if count > 0:
+            self._ever_announced.add(entry_id)
+
+    async def set_all_vdsds_lifecycle(self, state: DeviceLifecycleState) -> None:
+        """Set lifecycle state for every vdSD across all registered devices."""
+        for entry_id, device in self._devices.items():
+            for vdsd_idx in device.vdsds.keys():
+                await self.set_vdsd_lifecycle(entry_id, vdsd_idx, state)
+
+    async def force_reannounce_all(self) -> None:
+        """Force re-announce VDC and all registered devices (full vanish + re-announce)."""
+        if self._host is None or self._host.session is None or self._vdc is None:
+            return
+        for entry_id in list(self._devices.keys()):
+            await self.force_reannounce_device(entry_id)
+        self._vdc.reset_announcement()
+        await self._vdc.announce(self._host.session)
+
     def _build_vdsd(self, device: Device, idx: int, data: dict[str, Any]) -> Vdsd:
         vdsd = Vdsd(
             device=device,

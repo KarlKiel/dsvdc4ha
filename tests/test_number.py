@@ -44,9 +44,10 @@ def test_writable_setting_entity_known_range_group():
     assert ent._attr_native_step == 1
 
 
-def test_writable_setting_entity_known_range_sensor_function():
-    ent = _make_entity(setting_key="sensorFunction", value=0)
-    assert ent._attr_native_max_value == 23
+def test_writable_setting_entity_known_range_min_push_interval_via_make_entity():
+    ent = _make_entity(setting_key="minPushInterval", value=0)
+    assert ent._attr_native_max_value == 3600
+    assert ent._attr_native_step == 0.1
 
 
 def test_writable_setting_entity_known_range_min_push_interval():
@@ -60,10 +61,15 @@ def test_writable_setting_entity_known_range_min_push_interval():
     assert ent._attr_native_step == 0.1
 
 
-def test_writable_setting_entity_bool_range():
-    ent = _make_entity(setting_key="setsLocalPriority", value=0)
+def test_writable_setting_entity_known_range_zone_id():
+    from custom_components.dsvdc4ha.number import WritableSettingNumberEntity
+    ent = WritableSettingNumberEntity(
+        "sub1", 0, {"name": "MyDevice"},
+        "vdsd_writable_zoneID", "vdSD Zone ID",
+        0, "vdsd", None, "zoneID",
+    )
     assert ent._attr_native_min_value == 0
-    assert ent._attr_native_max_value == 1
+    assert ent._attr_native_max_value == 65535
     assert ent._attr_native_step == 1
 
 

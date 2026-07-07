@@ -116,16 +116,61 @@ def _scalar(val: Any) -> bool:
     return isinstance(val, (int, float, bool, str)) and val is not None
 
 
+# Human-readable labels for setting keys
+_SETTING_DISPLAY: dict[str, str] = {
+    "group": "Group",
+    "sensorFunction": "Sensor Function",
+    "setsLocalPriority": "Sets Local Priority",
+    "callsPresent": "Calls Present",
+    "mode": "Mode",
+    "function": "Function",
+    "channel": "Channel",
+    "minPushInterval": "Min Push Interval",
+    "changesOnlyInterval": "Changes Only Interval",
+    "activeGroup": "Active Group",
+    "pushChanges": "Push Changes",
+    "onThreshold": "On Threshold",
+    "minBrightness": "Min Brightness",
+    "dimTimeUp": "Dim Time Up",
+    "dimTimeDown": "Dim Time Down",
+    "dimTimeUpAlt1": "Dim Time Up Alt 1",
+    "dimTimeDownAlt1": "Dim Time Down Alt 1",
+    "dimTimeUpAlt2": "Dim Time Up Alt 2",
+    "dimTimeDownAlt2": "Dim Time Down Alt 2",
+    "heatingSystemCapability": "Heating System Capability",
+    "heatingSystemType": "Heating System Type",
+    "openTime": "Open Time",
+    "closeTime": "Close Time",
+    "angleOpenTime": "Angle Open Time",
+    "angleCloseTime": "Angle Close Time",
+    "stopDelayTime": "Stop Delay Time",
+    "name": "Name",
+    "zoneID": "Zone ID",
+    "progMode": "Programming Mode",
+}
+
+# vdSD properties that are writable — excluded from read-only diagnostic sensors.
+# "active" is excluded because it is managed dynamically by HA entity lifecycle.
+_VDSD_EXCLUDED_DIAGNOSTIC: frozenset[str] = frozenset({"active", "name", "zoneID", "progMode"})
+
+
 def _create_property_entities(
     api: Any,
     subentry: Any,
     add_sensor: Any,
     add_number: Any,
-    EntityCategory: Any,
-    PropertySensorEntity: Any,
-    WritableSettingNumberEntity: Any,
+    add_select: Any,
+    add_switch: Any,
+    add_text: Any,
 ) -> None:
-    """Create read-only sensor and writable number property entities for a subentry."""
+    """Create diagnostic/config sensor entities and all writable setting entities."""
+    from homeassistant.helpers.entity import EntityCategory
+    from .sensor import PropertySensorEntity
+    from .number import WritableSettingNumberEntity
+    from .select import SelectableSettingEntity, SETTING_OPTIONS
+    from .switch import BoolSettingEntity, BOOL_SETTING_KEYS, VdsdActiveSwitchEntity
+    from .text import TextSettingEntity
+
     for vdsd_idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):
         device = api.get_device(subentry.subentry_id)
         if not device:
@@ -136,131 +181,150 @@ def _create_property_entities(
         sid = subentry.subentry_id
         prop_entities: list = []
         num_entities: list = []
+        sel_entities: list = []
+        sw_entities: list = []
+        txt_entities: list = []
 
-        # vdSD identity/description properties (all read-only)
+        # ── vdSD-level properties ────────────────────────────────────────────
         for key, val in vdsd.get_properties().items():
-            if _scalar(val) and add_sensor:
+            if key in _VDSD_EXCLUDED_DIAGNOSTIC or not _scalar(val):
+                continue
+            if add_sensor:
                 prop_entities.append(PropertySensorEntity(
                     sid, vdsd_idx, vdsd_data,
-                    f"vdsd_{key}", f"vdSD: {key}", val, EntityCategory.DIAGNOSTIC,
+                    f"vdsd_{key}", f"vdSD {key}", val, EntityCategory.DIAGNOSTIC,
                 ))
 
-        # Binary input properties
+        # vdSD writable properties
+        if add_switch:
+            sw_entities.append(VdsdActiveSwitchEntity(
+                sid, vdsd_idx, vdsd_data, vdsd.active,
+            ))
+        if add_text:
+            txt_entities.append(TextSettingEntity(
+                sid, vdsd_idx, vdsd_data,
+                "vdsd_name", "vdSD Name", vdsd.name,
+            ))
+        if add_number:
+            num_entities.append(WritableSettingNumberEntity(
+                sid, vdsd_idx, vdsd_data,
+                "vdsd_writable_zoneID", "vdSD Zone ID",
+                vdsd.zone_id, "vdsd", None, "zoneID",
+            ))
+        if add_switch and vdsd.prog_mode is not None:
+            sw_entities.append(BoolSettingEntity(
+                sid, vdsd_idx, vdsd_data,
+                "vdsd_writable_progMode", "vdSD Programming Mode",
+                vdsd.prog_mode, "vdsd", None, "progMode",
+            ))
+
+        # ── helper: create one writable setting entity ───────────────────────
+        def _make_writable(input_type: str, idx: int | None, key: str, val: Any, prefix: str, label_prefix: str) -> None:
+            setting_label = _SETTING_DISPLAY.get(key, key)
+            display = f"{label_prefix} {setting_label}"
+            uid = f"{prefix}_writable_{key}"
+            opt_key = (input_type, key)
+            if opt_key in SETTING_OPTIONS and add_select:
+                sel_entities.append(SelectableSettingEntity(
+                    sid, vdsd_idx, vdsd_data, uid, display,
+                    int(val), input_type, idx, key, SETTING_OPTIONS[opt_key],
+                ))
+            elif opt_key in BOOL_SETTING_KEYS and add_switch:
+                sw_entities.append(BoolSettingEntity(
+                    sid, vdsd_idx, vdsd_data, uid, display,
+                    val, input_type, idx, key,
+                ))
+            elif add_number:
+                num_entities.append(WritableSettingNumberEntity(
+                    sid, vdsd_idx, vdsd_data, uid, display,
+                    val, input_type, idx, key,
+                ))
+
+        # ── binary inputs ────────────────────────────────────────────────────
         for bi_idx, bi in vdsd.binary_inputs.items():
+            bi_name = bi.get_description_properties().get("name") or f"BI {bi_idx}"
             for key, val in bi.get_description_properties().items():
                 if _scalar(val) and add_sensor:
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"bi_{bi_idx}_desc_{key}", f"BI {bi_idx} Desc: {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"bi_{bi_idx}_desc_{key}", f"{bi_name} {key}", val, EntityCategory.DIAGNOSTIC,
                     ))
             for key, val in bi.get_settings_properties().items():
                 if _scalar(val):
-                    if add_sensor:
-                        prop_entities.append(PropertySensorEntity(
-                            sid, vdsd_idx, vdsd_data,
-                            f"bi_{bi_idx}_setting_{key}", f"BI {bi_idx} Setting: {key}", val, EntityCategory.CONFIG,
-                        ))
-                    if add_number:
-                        num_entities.append(WritableSettingNumberEntity(
-                            sid, vdsd_idx, vdsd_data,
-                            f"bi_{bi_idx}_writable_{key}", f"BI {bi_idx} {key}",
-                            val, "bi", bi_idx, key,
-                        ))
+                    _make_writable("bi", bi_idx, key, val, f"bi_{bi_idx}", bi_name)
             for key, val in bi.get_state_properties().items():
                 if _scalar(val) and add_sensor:
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"bi_{bi_idx}_state_{key}", f"BI {bi_idx} State: {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"bi_{bi_idx}_state_{key}", f"{bi_name} {key}", val, EntityCategory.DIAGNOSTIC,
                     ))
 
-        # Sensor input properties
+        # ── sensor inputs ────────────────────────────────────────────────────
         for si_idx, si in vdsd.sensor_inputs.items():
+            si_name = si.get_description_properties().get("name") or f"Sensor {si_idx}"
             for key, val in si.get_description_properties().items():
                 if _scalar(val) and add_sensor:
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"si_{si_idx}_desc_{key}", f"Sensor {si_idx} Desc: {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"si_{si_idx}_desc_{key}", f"{si_name} {key}", val, EntityCategory.DIAGNOSTIC,
                     ))
             for key, val in si.get_settings_properties().items():
                 if _scalar(val):
-                    if add_sensor:
-                        prop_entities.append(PropertySensorEntity(
-                            sid, vdsd_idx, vdsd_data,
-                            f"si_{si_idx}_setting_{key}", f"Sensor {si_idx} Setting: {key}", val, EntityCategory.CONFIG,
-                        ))
-                    if add_number:
-                        num_entities.append(WritableSettingNumberEntity(
-                            sid, vdsd_idx, vdsd_data,
-                            f"si_{si_idx}_writable_{key}", f"Sensor {si_idx} {key}",
-                            val, "si", si_idx, key,
-                        ))
+                    _make_writable("si", si_idx, key, val, f"si_{si_idx}", si_name)
             for key, val in si.get_state_properties().items():
                 if _scalar(val) and add_sensor:
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"si_{si_idx}_state_{key}", f"Sensor {si_idx} State: {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"si_{si_idx}_state_{key}", f"{si_name} {key}", val, EntityCategory.DIAGNOSTIC,
                     ))
 
-        # Button input properties
+        # ── button inputs ────────────────────────────────────────────────────
         for btn_idx, btn in vdsd.button_inputs.items():
+            btn_name = btn.get_description_properties().get("name") or f"Button {btn_idx}"
             for key, val in btn.get_description_properties().items():
                 if _scalar(val) and add_sensor:
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"btn_{btn_idx}_desc_{key}", f"Button {btn_idx} Desc: {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"btn_{btn_idx}_desc_{key}", f"{btn_name} {key}", val, EntityCategory.DIAGNOSTIC,
                     ))
             for key, val in btn.get_settings_properties().items():
                 if _scalar(val):
-                    if add_sensor:
-                        prop_entities.append(PropertySensorEntity(
-                            sid, vdsd_idx, vdsd_data,
-                            f"btn_{btn_idx}_setting_{key}", f"Button {btn_idx} Setting: {key}", val, EntityCategory.CONFIG,
-                        ))
-                    if add_number:
-                        num_entities.append(WritableSettingNumberEntity(
-                            sid, vdsd_idx, vdsd_data,
-                            f"btn_{btn_idx}_writable_{key}", f"Button {btn_idx} {key}",
-                            val, "btn", btn_idx, key,
-                        ))
+                    _make_writable("btn", btn_idx, key, val, f"btn_{btn_idx}", btn_name)
             for key, val in btn.get_state_properties().items():
                 if _scalar(val) and add_sensor:
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"btn_{btn_idx}_state_{key}", f"Button {btn_idx} State: {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"btn_{btn_idx}_state_{key}", f"{btn_name} {key}", val, EntityCategory.DIAGNOSTIC,
                     ))
 
-        # Output properties (present only for vdSDs with an output)
+        # ── output ───────────────────────────────────────────────────────────
         if vdsd.output:
             for key, val in vdsd.output.get_description_properties().items():
                 if _scalar(val) and add_sensor:
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"out_desc_{key}", f"Output Desc: {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"out_desc_{key}", f"Output {key}", val, EntityCategory.DIAGNOSTIC,
                     ))
             for key, val in vdsd.output.get_state_properties().items():
                 if _scalar(val) and add_sensor:
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"out_state_{key}", f"Output State: {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"out_state_{key}", f"Output {key}", val, EntityCategory.DIAGNOSTIC,
                     ))
             for key, val in vdsd.output.get_settings_properties().items():
                 if _scalar(val):
-                    if add_sensor:
-                        prop_entities.append(PropertySensorEntity(
-                            sid, vdsd_idx, vdsd_data,
-                            f"out_setting_{key}", f"Output Setting: {key}", val, EntityCategory.CONFIG,
-                        ))
-                    if add_number:
-                        num_entities.append(WritableSettingNumberEntity(
-                            sid, vdsd_idx, vdsd_data,
-                            f"out_writable_{key}", f"Output {key}",
-                            val, "out", None, key,
-                        ))
+                    _make_writable("out", None, key, val, "out", "Output")
 
         if prop_entities and add_sensor:
             add_sensor(prop_entities, config_subentry_id=sid)
         if num_entities and add_number:
             add_number(num_entities, config_subentry_id=sid)
+        if sel_entities and add_select:
+            add_select(sel_entities, config_subentry_id=sid)
+        if sw_entities and add_switch:
+            add_switch(sw_entities, config_subentry_id=sid)
+        if txt_entities and add_text:
+            add_text(txt_entities, config_subentry_id=sid)
 
 
 async def _vanish_deleted_devices(coordinator: HubCoordinator, entry: ConfigEntry) -> None:
@@ -322,18 +386,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await seed_initial_values(hass, coordinator.api, subentry.subentry_id, vdsds)
         await coordinator.api.announce_device(subentry.subentry_id)
 
-    # Expose vdSD and input property groups as hidden diagnostic/config sensor entities,
-    # and expose all writable settings as hidden CONFIG number entities.
+    # Expose vdSD and input property groups as hidden diagnostic/config entities.
     _add_sensor = hass.data[DOMAIN].get("_add_sensor_entities")
     _add_number = hass.data[DOMAIN].get("_add_number_entities")
-    if coordinator.api and (_add_sensor or _add_number):
-        from homeassistant.helpers.entity import EntityCategory
-        from .sensor import PropertySensorEntity
-        from .number import WritableSettingNumberEntity
+    _add_select = hass.data[DOMAIN].get("_add_select_entities")
+    _add_switch = hass.data[DOMAIN].get("_add_switch_entities")
+    _add_text = hass.data[DOMAIN].get("_add_text_entities")
+    if coordinator.api and any([_add_sensor, _add_number, _add_select, _add_switch, _add_text]):
         for subentry in entry.subentries.values():
             _create_property_entities(
-                coordinator.api, subentry, _add_sensor, _add_number,
-                EntityCategory, PropertySensorEntity, WritableSettingNumberEntity,
+                coordinator.api, subentry,
+                _add_sensor, _add_number, _add_select, _add_switch, _add_text,
             )
 
     # React to entity enable/disable and deletion in the HA entity registry.
@@ -400,14 +463,14 @@ async def _async_subentry_update_listener(
         from . import sensor as _sensor_mod
         from . import binary_sensor as _binary_sensor_mod
         from . import button as _button_mod
-        from homeassistant.helpers.entity import EntityCategory
-        from .sensor import PropertySensorEntity
-        from .number import WritableSettingNumberEntity
 
         add_sensor = domain_data.get("_add_sensor_entities")
         add_binary = domain_data.get("_add_binary_entities")
         add_button = domain_data.get("_add_button_entities")
         add_number = domain_data.get("_add_number_entities")
+        add_select = domain_data.get("_add_select_entities")
+        add_switch = domain_data.get("_add_switch_entities")
+        add_text = domain_data.get("_add_text_entities")
 
         for subentry_id in added:
             subentry = entry.subentries[subentry_id]
@@ -424,10 +487,10 @@ async def _async_subentry_update_listener(
                 _binary_sensor_mod._add_entities_for_subentry(subentry, add_binary)
             if add_button:
                 _button_mod._add_entities_for_subentry(subentry, add_button, coordinator)
-            if add_sensor or add_number:
+            if any([add_sensor, add_number, add_select, add_switch, add_text]):
                 _create_property_entities(
-                    coordinator.api, subentry, add_sensor, add_number,
-                    EntityCategory, PropertySensorEntity, WritableSettingNumberEntity,
+                    coordinator.api, subentry,
+                    add_sensor, add_number, add_select, add_switch, add_text,
                 )
 
     if removed or added:
