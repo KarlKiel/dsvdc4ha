@@ -889,6 +889,10 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         # plan_idx == -1 → use _current_* variables
         self._pending_name_input_idx: int = 0
         self._pending_name_inputs_next_step: str = ""
+        # Device-flow iterative state (Tasks 7/8)
+        self._device_remaining_entities: list = []   # supported entities not yet added
+        self._device_added_summary: list[str] = []   # display labels for already-added
+        self._device_entity_add_return: bool = False  # True when entity_user_input was entered from device_entity_add
 
     async def _resolve_entity_icon(self, entity_id: str) -> tuple[str, str | None]:
         """Return (icon_name, base64_16x16_png_or_None) for an entity.
