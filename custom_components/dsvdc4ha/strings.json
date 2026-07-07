@@ -38,6 +38,16 @@
       },
       "entry": "{title}",
       "step": {
+        "config_entry_name": {
+          "title": "Physical Device Name",
+          "description": "Enter a name for the physical device. This name is used only in Home Assistant to identify your device and is not reported to digitalSTROM.",
+          "data": {
+            "entry_name": "Device name"
+          },
+          "data_description": {
+            "entry_name": "Human-readable label for this physical device as it will appear in the Home Assistant configuration. Example: 'Smart Livingroom Light'."
+          }
+        },
         "creation_mode": {
           "title": "Create vdSD",
           "description": "How would you like to create the virtual device (vdSD)?",
@@ -108,12 +118,10 @@
           "title": "Add Physical Device",
           "description": "To create your device, consider splitting it into several logical vdSDs:\n- Are parts physically separable? → use individual vdSDs.\n- Does the (sub-)device contain several sensors? → keep as one vdSD.\n- Does the (sub-)device contain different kinds of capabilities (Button, Binary Input, Sensors, Output)? → keep as one vdSD.\n- Do functional units belong to different dS classes (colors)? → separate vdSDs.\n- Can functional units end up in different zones? → separate vdSDs.\n- Does the device contain several different outputs (not channels!)? → one vdSD per output required.\n- Are there multiple buttons/binary inputs that shall be configurable via DSS configurator? → separate vdSDs (max. one (Multi)button and one binary input per vdSD).",
           "data": {
-            "name": "Name of the device (e.g. Livingroom Ceiling Lamp)",
             "vendorName": "Vendor name of your device (e.g. Occhio)",
             "displayId": "Device type name (e.g. Lunanova)"
           },
           "data_description": {
-            "name": "Human-readable name for the device as shown in the dSS configurator.",
             "vendorName": "Manufacturer or vendor of the physical hardware device (free-form string).",
             "displayId": "Device model/type name as printed on the physical device or used for identification (e.g. 'Lunanova')."
           }

@@ -219,12 +219,12 @@ def _make_subentry_flow() -> VdsdSubentryFlowHandler:
 
 
 @pytest.mark.asyncio
-async def test_subentry_flow_user_routes_to_creation_mode():
-    """VdsdSubentryFlowHandler.async_step_user routes to creation_mode."""
+async def test_subentry_flow_user_routes_to_config_entry_name():
+    """VdsdSubentryFlowHandler.async_step_user routes to config_entry_name."""
     flow = _make_subentry_flow()
     result = await flow.async_step_user(user_input=None)
     assert result["type"] == FlowResultType.FORM
-    assert result["step_id"] == "creation_mode"
+    assert result["step_id"] == "config_entry_name"
 
 
 @pytest.mark.asyncio
@@ -247,7 +247,7 @@ async def test_creation_mode_from_entity_routes_to_entity_picker():
 
 @pytest.mark.asyncio
 async def test_device_info_step_advances_to_vdsd_creation():
-    """device_info step advances to vdsd_creation."""
+    """device_info step advances to vdsd_creation (name is captured in config_entry_name)."""
     flow = _make_subentry_flow()
 
     result = await flow.async_step_device_info()
@@ -255,11 +255,11 @@ async def test_device_info_step_advances_to_vdsd_creation():
     assert result["step_id"] == "device_info"
 
     result2 = await flow.async_step_device_info(
-        {"name": "Test Lamp", "vendorName": "Acme", "displayId": "LampV1"}
+        {"vendorName": "Acme", "displayId": "LampV1"}
     )
     assert result2["step_id"] == "vdsd_creation"
-    assert flow._device_name == "Test Lamp"
     assert flow._vendor_name == "Acme"
+    assert flow._display_id == "LampV1"
 
 
 @pytest.mark.asyncio
@@ -402,8 +402,9 @@ async def test_full_device_subentry_flow_creates_entry():
     """Full device subentry flow without output creates subentry correctly."""
     flow = _make_subentry_flow()
 
+    await flow.async_step_config_entry_name({"entry_name": "Test Lamp"})
     await flow.async_step_device_info(
-        {"name": "Test Lamp", "vendorName": "Acme", "displayId": "LampV1"}
+        {"vendorName": "Acme", "displayId": "LampV1"}
     )
     await flow.async_step_vdsd_creation(
         {"displayId": "LampUnit", "primaryGroup": "1", "modelVersion": "v1"}
@@ -415,7 +416,7 @@ async def test_full_device_subentry_flow_creates_entry():
     assert result["type"] == "create_entry"
     assert result["title"] == "Test Lamp"
     data = result["data"]
-    assert data["name"] == "Test Lamp"
+    assert data["entry_name"] == "Test Lamp"
     assert data["vendorName"] == "Acme"
     assert len(data["vdsds"]) == 1
     assert data["vdsds"][0]["displayId"] == "LampUnit"
@@ -699,6 +700,7 @@ async def test_device_model_features_cycles_and_routes_to_device_summary():
 async def test_full_ha_device_flow_creates_entry():
     """End-to-end: light.lamp on a device -> one vdSD subentry."""
     flow = _make_subentry_flow()
+    flow._entry_name = "My Lamp"
     flow._device_name = "My Lamp"
     flow._vendor_name = "Acme"
     flow._display_id = "LampModel"
@@ -1146,6 +1148,7 @@ async def test_model_features_from_entity_routes_to_entity_completion():
 async def test_entity_completion_create_makes_entry():
     """entity_completion: 'create' action creates the subentry directly."""
     flow = _make_subentry_flow()
+    flow._entry_name = "Kitchen Switch"
     flow._device_name = "Kitchen Switch"
     flow._vendor_name = "Acme"
     flow._display_id = "switch"

@@ -531,7 +531,6 @@ HUB_SCHEMA = vol.Schema({
 })
 
 DEVICE_INFO_SCHEMA = vol.Schema({
-    vol.Required("name"): selector.TextSelector(),
     vol.Required("vendorName"): selector.TextSelector(),
     vol.Required("displayId"): selector.TextSelector(),
 })
@@ -854,6 +853,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
     """Multi-step wizard for adding a virtualDC device as a config subentry."""
 
     def __init__(self) -> None:
+        self._entry_name: str = ""
         self._device_name: str = ""
         self._vendor_name: str = ""
         self._display_id: str = ""
@@ -948,7 +948,17 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         return icon_name, b64
 
     async def async_step_user(self, user_input: dict | None = None):
-        return await self.async_step_creation_mode(user_input)
+        return await self.async_step_config_entry_name(user_input)
+
+    async def async_step_config_entry_name(self, user_input: dict | None = None):
+        """Ask the user for the physical device name (subentry title, not sent to DSS)."""
+        if user_input is not None:
+            self._entry_name = user_input["entry_name"].strip()
+            return await self.async_step_creation_mode()
+        schema = vol.Schema({
+            vol.Required("entry_name"): selector.TextSelector(),
+        })
+        return self.async_show_form(step_id="config_entry_name", data_schema=schema)
 
     # ── Creation mode ─────────────────────────────────────────────────────────
 
@@ -1514,7 +1524,6 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         """Collect basic device identity."""
         if user_input is not None:
             self._creation_mode = "from_scratch"
-            self._device_name = user_input["name"]
             self._vendor_name = user_input["vendorName"]
             self._display_id = user_input["displayId"]
             return await self.async_step_vdsd_creation()
@@ -1677,9 +1686,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 self._entity_mapping = None
                 return await self.async_step_entity_picker()
             return self.async_create_entry(
-                title=self._device_name,
+                title=self._entry_name,
                 data={
-                    "name": self._device_name,
+                    "entry_name": self._entry_name,
                     "vendorName": self._vendor_name,
                     "displayId": self._display_id,
                     "vdsds": self._vdsds,
@@ -2422,9 +2431,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             if action == "add_vdsd":
                 return await self.async_step_vdsd_creation()
             return self.async_create_entry(
-                title=self._device_name,
+                title=self._entry_name,
                 data={
-                    "name": self._device_name,
+                    "entry_name": self._entry_name,
                     "vendorName": self._vendor_name,
                     "displayId": self._display_id,
                     "vdsds": self._vdsds,
