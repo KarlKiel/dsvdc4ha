@@ -140,7 +140,13 @@ class HubCoordinator:
                 for subentry in self._entry.subentries.values():
                     vdsds = subentry.data.get("vdsds", [])
                     if self.api:
-                        self.api.add_device(subentry.subentry_id, vdsds)
+                        merged_vdsds = self.api.add_device(subentry.subentry_id, vdsds)
+                        if merged_vdsds != vdsds:
+                            self.hass.config_entries.async_update_subentry(
+                                self._entry, subentry,
+                                data={**subentry.data, "vdsds": merged_vdsds},
+                            )
+                            vdsds = merged_vdsds
                         url_map: dict[tuple[str, int], str] = {}
                         for vdsd_idx in range(len(vdsds)):
                             identifier = (DOMAIN, f"{subentry.subentry_id}_{vdsd_idx}")

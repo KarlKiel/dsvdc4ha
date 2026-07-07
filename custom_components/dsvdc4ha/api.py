@@ -509,24 +509,45 @@ class DsvdcApi:
     def _build_device_dsuid(self, entry_id: str) -> DsUid:
         return DsUid.from_name_in_space(entry_id, DsUidNamespace.VDC)
 
-    def add_device(self, entry_id: str, vdsds_data: list[dict[str, Any]]) -> None:
+    def add_device(self, entry_id: str, vdsds_data: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Build and register a Device + its Vdsds without announcing.
 
         The device is added to the VDC so that pydsvdcapi's _on_session_ready
         auto-announcement picks it up when the DSS connects or reconnects.
         Call announce_device(entry_id) after seeding initial values to trigger
         an immediate announcement when a session is already active.
+
+        Returns the (possibly name-merged) vdsds data. If the pydsvdcapi YAML
+        state file has a name that differs from vdsds_data, the state-file name
+        wins and the caller should persist the returned list back to the subentry.
         """
         if self._vdc is None or self._host is None:
             _LOGGER.warning("add_device called before DsvdcApi is started")
-            return
+            return list(vdsds_data)
         dsuid = self._build_device_dsuid(entry_id)
+
+        # Prefer names from the pydsvdcapi YAML state file over HA subentry data.
+        # On first run there is no restored device; on subsequent runs the restored
+        # name is the authoritative last-known value (it is updated by push_property).
+        merged = list(vdsds_data)
+        restored = self._vdc.get_device(dsuid)
+        if restored is not None:
+            for idx, vdsd_data in enumerate(vdsds_data):
+                rv = restored.get_vdsd(idx)
+                if rv is not None and rv.name and rv.name != vdsd_data.get("name"):
+                    _LOGGER.info(
+                        "add_device %s[%d]: state-file name %r differs from subentry %r — using state-file name",
+                        entry_id, idx, rv.name, vdsd_data.get("name"),
+                    )
+                    merged[idx] = {**vdsd_data, "name": rv.name, "displayId": rv.name}
+
         device = Device(vdc=self._vdc, dsuid=dsuid)
-        for idx, vdsd_data in enumerate(vdsds_data):
+        for idx, vdsd_data in enumerate(merged):
             vdsd = self._build_vdsd(device, idx, vdsd_data)
             device.add_vdsd(vdsd)
         self._vdc.add_device(device)
         self._devices[entry_id] = device
+        return merged
 
     async def announce_device(self, entry_id: str) -> None:
         """Announce a device to DSS if not already known and a session is active."""

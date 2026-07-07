@@ -609,7 +609,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     internal_url = (hass.config.internal_url or "http://homeassistant.local:8123").rstrip("/")
     for subentry in entry.subentries.values():
         vdsds = subentry.data.get("vdsds", [])
-        coordinator.api.add_device(subentry.subentry_id, vdsds)
+        merged_vdsds = coordinator.api.add_device(subentry.subentry_id, vdsds)
+        if merged_vdsds != vdsds:
+            hass.config_entries.async_update_subentry(
+                entry, subentry, data={**subentry.data, "vdsds": merged_vdsds},
+            )
+            vdsds = merged_vdsds
         # Patch per-vdSD config URLs to point to their individual HA device pages.
         url_map: dict[tuple[str, int], str] = {}
         for vdsd_idx in range(len(vdsds)):
@@ -717,7 +722,12 @@ async def _async_subentry_update_listener(
         for subentry_id in added:
             subentry = entry.subentries[subentry_id]
             vdsds = subentry.data.get("vdsds", [])
-            coordinator.api.add_device(subentry_id, vdsds)
+            merged_vdsds = coordinator.api.add_device(subentry_id, vdsds)
+            if merged_vdsds != vdsds:
+                hass.config_entries.async_update_subentry(
+                    entry, subentry, data={**subentry.data, "vdsds": merged_vdsds},
+                )
+                vdsds = merged_vdsds
             unsubs = setup_input_listeners(hass, coordinator.api, subentry_id, vdsds)
             unsubs += setup_output_listeners(hass, coordinator.api, subentry_id, vdsds)
             domain_data[subentry_id] = {"unsubs": unsubs}

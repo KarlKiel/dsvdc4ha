@@ -770,6 +770,107 @@ async def test_report_channel_value_returns_if_host_none():
 # ── Re-announce ───────────────────────────────────────────────────────────────
 
 
+def test_add_device_prefers_state_file_name_over_subentry():
+    """add_device returns merged vdsds where restored name wins over stale subentry name."""
+    from custom_components.dsvdc4ha.api import DsvdcApi
+
+    api = DsvdcApi(port=9090, version="1.0", config_url="http://ha.local", state_path="/tmp/s")
+
+    # Simulate pydsvdcapi already having a device restored from the YAML state file
+    mock_restored_vdsd = MagicMock()
+    mock_restored_vdsd.name = "New Name"
+    mock_restored_device = MagicMock()
+    mock_restored_device.get_vdsd = MagicMock(return_value=mock_restored_vdsd)
+
+    mock_vdc = MagicMock()
+    mock_vdc.get_device = MagicMock(return_value=mock_restored_device)
+    mock_vdc.add_device = MagicMock()
+    api._vdc = mock_vdc
+    api._host = MagicMock()
+
+    vdsds_data = [{"displayId": "d", "name": "Old Name", "primaryGroup": 1, "model": "m",
+                   "buttons": [], "binary_inputs": [], "sensors": [], "output": None}]
+
+    with patch("custom_components.dsvdc4ha.api.Device") as MockDevice, \
+         patch("custom_components.dsvdc4ha.api.Vdsd") as MockVdsd, \
+         patch("custom_components.dsvdc4ha.api.DsUid"):
+        mock_device = MagicMock()
+        MockDevice.return_value = mock_device
+        mock_vdsd_inst = MagicMock()
+        mock_vdsd_inst.model_features = []
+        MockVdsd.return_value = mock_vdsd_inst
+
+        result = api.add_device("sub1", vdsds_data)
+
+    assert result[0]["name"] == "New Name"
+    assert result[0]["displayId"] == "New Name"
+    # Original list is unchanged
+    assert vdsds_data[0]["name"] == "Old Name"
+
+
+def test_add_device_no_merge_when_names_match():
+    """add_device returns original vdsds unchanged when state-file and subentry names agree."""
+    from custom_components.dsvdc4ha.api import DsvdcApi
+
+    api = DsvdcApi(port=9090, version="1.0", config_url="http://ha.local", state_path="/tmp/s")
+
+    mock_restored_vdsd = MagicMock()
+    mock_restored_vdsd.name = "Same Name"
+    mock_restored_device = MagicMock()
+    mock_restored_device.get_vdsd = MagicMock(return_value=mock_restored_vdsd)
+
+    mock_vdc = MagicMock()
+    mock_vdc.get_device = MagicMock(return_value=mock_restored_device)
+    mock_vdc.add_device = MagicMock()
+    api._vdc = mock_vdc
+    api._host = MagicMock()
+
+    vdsds_data = [{"displayId": "d", "name": "Same Name", "primaryGroup": 1, "model": "m",
+                   "buttons": [], "binary_inputs": [], "sensors": [], "output": None}]
+
+    with patch("custom_components.dsvdc4ha.api.Device") as MockDevice, \
+         patch("custom_components.dsvdc4ha.api.Vdsd") as MockVdsd, \
+         patch("custom_components.dsvdc4ha.api.DsUid"):
+        mock_device = MagicMock()
+        MockDevice.return_value = mock_device
+        mock_vdsd_inst = MagicMock()
+        mock_vdsd_inst.model_features = []
+        MockVdsd.return_value = mock_vdsd_inst
+
+        result = api.add_device("sub1", vdsds_data)
+
+    assert result == vdsds_data
+
+
+def test_add_device_no_merge_when_no_state_file():
+    """add_device returns original vdsds unchanged when no device exists in state file."""
+    from custom_components.dsvdc4ha.api import DsvdcApi
+
+    api = DsvdcApi(port=9090, version="1.0", config_url="http://ha.local", state_path="/tmp/s")
+
+    mock_vdc = MagicMock()
+    mock_vdc.get_device = MagicMock(return_value=None)  # no restored device
+    mock_vdc.add_device = MagicMock()
+    api._vdc = mock_vdc
+    api._host = MagicMock()
+
+    vdsds_data = [{"displayId": "d", "name": "Old Name", "primaryGroup": 1, "model": "m",
+                   "buttons": [], "binary_inputs": [], "sensors": [], "output": None}]
+
+    with patch("custom_components.dsvdc4ha.api.Device") as MockDevice, \
+         patch("custom_components.dsvdc4ha.api.Vdsd") as MockVdsd, \
+         patch("custom_components.dsvdc4ha.api.DsUid"):
+        mock_device = MagicMock()
+        MockDevice.return_value = mock_device
+        mock_vdsd_inst = MagicMock()
+        mock_vdsd_inst.model_features = []
+        MockVdsd.return_value = mock_vdsd_inst
+
+        result = api.add_device("sub1", vdsds_data)
+
+    assert result == vdsds_data
+
+
 @pytest.mark.asyncio
 async def test_force_reannounce_no_session():
     """force_reannounce_device removes from _ever_announced and returns early when no session."""
