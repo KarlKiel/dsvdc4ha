@@ -54,6 +54,7 @@ async def test_set_value_updates_vdsd_name():
 
     mock_dev_reg = MagicMock()
     mock_dev_reg.async_get_device = MagicMock(return_value=None)
+    ent.hass.config_entries.async_entries.return_value = []
     with patch("custom_components.dsvdc4ha.text.dr.async_get", return_value=mock_dev_reg):
         await ent.async_set_value("New Name")
     assert mock_vdsd.name == "New Name"
@@ -125,6 +126,6 @@ async def test_set_value_updates_ha_device_registry():
     mock_config_entries.async_update_subentry.assert_called_once()
     # vdSD name and displayId both updated in persisted data
     call_args = mock_config_entries.async_update_subentry.call_args
-    new_data = call_args[1]["data"] if "data" in call_args[1] else call_args[0][2]
+    new_data = call_args.kwargs["data"]
     assert new_data["vdsds"][0]["name"] == "New Name"
     assert new_data["vdsds"][0]["displayId"] == "New Name"

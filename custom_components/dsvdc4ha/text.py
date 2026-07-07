@@ -104,29 +104,32 @@ class TextSettingEntity(DsvdcBaseEntity, TextEntity):
             _LOGGER.exception("Failed to set vdSD name on %s", self._subentry_id)
             return
 
-        # Update HA device registry so the device card title changes immediately.
-        identifier = (DOMAIN, f"{self._subentry_id}_{self._vdsd_index}")
-        dev_reg = dr.async_get(self.hass)
-        ha_device = dev_reg.async_get_device(identifiers={identifier})
-        if ha_device:
-            dev_reg.async_update_device(ha_device.id, name=value)
+        try:
+            # Update HA device registry so the device card title changes immediately.
+            identifier = (DOMAIN, f"{self._subentry_id}_{self._vdsd_index}")
+            dev_reg = dr.async_get(self.hass)
+            ha_device = dev_reg.async_get_device(identifiers={identifier})
+            if ha_device:
+                dev_reg.async_update_device(ha_device.id, name=value)
 
-        # Persist the new name into subentry data so it survives restart.
-        for entry in self.hass.config_entries.async_entries(DOMAIN):
-            if self._subentry_id in entry.subentries:
-                subentry = entry.subentries[self._subentry_id]
-                vdsds = list(subentry.data.get("vdsds", []))
-                if self._vdsd_index < len(vdsds):
-                    vdsds[self._vdsd_index] = {
-                        **vdsds[self._vdsd_index],
-                        "name": value,
-                        "displayId": value,
-                    }
-                    self.hass.config_entries.async_update_subentry(
-                        entry, subentry,
-                        data={**subentry.data, "vdsds": vdsds},
-                    )
-                break
+            # Persist the new name into subentry data so it survives restart.
+            for entry in self.hass.config_entries.async_entries(DOMAIN):
+                if self._subentry_id in entry.subentries:
+                    subentry = entry.subentries[self._subentry_id]
+                    vdsds = list(subentry.data.get("vdsds", []))
+                    if self._vdsd_index < len(vdsds):
+                        vdsds[self._vdsd_index] = {
+                            **vdsds[self._vdsd_index],
+                            "name": value,
+                            "displayId": value,
+                        }
+                        self.hass.config_entries.async_update_subentry(
+                            entry, subentry,
+                            data={**subentry.data, "vdsds": vdsds},
+                        )
+                    break
+        except Exception:
+            _LOGGER.exception("Failed to sync name to HA registry/subentry for %s", self._subentry_id)
 
         self._attr_native_value = value
         self.async_write_ha_state()
