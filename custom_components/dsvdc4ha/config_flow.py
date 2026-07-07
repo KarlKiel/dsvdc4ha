@@ -883,6 +883,12 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         self._pending_vdsd_idx: int = 0
         self._pending_name_confirm_idx: int = 0
         self._creation_mode: str = "from_entity"
+        # Name-inputs wizard state
+        self._pending_name_input_items: list[tuple[str, int, int, str, str]] = []
+        # each item: (container, elem_idx, plan_idx, suggestion, label)
+        # plan_idx == -1 → use _current_* variables
+        self._pending_name_input_idx: int = 0
+        self._pending_name_inputs_next_step: str = ""
 
     async def _resolve_entity_icon(self, entity_id: str) -> tuple[str, str | None]:
         """Return (icon_name, base64_16x16_png_or_None) for an entity.
@@ -1475,6 +1481,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             if self._pending_vdsd_idx < len(self._vdsd_plans):
                 return await self.async_step_device_model_features()
             self._pending_name_confirm_idx = 0
+            self._init_name_inputs_for_ha_device()
+            if self._pending_name_input_items:
+                return await self.async_step_name_inputs()
             return await self.async_step_name_confirm()
 
         auto_features = derive_model_features_for_config(vdsd)
@@ -1626,6 +1635,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             self._current_vdsd["sensors"] = self._current_sensors
             self._current_vdsd["output"] = self._current_output
             if self._creation_mode == "from_entity":
+                self._init_name_inputs("name_confirm")
+                if self._pending_name_input_items:
+                    return await self.async_step_name_inputs()
                 return await self.async_step_name_confirm()
             self._vdsds.append(dict(self._current_vdsd))
             return await self.async_step_device_summary()
@@ -1696,6 +1708,173 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             },
         )
 
+    # ── Name-inputs helpers ──────────────────────────────────────────────────
+
+    def _suggest_name_bi(self, bi: dict) -> str:
+        """Smart name suggestion for a binary input."""
+        cb = bi.get("callback_entity")
+        if cb:
+            state = self.hass.states.get(cb)
+            if state:
+                dc = state.attributes.get("device_class")
+                if dc:
+                    return dc.replace("_", " ").title()
+        sf = bi.get("sensorFunction", 0)
+        return _BINARY_INPUT_TYPE_LABELS.get(sf, bi.get("name") or "Binary Input")
+
+    def _suggest_name_si(self, si: dict) -> str:
+        """Smart name suggestion for a sensor input."""
+        cb = si.get("callback_entity")
+        if cb:
+            state = self.hass.states.get(cb)
+            if state:
+                dc = state.attributes.get("device_class")
+                if dc:
+                    return dc.replace("_", " ").title()
+        from pydsvdcapi.enums import SensorType
+        try:
+            return SensorType(si["sensorType"]).name.replace("_", " ").title()
+        except (ValueError, KeyError):
+            return si.get("name") or "Sensor"
+
+    def _suggest_name_btn(self, btn: dict) -> str:
+        """Smart name suggestion for a button (ButtonElementID name)."""
+        from pydsvdcapi.enums import ButtonElementID
+        try:
+            return ButtonElementID(btn["buttonElementID"]).name.replace("_", " ").title()
+        except (ValueError, KeyError):
+            return btn.get("name") or "Button"
+
+    def _suggest_name_ch(self, ch: dict) -> str:
+        """Smart name suggestion for an output channel (channel type label)."""
+        return _CHANNEL_TYPE_LABELS.get(ch.get("channelType", 0), f"Channel {ch.get('dsIndex', 0)}")
+
+    def _build_name_input_items(
+        self,
+        buttons: list,
+        binary_inputs: list,
+        sensors: list,
+        channels: list,
+        plan_idx: int,
+        channels_only: bool,
+        label_prefix: str = "",
+    ) -> list[tuple[str, int, int, str, str]]:
+        """Build name-input items for a set of inputs/channels."""
+        items: list[tuple[str, int, int, str, str]] = []
+        prefix = f"[{label_prefix}] " if label_prefix else ""
+        if not channels_only:
+            for i, btn in enumerate(buttons):
+                suggestion = self._suggest_name_btn(btn)
+                label = f"{prefix}Button (Element {btn.get('buttonElementID', i)})"
+                items.append(("buttons", i, plan_idx, suggestion, label))
+            for i, bi in enumerate(binary_inputs):
+                suggestion = self._suggest_name_bi(bi)
+                suffix = f" {i + 1}" if len(binary_inputs) > 1 else ""
+                items.append(("binary_inputs", i, plan_idx, suggestion, f"{prefix}Binary Input{suffix}"))
+            for i, si in enumerate(sensors):
+                suggestion = self._suggest_name_si(si)
+                suffix = f" {i + 1}" if len(sensors) > 1 else ""
+                items.append(("sensors", i, plan_idx, suggestion, f"{prefix}Sensor{suffix}"))
+        for i, ch in enumerate(channels):
+            suggestion = self._suggest_name_ch(ch)
+            suffix = f" {i + 1}" if len(channels) > 1 else ""
+            items.append(("channels", i, plan_idx, suggestion, f"{prefix}Output Channel{suffix}"))
+        return items
+
+    def _init_name_inputs(
+        self,
+        next_step: str,
+        channels_only: bool = False,
+    ) -> None:
+        """Build name-input items for current vdSD (_current_* variables)."""
+        channels = self._current_channels
+        self._pending_name_input_items = self._build_name_input_items(
+            self._current_buttons,
+            self._current_binary_inputs,
+            self._current_sensors,
+            channels,
+            plan_idx=-1,
+            channels_only=channels_only,
+        )
+        self._pending_name_input_idx = 0
+        self._pending_name_inputs_next_step = next_step
+
+    def _init_name_inputs_for_ha_device(self) -> None:
+        """Build name-input items for all vdSD plans (from_ha_device path)."""
+        items: list[tuple[str, int, int, str, str]] = []
+        for plan_idx, plan in enumerate(self._vdsd_plans):
+            vdsd = plan.resolved_vdsd or {}
+            output = vdsd.get("output")
+            channels = output.get("channels", []) if output else []
+            items.extend(self._build_name_input_items(
+                vdsd.get("buttons", []),
+                vdsd.get("binary_inputs", []),
+                vdsd.get("sensors", []),
+                channels,
+                plan_idx=plan_idx,
+                channels_only=False,
+                label_prefix=plan.name,
+            ))
+        self._pending_name_input_items = items
+        self._pending_name_input_idx = 0
+        self._pending_name_inputs_next_step = "name_confirm"
+
+    def _apply_name_input(self, container: str, elem_idx: int, plan_idx: int, name: str) -> None:
+        """Write the confirmed name into the right data structure."""
+        if plan_idx >= 0:
+            vdsd = self._vdsd_plans[plan_idx].resolved_vdsd
+            if vdsd is None:
+                return
+            if container == "channels":
+                output = vdsd.get("output")
+                if output:
+                    chs = output.get("channels", [])
+                    if elem_idx < len(chs):
+                        chs[elem_idx]["name"] = name
+            else:
+                lst = vdsd.get(container, [])
+                if elem_idx < len(lst):
+                    lst[elem_idx]["name"] = name
+        else:
+            mapping = {
+                "buttons": self._current_buttons,
+                "binary_inputs": self._current_binary_inputs,
+                "sensors": self._current_sensors,
+                "channels": self._current_channels,
+            }
+            lst = mapping.get(container, [])
+            if elem_idx < len(lst):
+                lst[elem_idx]["name"] = name
+
+    async def async_step_name_inputs(self, user_input: dict | None = None):
+        """Name each input/channel one at a time with smart pre-populated suggestions."""
+        if user_input is not None:
+            item = self._pending_name_input_items[self._pending_name_input_idx]
+            container, elem_idx, plan_idx, _, _ = item
+            self._apply_name_input(container, elem_idx, plan_idx, user_input["name"])
+            self._pending_name_input_idx += 1
+
+        if self._pending_name_input_idx >= len(self._pending_name_input_items):
+            return await getattr(self, f"async_step_{self._pending_name_inputs_next_step}")()
+
+        item = self._pending_name_input_items[self._pending_name_input_idx]
+        container, elem_idx, plan_idx, suggestion, label = item
+        current = self._pending_name_input_idx + 1
+        total = len(self._pending_name_input_items)
+
+        schema = vol.Schema({
+            vol.Required("name", default=suggestion): selector.TextSelector(),
+        })
+        return self.async_show_form(
+            step_id="name_inputs",
+            data_schema=schema,
+            description_placeholders={
+                "label": label,
+                "current": str(current),
+                "total": str(total),
+            },
+        )
+
     async def async_step_name_confirm(self, user_input: dict | None = None):
         """Let the user confirm or edit device and entity names before saving."""
         if self._creation_mode == "from_ha_device":
@@ -1716,12 +1895,13 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             if user_input is not None:
                 if "device_name" in user_input:
                     self._current_vdsd["displayId"] = user_input["device_name"]
-                if "entity_name" in user_input:
-                    self._apply_entity_name(user_input["entity_name"])
                 self._vdsds.append(dict(self._current_vdsd))
                 return await self.async_step_entity_completion()
             device_name = self._current_vdsd.get("displayId", self._current_vdsd.get("name", ""))
-            entity_name = self._derive_entity_name_proposal()
+            schema = vol.Schema({
+                vol.Required("device_name", default=device_name): selector.TextSelector(),
+            })
+            return self.async_show_form(step_id="name_confirm", data_schema=schema)
 
         schema = vol.Schema({
             vol.Required("device_name", default=device_name): selector.TextSelector(),
@@ -1967,6 +2147,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                     "dsIndex": i,
                     "channelType": int(ct),
                 })
+            self._init_name_inputs("channel_mapping", channels_only=True)
+            if self._pending_name_input_items:
+                return await self.async_step_name_inputs()
             return await self.async_step_channel_mapping()
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
@@ -2003,6 +2186,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                     "dsIndex": i,
                     "channelType": int(ct),
                 })
+            self._init_name_inputs("channel_mapping", channels_only=True)
+            if self._pending_name_input_items:
+                return await self.async_step_name_inputs()
             return await self.async_step_channel_mapping()
 
         fn = self._current_output.get("function", 0) if self._current_output else 0

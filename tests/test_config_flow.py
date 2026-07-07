@@ -392,7 +392,7 @@ async def test_output_step_stores_output():
         "variableRamp": False,
         "mode": "0",
     })
-    assert result2["step_id"] in ("channel", "channel_mapping", "vdsd_overview")
+    assert result2["step_id"] in ("channel", "channel_mapping", "name_inputs", "vdsd_overview")
     assert flow._current_output is not None
     assert flow._current_output["name"] == "Dimmer"
 

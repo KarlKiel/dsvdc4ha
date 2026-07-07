@@ -116,14 +116,65 @@ def _scalar(val: Any) -> bool:
     return isinstance(val, (int, float, bool, str)) and val is not None
 
 
-# Human-readable labels for setting keys
-_SETTING_DISPLAY: dict[str, str] = {
-    "group": "Group",
+# Human-readable labels for ALL property keys (settings + diagnostic)
+_PROP_DISPLAY: dict[str, str] = {
+    # vdSD common
+    "dSUID": "Device UID",
+    "displayId": "Display ID",
+    "model": "Model",
+    "modelVersion": "Model Version",
+    "modelUID": "Model UID",
+    "hardwareVersion": "Hardware Version",
+    "hardwareGuid": "Hardware GUID",
+    "hardwareModelGuid": "Hardware Model GUID",
+    "vendorName": "Vendor",
+    "vendorId": "Vendor ID",
+    "vendorGuid": "Vendor GUID",
+    "oemGuid": "OEM GUID",
+    "oemModelGuid": "OEM Model GUID",
+    "configURL": "Config URL",
+    "deviceIconName": "Device Icon",
+    "deviceClass": "Device Class",
+    "deviceClassVersion": "Device Class Version",
+    "primaryGroup": "Primary Group",
+    "currentConfigId": "Config ID",
+    # Input descriptions
+    "inputType": "Input Type",
+    "inputUsage": "Input Usage",
     "sensorFunction": "Sensor Function",
+    "sensorType": "Sensor Type",
+    "sensorUsage": "Sensor Usage",
+    "updateInterval": "Update Interval",
+    "aliveSignInterval": "Alive Sign Interval",
+    "min": "Min Value",
+    "max": "Max Value",
+    "resolution": "Resolution",
+    # Button descriptions
+    "supportsLocalKeyMode": "Local Key Mode",
+    "buttonType": "Button Type",
+    "buttonElementID": "Button Element ID",
+    "buttonID": "Button ID",
+    # Output descriptions
+    "function": "Function",
+    "outputUsage": "Output Usage",
+    "variableRamp": "Variable Ramp",
+    "maxPower": "Max Power",
+    "defaultGroup": "Default Group",
+    "activeCoolingMode": "Active Cooling",
+    # State
+    "clickType": "Click Type",
+    "actionId": "Action ID",
+    "actionMode": "Action Mode",
+    "localPriority": "Local Priority",
+    "transitionTime": "Transition Time",
+    "contextId": "Context ID",
+    "contextMsg": "Context",
+    "error": "Error State",
+    # Settings (writable)
+    "group": "Group",
     "setsLocalPriority": "Sets Local Priority",
     "callsPresent": "Calls Present",
     "mode": "Mode",
-    "function": "Function",
     "channel": "Channel",
     "minPushInterval": "Min Push Interval",
     "changesOnlyInterval": "Changes Only Interval",
@@ -149,9 +200,15 @@ _SETTING_DISPLAY: dict[str, str] = {
     "progMode": "Programming Mode",
 }
 
-# vdSD properties that are writable — excluded from read-only diagnostic sensors.
-# "active" is excluded because it is managed dynamically by HA entity lifecycle.
-_VDSD_EXCLUDED_DIAGNOSTIC: frozenset[str] = frozenset({"active", "name", "zoneID", "progMode"})
+# vdSD properties that are writable or internal — excluded from read-only diagnostic sensors.
+_VDSD_EXCLUDED_DIAGNOSTIC: frozenset[str] = frozenset({
+    "active", "name", "zoneID", "progMode", "type",
+})
+
+# Per-input/output property keys always excluded from diagnostic sensors
+_INPUT_EXCLUDED_KEYS: frozenset[str] = frozenset({
+    "dsIndex", "name", "age", "value", "extendedValue",
+})
 
 
 def _create_property_entities(
@@ -170,6 +227,47 @@ def _create_property_entities(
     from .select import SelectableSettingEntity, SETTING_OPTIONS
     from .switch import BoolSettingEntity, BOOL_SETTING_KEYS, VdsdActiveSwitchEntity
     from .text import TextSettingEntity
+    from pydsvdcapi.enums import (
+        BinaryInputType, BinaryInputUsage, SensorType, SensorUsage,
+        ButtonType, ButtonElementID, ButtonClickType, ActionMode,
+        OutputFunction, OutputUsage, InputError, OutputError, ColorGroup,
+    )
+
+    _ENUM_MAP: dict[tuple[str, str], type] = {
+        ("bi", "inputType"): BinaryInputType,
+        ("bi", "inputUsage"): BinaryInputUsage,
+        ("bi", "sensorFunction"): BinaryInputType,
+        ("bi", "error"): InputError,
+        ("si", "sensorType"): SensorType,
+        ("si", "sensorUsage"): SensorUsage,
+        ("si", "error"): InputError,
+        ("btn", "buttonType"): ButtonType,
+        ("btn", "buttonElementID"): ButtonElementID,
+        ("btn", "clickType"): ButtonClickType,
+        ("btn", "actionMode"): ActionMode,
+        ("btn", "error"): InputError,
+        ("out", "function"): OutputFunction,
+        ("out", "outputUsage"): OutputUsage,
+        ("out", "error"): OutputError,
+        ("vdsd", "primaryGroup"): ColorGroup,
+    }
+
+    def _resolve(input_type: str, key: str, val: Any) -> Any:
+        """Return enum name string if the key maps to a known enum, else raw value."""
+        enum_cls = _ENUM_MAP.get((input_type, key))
+        if enum_cls is not None:
+            try:
+                return enum_cls(int(val)).name
+            except (ValueError, TypeError):
+                pass
+        return val
+
+    def _input_prefix(idx: int, count: int, desc_name: str | None, fallback: str) -> str:
+        """Return 'Name: ' prefix when count > 1, empty string when count == 1."""
+        if count <= 1:
+            return ""
+        name = (desc_name or "").strip()
+        return f"{name or f'{fallback} {idx + 1}'}: "
 
     for vdsd_idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):
         device = api.get_device(subentry.subentry_id)
@@ -185,43 +283,41 @@ def _create_property_entities(
         sw_entities: list = []
         txt_entities: list = []
 
-        # ── vdSD-level properties ────────────────────────────────────────────
+        # ── vdSD-level diagnostic properties ────────────────────────────────
         for key, val in vdsd.get_properties().items():
             if key in _VDSD_EXCLUDED_DIAGNOSTIC or not _scalar(val):
                 continue
             if add_sensor:
                 prop_entities.append(PropertySensorEntity(
                     sid, vdsd_idx, vdsd_data,
-                    f"vdsd_{key}", f"vdSD {key}", val, EntityCategory.DIAGNOSTIC,
+                    f"vdsd_{key}", _PROP_DISPLAY.get(key, key),
+                    _resolve("vdsd", key, val), EntityCategory.DIAGNOSTIC,
                 ))
 
-        # vdSD writable properties
+        # ── vdSD writable properties ─────────────────────────────────────────
         if add_switch:
-            sw_entities.append(VdsdActiveSwitchEntity(
-                sid, vdsd_idx, vdsd_data, vdsd.active,
-            ))
+            sw_entities.append(VdsdActiveSwitchEntity(sid, vdsd_idx, vdsd_data, vdsd.active))
         if add_text:
             txt_entities.append(TextSettingEntity(
-                sid, vdsd_idx, vdsd_data,
-                "vdsd_name", "vdSD Name", vdsd.name,
+                sid, vdsd_idx, vdsd_data, "vdsd_name", "Name", vdsd.name,
             ))
         if add_number:
             num_entities.append(WritableSettingNumberEntity(
                 sid, vdsd_idx, vdsd_data,
-                "vdsd_writable_zoneID", "vdSD Zone ID",
+                "vdsd_writable_zoneID", "Zone ID",
                 vdsd.zone_id, "vdsd", None, "zoneID",
             ))
         if add_switch and vdsd.prog_mode is not None:
             sw_entities.append(BoolSettingEntity(
                 sid, vdsd_idx, vdsd_data,
-                "vdsd_writable_progMode", "vdSD Programming Mode",
+                "vdsd_writable_progMode", "Programming Mode",
                 vdsd.prog_mode, "vdsd", None, "progMode",
             ))
 
         # ── helper: create one writable setting entity ───────────────────────
         def _make_writable(input_type: str, idx: int | None, key: str, val: Any, prefix: str, label_prefix: str) -> None:
-            setting_label = _SETTING_DISPLAY.get(key, key)
-            display = f"{label_prefix} {setting_label}"
+            setting_label = _PROP_DISPLAY.get(key, key)
+            display = f"{label_prefix}{setting_label}" if label_prefix else setting_label
             uid = f"{prefix}_writable_{key}"
             opt_key = (input_type, key)
             if opt_key in SETTING_OPTIONS and add_select:
@@ -240,80 +336,117 @@ def _create_property_entities(
                     val, input_type, idx, key,
                 ))
 
+        n_bi = len(vdsd.binary_inputs)
+        n_si = len(vdsd.sensor_inputs)
+        n_btn = len(vdsd.button_inputs)
+
         # ── binary inputs ────────────────────────────────────────────────────
         for bi_idx, bi in vdsd.binary_inputs.items():
-            bi_name = bi.get_description_properties().get("name") or f"BI {bi_idx}"
-            for key, val in bi.get_description_properties().items():
-                if _scalar(val) and add_sensor:
+            desc = bi.get_description_properties()
+            bi_prefix = _input_prefix(bi_idx, n_bi, desc.get("name"), "Bin.Sensor")
+            for key, val in desc.items():
+                if key in _INPUT_EXCLUDED_KEYS or not _scalar(val):
+                    continue
+                if add_sensor:
+                    label = f"{bi_prefix}{_PROP_DISPLAY.get(key, key)}"
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"bi_{bi_idx}_desc_{key}", f"{bi_name} {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"bi_{bi_idx}_desc_{key}", label,
+                        _resolve("bi", key, val), EntityCategory.DIAGNOSTIC,
                     ))
             for key, val in bi.get_settings_properties().items():
                 if _scalar(val):
-                    _make_writable("bi", bi_idx, key, val, f"bi_{bi_idx}", bi_name)
+                    _make_writable("bi", bi_idx, key, val, f"bi_{bi_idx}", bi_prefix)
             for key, val in bi.get_state_properties().items():
-                if _scalar(val) and add_sensor:
+                if key in _INPUT_EXCLUDED_KEYS or not _scalar(val):
+                    continue
+                if add_sensor:
+                    label = f"{bi_prefix}{_PROP_DISPLAY.get(key, key)}"
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"bi_{bi_idx}_state_{key}", f"{bi_name} {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"bi_{bi_idx}_state_{key}", label,
+                        _resolve("bi", key, val), EntityCategory.DIAGNOSTIC,
                     ))
 
         # ── sensor inputs ────────────────────────────────────────────────────
         for si_idx, si in vdsd.sensor_inputs.items():
-            si_name = si.get_description_properties().get("name") or f"Sensor {si_idx}"
-            for key, val in si.get_description_properties().items():
-                if _scalar(val) and add_sensor:
+            desc = si.get_description_properties()
+            si_prefix = _input_prefix(si_idx, n_si, desc.get("name"), "Sensor")
+            for key, val in desc.items():
+                if key in _INPUT_EXCLUDED_KEYS or not _scalar(val):
+                    continue
+                if add_sensor:
+                    label = f"{si_prefix}{_PROP_DISPLAY.get(key, key)}"
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"si_{si_idx}_desc_{key}", f"{si_name} {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"si_{si_idx}_desc_{key}", label,
+                        _resolve("si", key, val), EntityCategory.DIAGNOSTIC,
                     ))
             for key, val in si.get_settings_properties().items():
                 if _scalar(val):
-                    _make_writable("si", si_idx, key, val, f"si_{si_idx}", si_name)
+                    _make_writable("si", si_idx, key, val, f"si_{si_idx}", si_prefix)
             for key, val in si.get_state_properties().items():
-                if _scalar(val) and add_sensor:
+                if key in _INPUT_EXCLUDED_KEYS or not _scalar(val):
+                    continue
+                if add_sensor:
+                    label = f"{si_prefix}{_PROP_DISPLAY.get(key, key)}"
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"si_{si_idx}_state_{key}", f"{si_name} {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"si_{si_idx}_state_{key}", label,
+                        _resolve("si", key, val), EntityCategory.DIAGNOSTIC,
                     ))
 
         # ── button inputs ────────────────────────────────────────────────────
         for btn_idx, btn in vdsd.button_inputs.items():
-            btn_name = btn.get_description_properties().get("name") or f"Button {btn_idx}"
-            for key, val in btn.get_description_properties().items():
-                if _scalar(val) and add_sensor:
+            desc = btn.get_description_properties()
+            btn_prefix = _input_prefix(btn_idx, n_btn, desc.get("name"), "Button")
+            for key, val in desc.items():
+                if key in _INPUT_EXCLUDED_KEYS or not _scalar(val):
+                    continue
+                if add_sensor:
+                    label = f"{btn_prefix}{_PROP_DISPLAY.get(key, key)}"
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"btn_{btn_idx}_desc_{key}", f"{btn_name} {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"btn_{btn_idx}_desc_{key}", label,
+                        _resolve("btn", key, val), EntityCategory.DIAGNOSTIC,
                     ))
             for key, val in btn.get_settings_properties().items():
                 if _scalar(val):
-                    _make_writable("btn", btn_idx, key, val, f"btn_{btn_idx}", btn_name)
+                    _make_writable("btn", btn_idx, key, val, f"btn_{btn_idx}", btn_prefix)
             for key, val in btn.get_state_properties().items():
-                if _scalar(val) and add_sensor:
+                if key in _INPUT_EXCLUDED_KEYS or not _scalar(val):
+                    continue
+                if add_sensor:
+                    label = f"{btn_prefix}{_PROP_DISPLAY.get(key, key)}"
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"btn_{btn_idx}_state_{key}", f"{btn_name} {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"btn_{btn_idx}_state_{key}", label,
+                        _resolve("btn", key, val), EntityCategory.DIAGNOSTIC,
                     ))
 
         # ── output ───────────────────────────────────────────────────────────
         if vdsd.output:
             for key, val in vdsd.output.get_description_properties().items():
-                if _scalar(val) and add_sensor:
+                if key in _INPUT_EXCLUDED_KEYS or not _scalar(val):
+                    continue
+                if add_sensor:
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"out_desc_{key}", f"Output {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"out_desc_{key}", _PROP_DISPLAY.get(key, key),
+                        _resolve("out", key, val), EntityCategory.DIAGNOSTIC,
                     ))
             for key, val in vdsd.output.get_state_properties().items():
-                if _scalar(val) and add_sensor:
+                if key in _INPUT_EXCLUDED_KEYS or not _scalar(val):
+                    continue
+                if add_sensor:
                     prop_entities.append(PropertySensorEntity(
                         sid, vdsd_idx, vdsd_data,
-                        f"out_state_{key}", f"Output {key}", val, EntityCategory.DIAGNOSTIC,
+                        f"out_state_{key}", _PROP_DISPLAY.get(key, key),
+                        _resolve("out", key, val), EntityCategory.DIAGNOSTIC,
                     ))
             for key, val in vdsd.output.get_settings_properties().items():
                 if _scalar(val):
-                    _make_writable("out", None, key, val, "out", "Output")
+                    _make_writable("out", None, key, val, "out", "")
 
         if prop_entities and add_sensor:
             add_sensor(prop_entities, config_subentry_id=sid)
