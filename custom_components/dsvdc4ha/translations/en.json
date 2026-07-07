@@ -296,12 +296,20 @@
         },
         "entity_completion": {
           "title": "Complete Device — {device_name}",
-          "description": "Configured vdSD components: {vdsds}\n\nChoose whether to create the device now or add another vdSD component first.",
-          "data": {
-            "action": "Action"
+          "description": "Configured vdSD components: {vdsds}\n\nChoose how to proceed.",
+          "menu_options": {
+            "entity_completion_create": "Create device",
+            "entity_completion_add": "Add vdSD from another entity"
           }
         },
-        "device_summary": { "title": "Device Summary" }
+        "device_summary": {
+          "title": "Device Summary — {device_name}",
+          "description": "vdSD components: {vdsds}\n\nChoose how to proceed.",
+          "menu_options": {
+            "device_summary_create": "Create device",
+            "device_summary_add_vdsd": "Add another vdSD first"
+          }
+        }
       },
       "error": {
         "entity_not_found": "Entity not found.",

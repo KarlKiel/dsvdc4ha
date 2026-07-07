@@ -415,7 +415,7 @@ async def test_full_device_subentry_flow_creates_entry():
     )
     await flow.async_step_vdsd_overview({"action": "next"})
     await flow.async_step_model_features({"features": []})
-    result = await flow.async_step_device_summary({"action": "create", "confirm": True})
+    result = await flow.async_step_device_summary_create()
 
     assert result["type"] == "create_entry"
     assert result["title"] == "Test Lamp"
@@ -737,7 +737,7 @@ async def test_full_ha_device_flow_creates_entry():
     assert result["step_id"] == "name_confirm"
     result = await flow.async_step_name_confirm({"device_name": "My Lamp Confirmed", "entity_name": "My Lamp — Light"})
     assert result["step_id"] == "device_summary"
-    result = await flow.async_step_device_summary({"action": "create", "confirm": True})
+    result = await flow.async_step_device_summary_create()
 
     assert result["type"] == "create_entry"
     assert result["title"] == "My Lamp"
@@ -1149,7 +1149,7 @@ async def test_model_features_from_entity_routes_to_entity_completion():
     assert result["step_id"] == "vdsd_name"
 
     result2 = await flow.async_step_vdsd_name({"name": "switch"})
-    assert result2["type"] == FlowResultType.FORM
+    assert result2["type"] == FlowResultType.MENU
     assert result2["step_id"] == "entity_completion"
 
 
@@ -1167,7 +1167,7 @@ async def test_entity_completion_create_makes_entry():
                     "firmwareUpdate_action": None, "optional": {}, "buttons": [],
                     "binary_inputs": [], "sensors": [], "output": None}]
 
-    result = await flow.async_step_entity_completion({"action": "create"})
+    result = await flow.async_step_entity_completion_create()
     assert result["type"] == "create_entry"
     assert result["title"] == "Kitchen Switch"
     assert len(result["data"]["vdsds"]) == 1
@@ -1182,7 +1182,7 @@ async def test_entity_completion_add_vdsd_returns_to_entity_picker():
     flow._display_id = "switch"
     flow._vdsds = [{"name": "Kitchen Switch — switch"}]
 
-    result = await flow.async_step_entity_completion({"action": "add_vdsd"})
+    result = await flow.async_step_entity_completion_add()
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "entity_picker"
     # Device info preserved
