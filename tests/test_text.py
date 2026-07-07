@@ -33,6 +33,7 @@ def test_text_entity_initial_value():
 @pytest.mark.asyncio
 async def test_set_value_updates_vdsd_name():
     from custom_components.dsvdc4ha.text import TextSettingEntity
+    from unittest.mock import patch
     ent = TextSettingEntity(
         "sub1", 0, {"name": "MyDevice"},
         "vdsd_name", "vdSD Name",
@@ -51,7 +52,10 @@ async def test_set_value_updates_vdsd_name():
     ent.hass = MagicMock()
     ent.hass.data = {"dsvdc4ha": {"hub": mock_coordinator}}
 
-    await ent.async_set_value("New Name")
+    mock_dev_reg = MagicMock()
+    mock_dev_reg.async_get_device = MagicMock(return_value=None)
+    with patch("custom_components.dsvdc4ha.text.dr.async_get", return_value=mock_dev_reg):
+        await ent.async_set_value("New Name")
     assert mock_vdsd.name == "New Name"
     mock_vdsd.push_property.assert_awaited_once_with({"name": "New Name"})
     assert ent._attr_native_value == "New Name"
@@ -68,3 +72,59 @@ async def test_set_value_no_coordinator():
     await ent.async_set_value("New Name")
     assert ent._attr_native_value == "Old Name"
     ent.async_write_ha_state.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_set_value_updates_ha_device_registry():
+    """When async_set_value is called, it updates the HA device registry name."""
+    from custom_components.dsvdc4ha.text import TextSettingEntity
+    from unittest.mock import patch, MagicMock, AsyncMock
+    from homeassistant.helpers import device_registry as dr
+
+    ent = TextSettingEntity(
+        "sub1", 0, {"name": "Old Name"},
+        "vdsd_name", "Name", "Old Name",
+    )
+    ent.async_write_ha_state = MagicMock()
+
+    mock_vdsd = MagicMock()
+    mock_vdsd.push_property = AsyncMock()
+    mock_device_obj = MagicMock()
+    mock_device_obj.get_vdsd = MagicMock(return_value=mock_vdsd)
+    mock_api = MagicMock()
+    mock_api.get_device = MagicMock(return_value=mock_device_obj)
+    mock_coordinator = MagicMock()
+    mock_coordinator.api = mock_api
+
+    mock_ha_device = MagicMock()
+    mock_ha_device.id = "ha-dev-id-1"
+    mock_dev_reg = MagicMock()
+    mock_dev_reg.async_get_device = MagicMock(return_value=mock_ha_device)
+    mock_dev_reg.async_update_device = MagicMock()
+
+    # Build a mock config_entries with one entry containing our subentry
+    mock_subentry = MagicMock()
+    mock_subentry.subentry_id = "sub1"
+    mock_subentry.data = {"entry_name": "Physical Device", "vdsds": [{"name": "Old Name", "displayId": "Old Name"}]}
+    mock_entry = MagicMock()
+    mock_entry.subentries = {"sub1": mock_subentry}
+    mock_config_entries = MagicMock()
+    mock_config_entries.async_entries = MagicMock(return_value=[mock_entry])
+    mock_config_entries.async_update_subentry = MagicMock()
+
+    ent.hass = MagicMock()
+    ent.hass.data = {"dsvdc4ha": {"hub": mock_coordinator}}
+    ent.hass.config_entries = mock_config_entries
+
+    with patch("custom_components.dsvdc4ha.text.dr.async_get", return_value=mock_dev_reg):
+        await ent.async_set_value("New Name")
+
+    # Device registry must be updated
+    mock_dev_reg.async_update_device.assert_called_once_with("ha-dev-id-1", name="New Name")
+    # Subentry must be persisted
+    mock_config_entries.async_update_subentry.assert_called_once()
+    # vdSD name and displayId both updated in persisted data
+    call_args = mock_config_entries.async_update_subentry.call_args
+    new_data = call_args[1]["data"] if "data" in call_args[1] else call_args[0][2]
+    assert new_data["vdsds"][0]["name"] == "New Name"
+    assert new_data["vdsds"][0]["displayId"] == "New Name"

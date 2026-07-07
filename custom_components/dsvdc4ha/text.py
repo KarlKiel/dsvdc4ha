@@ -6,6 +6,7 @@ import logging
 from homeassistant.components.text import TextEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -102,5 +103,30 @@ class TextSettingEntity(DsvdcBaseEntity, TextEntity):
         except Exception:
             _LOGGER.exception("Failed to set vdSD name on %s", self._subentry_id)
             return
+
+        # Update HA device registry so the device card title changes immediately.
+        identifier = (DOMAIN, f"{self._subentry_id}_{self._vdsd_index}")
+        dev_reg = dr.async_get(self.hass)
+        ha_device = dev_reg.async_get_device(identifiers={identifier})
+        if ha_device:
+            dev_reg.async_update_device(ha_device.id, name=value)
+
+        # Persist the new name into subentry data so it survives restart.
+        for entry in self.hass.config_entries.async_entries(DOMAIN):
+            if self._subentry_id in entry.subentries:
+                subentry = entry.subentries[self._subentry_id]
+                vdsds = list(subentry.data.get("vdsds", []))
+                if self._vdsd_index < len(vdsds):
+                    vdsds[self._vdsd_index] = {
+                        **vdsds[self._vdsd_index],
+                        "name": value,
+                        "displayId": value,
+                    }
+                    self.hass.config_entries.async_update_subentry(
+                        entry, subentry,
+                        data={**subentry.data, "vdsds": vdsds},
+                    )
+                break
+
         self._attr_native_value = value
         self.async_write_ha_state()
