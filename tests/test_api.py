@@ -955,3 +955,130 @@ async def test_has_unavailable_entities_false_after_recovery():
     await api.report_entity_available("sub1", 0, "sensor.x", False)
     await api.report_entity_available("sub1", 0, "sensor.x", True)
     assert api.has_unavailable_entities("sub1", 0) is False
+
+
+def test_build_vdsd_never_removes_auto_derived_model_features():
+    """_build_vdsd must not remove auto-derived features even if stored model_features
+    is an incomplete list from an older code version.
+
+    Regression: the old reconciliation loop `for f in auto_set - user_set:
+    vdsd.remove_model_feature(f)` removed pushbsensor/highlevel when stored data
+    was created before those features were auto-derived properly.
+    """
+    from unittest.mock import MagicMock, patch
+    from custom_components.dsvdc4ha.api import DsvdcApi
+    from pydsvdcapi.vdsd import Device
+
+    api = DsvdcApi.__new__(DsvdcApi)
+    api._icon_bytes = b"icon"
+    api._config_url = "http://test"
+
+    device = MagicMock(spec=Device)
+    # Stored model_features: old code only saved base features, missing pushbsensor/highlevel
+    stored_model_features = ["pushbutton", "pushbadvanced", "pushbdisabled"]
+
+    vdsd_data = {
+        "displayId": "btn1", "primaryGroup": 8, "model": "button",
+        "vendorName": "Test", "modelVersion": "1.0", "modelUID": "testbtn",
+        "name": "Button 1", "buttons": [], "binary_inputs": [], "sensors": [],
+        "output": None, "model_features": stored_model_features,
+    }
+
+    with patch("custom_components.dsvdc4ha.api.Vdsd") as MockVdsd:
+        mock_vdsd = MagicMock()
+        MockVdsd.return_value = mock_vdsd
+        # Simulate derive_model_features() having correctly set all button features
+        mock_vdsd.model_features = [
+            "pushbutton", "pushbadvanced", "pushbdisabled", "pushbsensor", "highlevel"
+        ]
+
+        api._build_vdsd(device, 0, vdsd_data)
+
+        # remove_model_feature must never be called — auto-derived features must not be stripped
+        mock_vdsd.remove_model_feature.assert_not_called()
+        # add_model_feature should also not be called — stored features are a subset of auto set
+        mock_vdsd.add_model_feature.assert_not_called()
+
+
+def test_build_vdsd_adds_user_optional_model_features():
+    """_build_vdsd adds user-selected optional model features not in the auto set."""
+    from unittest.mock import MagicMock, patch
+    from custom_components.dsvdc4ha.api import DsvdcApi
+    from pydsvdcapi.vdsd import Device
+
+    api = DsvdcApi.__new__(DsvdcApi)
+    api._icon_bytes = b"icon"
+    api._config_url = "http://test"
+
+    device = MagicMock(spec=Device)
+    # User added "shadeprops" on top of auto-derived features
+    stored_model_features = [
+        "pushbutton", "pushbadvanced", "pushbdisabled", "pushbarea", "shadeprops"
+    ]
+
+    vdsd_data = {
+        "displayId": "btn2", "primaryGroup": 8, "model": "button",
+        "vendorName": "Test", "modelVersion": "1.0", "modelUID": "testbtn2",
+        "name": "Button 2", "buttons": [], "binary_inputs": [], "sensors": [],
+        "output": None, "model_features": stored_model_features,
+    }
+
+    with patch("custom_components.dsvdc4ha.api.Vdsd") as MockVdsd:
+        mock_vdsd = MagicMock()
+        MockVdsd.return_value = mock_vdsd
+        # Auto-derived set does NOT include "shadeprops"
+        mock_vdsd.model_features = [
+            "pushbutton", "pushbadvanced", "pushbdisabled", "pushbarea"
+        ]
+
+        api._build_vdsd(device, 0, vdsd_data)
+
+        # Only the optional feature not in auto set should be added
+        mock_vdsd.add_model_feature.assert_called_once_with("shadeprops")
+        mock_vdsd.remove_model_feature.assert_not_called()
+
+
+def test_build_vdsd_forces_all_button_features_when_buttons_present():
+    """When a vdSD has buttons, _build_vdsd unconditionally adds all five button
+    panel model features regardless of what derive_model_features() returned.
+
+    This ensures dSS always shows the full button configuration UI (area, device,
+    sensor and highlevel panels) for every button device, no matter which group
+    was selected during creation.
+    """
+    from unittest.mock import MagicMock, call, patch
+    from custom_components.dsvdc4ha.api import DsvdcApi
+    from pydsvdcapi.vdsd import Device
+
+    api = DsvdcApi.__new__(DsvdcApi)
+    api._icon_bytes = b"icon"
+    api._config_url = "http://test"
+
+    device = MagicMock(spec=Device)
+    # Device has one button — the 5-feature block must fire
+    btn_data = {"group": 8, "function": 5, "input_id": "btn_0", "name": "Button 0",
+                "detect_clicks": False, "action_count": 0}
+    vdsd_data = {
+        "displayId": "btn3", "primaryGroup": 8, "model": "button",
+        "vendorName": "Test", "modelVersion": "1.0", "modelUID": "testbtn3",
+        "name": "Button 3",
+        "buttons": [btn_data],
+        "binary_inputs": [], "sensors": [], "output": None,
+    }
+
+    with patch("custom_components.dsvdc4ha.api.Vdsd") as MockVdsd, \
+         patch("custom_components.dsvdc4ha.api._add_button"):
+        mock_vdsd = MagicMock()
+        MockVdsd.return_value = mock_vdsd
+        # derive_model_features() produced only the group-8 subset
+        mock_vdsd.model_features = ["pushbutton", "pushbadvanced", "pushbdisabled",
+                                     "pushbsensor", "highlevel"]
+
+        api._build_vdsd(device, 0, vdsd_data)
+
+    expected_calls = [
+        call("pushbutton"), call("pushbarea"), call("pushbdevice"),
+        call("pushbsensor"), call("highlevel"),
+    ]
+    mock_vdsd.add_model_feature.assert_has_calls(expected_calls, any_order=False)
+    mock_vdsd.remove_model_feature.assert_not_called()

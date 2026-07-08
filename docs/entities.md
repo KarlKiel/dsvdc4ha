@@ -80,6 +80,21 @@ The conversion table covers 35 sensor types and over 100 source unit strings. Va
 
 ---
 
+## Writable Setting Entities
+
+Each vdSD device page in HA exposes hidden (visible_default=False) CONFIG-category entities for the writable dS properties:
+
+| Entity type | Examples |
+|---|---|
+| **Text** | vdSD name |
+| **Number** | Zone ID |
+| **Switch** | Programming mode, push-changes flag, sets-local-priority |
+| **Select** | Button mode, group, active group |
+
+These entities apply changes in HA memory and automatically trigger a full re-announcement of the affected vdSD to dSS. This forces dSS to re-read the device description and apply the new values immediately — no manual action is required.
+
+---
+
 ## Channel Type Labels
 
 Each output channel type has a human-readable label used in the config flow UI:

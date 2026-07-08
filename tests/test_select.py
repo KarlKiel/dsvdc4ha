@@ -69,6 +69,7 @@ async def test_select_option_binary_input():
     mock_device.get_vdsd = MagicMock(return_value=mock_vdsd)
     mock_api = MagicMock()
     mock_api.get_device = MagicMock(return_value=mock_device)
+    mock_api.force_reannounce_device = AsyncMock()
     mock_coordinator = MagicMock()
     mock_coordinator.api = mock_api
     ent.hass = MagicMock()
@@ -77,6 +78,7 @@ async def test_select_option_binary_input():
     await ent.async_select_option("Joker")
     mock_bi.apply_settings.assert_called_once_with({"group": 8})
     mock_bi.push_settings.assert_called_once()
+    mock_api.force_reannounce_device.assert_awaited_once_with("sub1")
     assert ent._attr_current_option == "Joker"
     ent.async_write_ha_state.assert_called_once()
 
@@ -101,6 +103,7 @@ async def test_select_option_output_mode():
     mock_device.get_vdsd = MagicMock(return_value=mock_vdsd)
     mock_api = MagicMock()
     mock_api.get_device = MagicMock(return_value=mock_device)
+    mock_api.force_reannounce_device = AsyncMock()
     mock_coordinator = MagicMock()
     mock_coordinator.api = mock_api
     ent.hass = MagicMock()
@@ -109,6 +112,7 @@ async def test_select_option_output_mode():
     await ent.async_select_option("Binary")
     mock_out.apply_settings.assert_called_once_with({"mode": 1})
     mock_out.push_settings.assert_called_once()
+    mock_api.force_reannounce_device.assert_awaited_once_with("sub1")
 
 
 @pytest.mark.asyncio

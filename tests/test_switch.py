@@ -60,6 +60,7 @@ async def test_turn_on_button_input():
     mock_device.get_vdsd = MagicMock(return_value=mock_vdsd)
     mock_api = MagicMock()
     mock_api.get_device = MagicMock(return_value=mock_device)
+    mock_api.force_reannounce_device = AsyncMock()
     mock_coordinator = MagicMock()
     mock_coordinator.api = mock_api
     ent.hass = MagicMock()
@@ -68,6 +69,7 @@ async def test_turn_on_button_input():
     await ent.async_turn_on()
     mock_btn.apply_settings.assert_called_once_with({"setsLocalPriority": True})
     mock_btn.push_settings.assert_called_once()
+    mock_api.force_reannounce_device.assert_awaited_once_with("sub1")
     assert ent._attr_is_on is True
     ent.async_write_ha_state.assert_called_once()
 
@@ -91,6 +93,7 @@ async def test_turn_off_output():
     mock_device.get_vdsd = MagicMock(return_value=mock_vdsd)
     mock_api = MagicMock()
     mock_api.get_device = MagicMock(return_value=mock_device)
+    mock_api.force_reannounce_device = AsyncMock()
     mock_coordinator = MagicMock()
     mock_coordinator.api = mock_api
     ent.hass = MagicMock()
@@ -99,6 +102,7 @@ async def test_turn_off_output():
     await ent.async_turn_off()
     mock_out.apply_settings.assert_called_once_with({"pushChanges": False})
     mock_out.push_settings.assert_called_once()
+    mock_api.force_reannounce_device.assert_awaited_once_with("sub1")
     assert ent._attr_is_on is False
 
 
@@ -117,7 +121,7 @@ async def test_turn_on_vdsd_prog_mode():
     mock_device.get_vdsd = MagicMock(return_value=mock_vdsd)
     mock_api = MagicMock()
     mock_api.get_device = MagicMock(return_value=mock_device)
-    mock_api.push_vdsd_changes = AsyncMock()
+    mock_api.force_reannounce_device = AsyncMock()
     mock_coordinator = MagicMock()
     mock_coordinator.api = mock_api
     ent.hass = MagicMock()
@@ -125,7 +129,7 @@ async def test_turn_on_vdsd_prog_mode():
 
     await ent.async_turn_on()
     assert mock_vdsd.prog_mode is True
-    mock_api.push_vdsd_changes.assert_awaited_once_with("sub1")
+    mock_api.force_reannounce_device.assert_awaited_once_with("sub1")
     assert ent._attr_is_on is True
 
 

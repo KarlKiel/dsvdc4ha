@@ -43,7 +43,7 @@ Two `RuntimeWarning: coroutine … was never awaited` warnings are expected from
 
 | Test file | What it covers |
 |---|---|
-| `test_api.py` | DsvdcApi device add/announce/vanish lifecycle; re-announce button; guard-clause returns |
+| `test_api.py` | DsvdcApi device add/announce/vanish lifecycle; re-announce button; guard-clause returns; `has_unavailable_entities` |
 | `test_binding_compiler.py` | push_expr and apply_expr compilation from structured bindings |
 | `test_binding_transforms.py` | Each named transform's push evaluation |
 | `test_button_translator.py` | ButtonEventTranslator timing state machine (all three source modes) |
@@ -53,6 +53,7 @@ Two `RuntimeWarning: coroutine … was never awaited` warnings are expected from
 | `test_entity_mapping_bindings.py` | push_expr/apply_expr in mapping compile correctly |
 | `test_icon_utils.py` | MDI icon resolution and fallback |
 | `test_init.py` | _build_entity_index and entity-registry listener |
+| `test_init_naming.py` | DSS→HA name propagation in _create_property_entities; vdSD active auto-restore |
 | `test_light_mapping.py` | Light channel derivation from color modes |
 | `test_listeners.py` | push_expr eval, apply_expr eval, seed_initial_values, sensor unit conversion, _light_apply |
 | `test_properties.py` | PropertySensorEntity uid suffixes and entity categories |

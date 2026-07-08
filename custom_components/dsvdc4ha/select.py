@@ -154,6 +154,7 @@ class SelectableSettingEntity(DsvdcBaseEntity, SelectEntity):
                 if vdsd.output:
                     vdsd.output.apply_settings({self._setting_key: raw})
                     await vdsd.output.push_settings()
+            await coordinator.api.force_reannounce_device(self._subentry_id)
         except Exception:
             _LOGGER.exception(
                 "Failed to write setting %s on %s[%s]",

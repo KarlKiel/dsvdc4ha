@@ -121,6 +121,7 @@ def _make_mock_env(input_type, input_idx, setting_key, value):
 
     mock_api = MagicMock()
     mock_api.get_device = MagicMock(return_value=mock_device)
+    mock_api.force_reannounce_device = AsyncMock()
 
     mock_coordinator = MagicMock()
     mock_coordinator.api = mock_api
@@ -163,6 +164,7 @@ async def test_set_native_value_sensor_input():
     mock_device.get_vdsd = MagicMock(return_value=mock_vdsd)
     mock_api = MagicMock()
     mock_api.get_device = MagicMock(return_value=mock_device)
+    mock_api.force_reannounce_device = AsyncMock()
     mock_coordinator = MagicMock()
     mock_coordinator.api = mock_api
     ent.hass = MagicMock()
@@ -201,6 +203,7 @@ async def test_set_native_value_output():
     mock_device.get_vdsd = MagicMock(return_value=mock_vdsd)
     mock_api = MagicMock()
     mock_api.get_device = MagicMock(return_value=mock_device)
+    mock_api.force_reannounce_device = AsyncMock()
     mock_coordinator = MagicMock()
     mock_coordinator.api = mock_api
     ent.hass = MagicMock()

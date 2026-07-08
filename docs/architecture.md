@@ -152,6 +152,18 @@ Connection state is published to subscribers via `HubCoordinator.subscribe_conne
 
 ---
 
+## vdSD Lifecycle Management
+
+A vdSD's `active` property tells dSS whether the virtual device is operational.
+
+**Automatic deactivation** — `DsvdcApi.report_entity_available()` tracks which HA callback entities are unavailable. When any entity becomes unavailable the vdSD transitions to `INACTIVE`; it returns to `ACTIVE` only when all entities are available again.
+
+**Auto-restore on dSS-initiated deactivation** — dSS occasionally sets `active=False` on its own (e.g., after a reconfiguration round). When this happens pydsvdcapi fires `Vdsd.on_settings_changed` with `{"active": False}`. The integration intercepts this and immediately pushes `active=True` back to dSS — *unless* the vdSD is legitimately inactive because HA entities are unavailable (`DsvdcApi.has_unavailable_entities()` returns `True`). The restore is logged at `INFO` level.
+
+**Manual control** — `VdcActiveSwitchEntity` and `VdsdActiveSwitchEntity` allow the user to manually set lifecycle state. These go through `DsvdcApi.set_vdsd_lifecycle()` which pushes a notification outbound to dSS — this path does **not** trigger `on_settings_changed`, so the auto-restore logic is never activated by a user-initiated change.
+
+---
+
 ## Entity Visibility
 
 Mirror entities (`ButtonSensorEntity`, `SensorInputEntity`, `OutputChannelEntity`, `BinaryInputEntity`, `PropertySensorEntity`) are **active but hidden** by default (`_attr_entity_registry_visible_default = False`). They collect data and are included in statistics but do not appear on the default HA dashboard. Users can enable visibility per entity from the entity registry UI.
@@ -170,7 +182,7 @@ On setup, `__init__.py` creates one `PropertySensorEntity` per scalar vdSD prope
 - **Per ButtonInput**: description, settings, state
 - **Output** (when present): description, settings, state
 
-Settings write-back is pending a pydsvdcapi API addition — a method that applies an in-memory change and sends the corresponding `vdc_sendPushNotification` to dSS.
+Writable setting entities (number, select, switch, text — e.g. zoneID, progMode, button mode, sensor interval) apply changes in HA memory and automatically trigger `force_reannounce_device()` on the affected vdSD. This performs a full vanish + re-announce cycle, which forces dSS to re-read the complete device description and apply the new property values immediately. No manual "Re-announce" action is required after changing a writable property.
 
 ---
 

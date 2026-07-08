@@ -214,6 +214,9 @@ def derive_model_features_for_config(vdsd_data: dict[str, Any]) -> set[str]:
     if vdsd_data.get("identify_action"):
         vdsd.on_identify = lambda _: None
     vdsd.derive_model_features()
+    if vdsd_data.get("buttons"):
+        for _f in ("pushbutton", "pushbarea", "pushbdevice", "pushbsensor", "highlevel"):
+            vdsd.add_model_feature(_f)
     return set(vdsd.model_features)
 
 
@@ -633,11 +636,14 @@ class DsvdcApi:
         if output_data := data.get("output"):
             _add_output(vdsd, output_data)
         vdsd.derive_model_features()
+        if data.get("buttons"):
+            for _f in ("pushbutton", "pushbarea", "pushbdevice", "pushbsensor", "highlevel"):
+                vdsd.add_model_feature(_f)
         if user_features := data.get("model_features"):
             user_set = set(user_features)
             auto_set = set(vdsd.model_features)
-            for f in auto_set - user_set:
-                vdsd.remove_model_feature(f)
+            # Never remove auto-derived features — stored data may be from an older
+            # code version that derived fewer features. Only add user-selected optionals.
             for f in user_set - auto_set:
                 try:
                     vdsd.add_model_feature(f)
