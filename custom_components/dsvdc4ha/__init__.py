@@ -316,9 +316,28 @@ def _create_property_entities(
                 val = changed["progMode"]
                 prog_ent._attr_is_on = bool(val) if val is not None else False
                 prog_ent.async_write_ha_state()
-            if "active" in changed and active_ent is not None:
-                active_ent._attr_is_on = bool(changed["active"])
-                active_ent.async_write_ha_state()
+            if "active" in changed:
+                new_active = bool(changed["active"])
+                if active_ent is not None:
+                    active_ent._attr_is_on = new_active
+                    active_ent.async_write_ha_state()
+                if not new_active and _hass is not None:
+                    # dSS set this vdSD inactive; restore ACTIVE unless HA entities are unavailable.
+                    _coordinator = _hass.data.get(DOMAIN, {}).get("hub")
+                    if (
+                        _coordinator is not None
+                        and _coordinator.api is not None
+                        and not _coordinator.api.has_unavailable_entities(_sid, _vdsd_idx)
+                    ):
+                        _LOGGER.info(
+                            "dSS set vdSD %s[%d] inactive — auto-restoring to ACTIVE",
+                            _sid, _vdsd_idx,
+                        )
+                        from pydsvdcapi.enums import DeviceLifecycleState
+                        await changed_vdsd.set_lifecycle_state(DeviceLifecycleState.ACTIVE)
+                        if active_ent is not None:
+                            active_ent._attr_is_on = True
+                            active_ent.async_write_ha_state()
         return cb
 
     for vdsd_idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):

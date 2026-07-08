@@ -913,3 +913,45 @@ async def test_force_reannounce_already_announced_calls_update():
     await api.force_reannounce_device("subentry-1")
     mock_device.update.assert_called_once()
     assert "subentry-1" in api._ever_announced
+
+
+def test_has_unavailable_entities_false_when_empty():
+    """has_unavailable_entities returns False when no entities are tracked unavailable."""
+    api = DsvdcApi(port=9090, version="1.0", config_url="http://ha", state_path="/tmp/s")
+    assert api.has_unavailable_entities("sub1", 0) is False
+
+
+def test_has_unavailable_entities_false_when_key_missing():
+    """has_unavailable_entities returns False for unknown (entry_id, vdsd_idx) pairs."""
+    api = DsvdcApi(port=9090, version="1.0", config_url="http://ha", state_path="/tmp/s")
+    api._unavailable_entities[("sub1", 0)] = set()
+    assert api.has_unavailable_entities("sub1", 1) is False
+
+
+@pytest.mark.asyncio
+async def test_has_unavailable_entities_true_after_entity_unavailable():
+    """has_unavailable_entities returns True when an entity is reported unavailable."""
+    api = DsvdcApi(port=9090, version="1.0", config_url="http://ha", state_path="/tmp/s")
+    mock_vdsd = MagicMock()
+    mock_vdsd.set_lifecycle_state = AsyncMock()
+    mock_device = MagicMock()
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api._devices["sub1"] = mock_device
+
+    await api.report_entity_available("sub1", 0, "sensor.x", False)
+    assert api.has_unavailable_entities("sub1", 0) is True
+
+
+@pytest.mark.asyncio
+async def test_has_unavailable_entities_false_after_recovery():
+    """has_unavailable_entities returns False once all entities are available again."""
+    api = DsvdcApi(port=9090, version="1.0", config_url="http://ha", state_path="/tmp/s")
+    mock_vdsd = MagicMock()
+    mock_vdsd.set_lifecycle_state = AsyncMock()
+    mock_device = MagicMock()
+    mock_device.get_vdsd.return_value = mock_vdsd
+    api._devices["sub1"] = mock_device
+
+    await api.report_entity_available("sub1", 0, "sensor.x", False)
+    await api.report_entity_available("sub1", 0, "sensor.x", True)
+    assert api.has_unavailable_entities("sub1", 0) is False

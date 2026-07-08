@@ -742,6 +742,10 @@ class DsvdcApi:
         new_state = DeviceLifecycleState.INACTIVE if is_inactive else DeviceLifecycleState.ACTIVE
         await self.set_vdsd_lifecycle(entry_id, vdsd_idx, new_state)
 
+    def has_unavailable_entities(self, entry_id: str, vdsd_idx: int) -> bool:
+        """Return True if any tracked HA entity for this vdSD is currently unavailable."""
+        return bool(self._unavailable_entities.get((entry_id, vdsd_idx)))
+
     async def report_button_click(self, button: ButtonInput, click_type: int) -> None:
         if self._host is None:
             return

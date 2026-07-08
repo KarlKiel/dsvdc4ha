@@ -138,3 +138,112 @@ async def test_dss_name_change_no_hass_does_not_crash():
         cb = mock_vdsd.on_settings_changed
         # Must not raise even without hass
         await cb(mock_vdsd, {"name": "Updated Name"})
+
+
+@pytest.mark.asyncio
+async def test_dss_sets_active_false_auto_restores_when_no_unavailable_entities():
+    """When dSS sets active=False and no HA entities are unavailable, callback restores ACTIVE."""
+    from custom_components.dsvdc4ha.__init__ import _create_property_entities
+    from custom_components.dsvdc4ha.switch import VdsdActiveSwitchEntity
+    from pydsvdcapi.enums import DeviceLifecycleState
+
+    mock_hass, mock_api, mock_subentry, mock_entry, mock_vdsd, mock_dev_reg, mock_ha_device = (
+        _make_mock_env("Device")
+    )
+    mock_vdsd.set_lifecycle_state = AsyncMock()
+
+    # Coordinator with API that reports no unavailable entities
+    mock_inner_api = MagicMock()
+    mock_inner_api.has_unavailable_entities = MagicMock(return_value=False)
+    mock_coordinator = MagicMock()
+    mock_coordinator.api = mock_inner_api
+    mock_hass.data = {"dsvdc4ha": {"hub": mock_coordinator}}
+
+    add_switch = MagicMock()
+    with patch.object(VdsdActiveSwitchEntity, "async_write_ha_state", MagicMock()), \
+         patch("custom_components.dsvdc4ha.__init__.dr.async_get", return_value=mock_dev_reg):
+        _create_property_entities(
+            mock_api, mock_subentry,
+            add_sensor=None, add_number=None, add_select=None,
+            add_switch=add_switch, add_text=None,
+            hass=mock_hass,
+        )
+
+        cb = mock_vdsd.on_settings_changed
+        assert cb is not None
+        await cb(mock_vdsd, {"active": False})
+
+    # Must restore to ACTIVE because no entities are unavailable
+    mock_vdsd.set_lifecycle_state.assert_awaited_once_with(DeviceLifecycleState.ACTIVE)
+    mock_inner_api.has_unavailable_entities.assert_called_once_with("sub1", 0)
+
+
+@pytest.mark.asyncio
+async def test_dss_sets_active_false_no_restore_when_entities_unavailable():
+    """When dSS sets active=False and HA entities are unavailable, callback does NOT restore."""
+    from custom_components.dsvdc4ha.__init__ import _create_property_entities
+    from custom_components.dsvdc4ha.switch import VdsdActiveSwitchEntity
+    from pydsvdcapi.enums import DeviceLifecycleState
+
+    mock_hass, mock_api, mock_subentry, mock_entry, mock_vdsd, mock_dev_reg, mock_ha_device = (
+        _make_mock_env("Device")
+    )
+    mock_vdsd.set_lifecycle_state = AsyncMock()
+
+    # Coordinator with API that reports unavailable entities
+    mock_inner_api = MagicMock()
+    mock_inner_api.has_unavailable_entities = MagicMock(return_value=True)
+    mock_coordinator = MagicMock()
+    mock_coordinator.api = mock_inner_api
+    mock_hass.data = {"dsvdc4ha": {"hub": mock_coordinator}}
+
+    add_switch = MagicMock()
+    with patch.object(VdsdActiveSwitchEntity, "async_write_ha_state", MagicMock()), \
+         patch("custom_components.dsvdc4ha.__init__.dr.async_get", return_value=mock_dev_reg):
+        _create_property_entities(
+            mock_api, mock_subentry,
+            add_sensor=None, add_number=None, add_select=None,
+            add_switch=add_switch, add_text=None,
+            hass=mock_hass,
+        )
+
+        cb = mock_vdsd.on_settings_changed
+        assert cb is not None
+        await cb(mock_vdsd, {"active": False})
+
+    # Must NOT restore because entities are unavailable (vdSD is legitimately inactive)
+    mock_vdsd.set_lifecycle_state.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_dss_sets_active_true_does_not_call_set_lifecycle_state():
+    """When dSS sets active=True, no lifecycle restore call is made."""
+    from custom_components.dsvdc4ha.__init__ import _create_property_entities
+    from custom_components.dsvdc4ha.switch import VdsdActiveSwitchEntity
+
+    mock_hass, mock_api, mock_subentry, mock_entry, mock_vdsd, mock_dev_reg, mock_ha_device = (
+        _make_mock_env("Device")
+    )
+    mock_vdsd.set_lifecycle_state = AsyncMock()
+
+    mock_inner_api = MagicMock()
+    mock_inner_api.has_unavailable_entities = MagicMock(return_value=False)
+    mock_coordinator = MagicMock()
+    mock_coordinator.api = mock_inner_api
+    mock_hass.data = {"dsvdc4ha": {"hub": mock_coordinator}}
+
+    add_switch = MagicMock()
+    with patch.object(VdsdActiveSwitchEntity, "async_write_ha_state", MagicMock()), \
+         patch("custom_components.dsvdc4ha.__init__.dr.async_get", return_value=mock_dev_reg):
+        _create_property_entities(
+            mock_api, mock_subentry,
+            add_sensor=None, add_number=None, add_select=None,
+            add_switch=add_switch, add_text=None,
+            hass=mock_hass,
+        )
+
+        cb = mock_vdsd.on_settings_changed
+        assert cb is not None
+        await cb(mock_vdsd, {"active": True})
+
+    mock_vdsd.set_lifecycle_state.assert_not_awaited()
