@@ -3,32 +3,32 @@
     "step": {
       "hub": {
         "title": "Set up dSVDC Hub",
-        "description": "Enter the port for the virtualDC connection.",
+        "description": "Enter the port the virtualDC host will listen on. Your digitalSTROM server (dSS) must be able to reach this port on the Home Assistant host.",
         "data": {
-          "port": "Port the adapter should use for the connection to the DSS"
+          "port": "vDC host port"
         }
       },
       "wait_for_dss": {
-        "title": "Waiting for DSS Connection",
-        "description": "The vDC host is now announced on the network. Waiting for a digitalStrom server to connect (timeout: 2 minutes)…"
+        "title": "Waiting for dSS Connection",
+        "description": "The virtualDC host is now announced on the network. Waiting for a digitalSTROM server to connect (timeout: 2 minutes)…"
       },
       "state_files": {
         "title": "Existing State Files Found",
-        "description": "The following state files from a previous installation were found:\n{files}\n\nThese files contain saved device configuration (output values, scenes, etc.). You can restore them or start fresh.",
+        "description": "The following state files from a previous installation were found:\n{files}\n\nThese files store the last known state of your virtual devices (output values, scenes, etc.) so the digitalSTROM server can pick up where it left off. You can restore them or start fresh.",
         "data": {
-          "action": "What would you like to do with the existing state files?"
+          "action": "What would you like to do?"
         }
       }
     },
     "error": {
       "port_in_use": "Port is already in use.",
-      "cannot_connect": "Cannot connect to digitalStrom server.",
+      "cannot_connect": "Cannot connect to digitalSTROM server.",
       "unknown": "Unexpected error."
     },
     "abort": {
       "already_configured": "Integration is already configured.",
-      "no_dss_found": "No digitalStrom server connected within 2 minutes. The vDC host has been stopped and the port released. Check that the DSS is on the same network and try again.",
-      "cannot_connect": "Could not start the vDC host on the selected port. The port may have become unavailable."
+      "no_dss_found": "No digitalSTROM server connected within 2 minutes. The virtualDC host has been stopped and the port released. Check that the dSS is on the same network and try again.",
+      "cannot_connect": "Could not start the virtualDC host on the selected port. The port may have become unavailable."
     }
   },
   "config_subentries": {
@@ -45,19 +45,22 @@
             "entry_name": "Device name"
           },
           "data_description": {
-            "entry_name": "Human-readable label for this physical device as it will appear in the Home Assistant configuration. Example: 'Smart Livingroom Light'."
+            "entry_name": "Label for this physical device as it will appear in Home Assistant. Example: 'Smart Livingroom Light'."
           }
         },
         "creation_mode": {
-          "title": "Create vdSD",
-          "description": "How would you like to create the virtual device (vdSD)?",
+          "title": "How to Create the Virtual Device",
+          "description": "A virtual digitalSTROM device (vdSD) bridges your Home Assistant device to the digitalSTROM ecosystem. Choose how you want to define it.",
           "data": {
             "mode": "Creation method"
+          },
+          "data_description": {
+            "mode": "'From HA entities' maps one HA entity at a time — best for precise control. 'From HA device' imports all supported entities of an existing HA device at once. 'From scratch' lets you define every component manually — for advanced users."
           }
         },
         "device_picker": {
           "title": "Select HA Device",
-          "description": "Select the Home Assistant device to derive virtual dS devices from. All supported entities on this device will be automatically mapped to vdSDs.",
+          "description": "Select the Home Assistant device to build the virtual dS device from. You will then add its supported entities one by one.",
           "data": {
             "device_id": "Home Assistant device"
           }
@@ -76,20 +79,12 @@
             "entity_id": "Entity"
           }
         },
-        "device_entity_select": {
-          "title": "Select Entities to Expose",
-          "description": "Choose which entities from '{device_name}' to expose as vdSDs in digitalSTROM. All supported entities are pre-selected.",
-          "data": {
-            "entity_ids": "Entities to expose"
-          }
-        },
         "device_entity_user_input": {
           "title": "Entity Options ({current} of {total})",
-          "description": "Entity: {entity_name} ({domain}). Some settings for this entity type require your input.",
+          "description": "Entity: {entity_name} ({domain}). These settings tell digitalSTROM how to interpret this entity. The defaults work for most cases.",
           "data": {
-            "sensor_function": "Binary input function",
-            "group": "Button / input group",
-            "bi_group": "dS Binary Input Group",
+            "sensor_function": "What this input detects",
+            "group": "Button group (dS color)",
             "sensor_type": "Sensor type",
             "min": "Minimum value",
             "max": "Maximum value",
@@ -107,23 +102,22 @@
           }
         },
         "device_model_features": {
-          "title": "Model Features — {vdsd_name} ({current} of {total})",
-          "description": "The following model features will be added to this vdSD. Auto-derived features are pre-selected; adjust as needed."
+          "title": "Configurator Features — {vdsd_name} ({current} of {total})",
+          "description": "These settings control which options appear in the digitalSTROM configurator for this device. Auto-derived selections are pre-filled based on your device configuration — adjust only if needed."
         },
         "entity_picker": {
           "title": "Select Entity",
-          "description": "Choose the Home Assistant entity you want to expose to digitalStrom. Only entities with a supported type are shown.",
+          "description": "Choose the Home Assistant entity you want to expose to digitalSTROM. Only entities with a supported type are shown.",
           "data": {
             "entity_id": "Entity"
           }
         },
         "entity_user_input": {
           "title": "Additional Configuration",
-          "description": "Some settings for this entity type require your input.",
+          "description": "These settings tell digitalSTROM how to interpret this entity. The defaults work for most cases — check the descriptions if unsure.",
           "data": {
-            "sensor_function": "Binary input function",
-            "group": "Button / input group",
-            "bi_group": "dS Binary Input Group",
+            "sensor_function": "What this input detects",
+            "group": "Button group (dS color)",
             "sensor_type": "Sensor type",
             "min": "Minimum value",
             "max": "Maximum value",
@@ -133,34 +127,37 @@
             "has_tilt": "Device supports tilt / blade angle control"
           }
         },
-        "name_confirm": {
-          "title": "Confirm Names",
-          "description": "Review and confirm the proposed names for the HA device and entity.",
-          "data": {
-            "device_name": "Device name (shown in HA)",
-            "entity_name": "Entity name (shown in HA)"
-          }
-        },
         "entity_channel_mapping": {
           "title": "Bind Output Channels to HA",
-          "description": "Select the entities and actions that provide and control each output channel ({channels}). The entity you selected is pre-filled as the read source."
+          "description": "For each output channel ({channels}): the 'read' entity is what digitalSTROM polls to get the current value; the 'write' action is called when digitalSTROM sends a command. The entity you selected is pre-filled as the read source."
         },
         "device_info": {
           "title": "Add Physical Device",
           "description": "To create your device, consider splitting it into several logical vdSDs:\n- Are parts physically separable? → use individual vdSDs.\n- Does the (sub-)device contain several sensors? → keep as one vdSD.\n- Does the (sub-)device contain different kinds of capabilities (Button, Binary Input, Sensors, Output)? → keep as one vdSD.\n- Do functional units belong to different dS classes (colors)? → separate vdSDs.\n- Can functional units end up in different zones? → separate vdSDs.\n- Does the device contain several different outputs (not channels!)? → one vdSD per output required.\n- Are there multiple buttons/binary inputs that shall be configurable via DSS configurator? → separate vdSDs (max. one (Multi)button and one binary input per vdSD).",
           "data": {
-            "vendorName": "Vendor name of your device (e.g. Occhio)",
-            "displayId": "Device type name (e.g. Lunanova)"
+            "vendorName": "Vendor / manufacturer name",
+            "displayId": "Device model name"
+          },
+          "data_description": {
+            "vendorName": "Manufacturer or vendor of the physical hardware device. Example: 'Occhio'.",
+            "displayId": "Model or type name as printed on the device or used for identification. Example: 'Lunanova'."
           }
         },
         "vdsd_creation": {
-          "title": "Create vdSD",
+          "title": "Create vdSD Component",
           "data": {
-            "displayId": "Name of this component / vdSD",
-            "primaryGroup": "Main group of the device",
-            "modelVersion": "Exact model name of this component (e.g. Lunanova PowerUnit)",
+            "displayId": "Component name",
+            "primaryGroup": "Device class (color group)",
+            "modelVersion": "Model variant name",
             "identify_action": "HA action to identify the device (optional)",
-            "firmwareUpdate_action": "HA action to trigger firmware update of device / component (optional)"
+            "firmwareUpdate_action": "HA action to trigger firmware update (optional)"
+          },
+          "data_description": {
+            "displayId": "Name or label for this virtual device component as it will appear in the digitalSTROM configurator. Example: 'Lunanova PowerUnit'.",
+            "primaryGroup": "Main dS color group for this component: Yellow=lights, Grey=blinds, Blue=climate.",
+            "modelVersion": "Model variant string used to distinguish different hardware configurations.",
+            "identify_action": "Home Assistant action to call when the dSS requests visual identification of this device.",
+            "firmwareUpdate_action": "Home Assistant action to call when the dSS requests a firmware update for this device."
           }
         },
         "optional_settings": {
@@ -172,21 +169,39 @@
             "oemGuid": "OEM GUID"
           }
         },
-        "vdsd_overview": { "title": "vdSD Overview" },
+        "vdsd_overview": {
+          "title": "vdSD Overview — {vdsd_name}",
+          "description": "Configure this virtual device component. Add buttons, binary inputs, sensors, and an output as needed. When done, click 'Next →' to choose configurator features.",
+          "data": {
+            "action": "Action"
+          }
+        },
         "button": {
           "title": "Configure Button",
           "data": {
-            "name": "Name of this button / element",
-            "buttonType": "Type of pushbutton",
-            "group": "Group this button belongs to",
-            "function": "Scope of the button's function",
-            "mode": "Button behavior",
+            "name": "Name of this button",
+            "buttonType": "Physical button type",
+            "group": "Button group (dS color)",
+            "function": "Button function scope",
+            "mode": "Button behavior mode",
             "channel": "Output channel controlled by this button",
             "supportsLocalKeyMode": "Button can act as a local button",
-            "setsLocalPriority": "Button implements local prioritization behavior",
-            "callsPresent": "Button press sets absence state to present",
-            "callbackType": "How should button presses be forwarded to dS?",
+            "setsLocalPriority": "Button sets local priority (ignores scene calls until cleared)",
+            "callsPresent": "Button press sets presence state to 'present'",
+            "callbackType": "How button presses are forwarded to dS",
             "callback_entity": "Entity providing button press events"
+          },
+          "data_description": {
+            "name": "Human-readable label for this button, matching the physical hardware connector or panel label.",
+            "buttonType": "Physical button type: single pushbutton, two-way rocker, 4-way navigation, etc.",
+            "group": "dS color group this button controls, e.g. Yellow=lights, Grey=blinds.",
+            "function": "Scope of the button's action: Room, Area 1–4, Apartment, etc.",
+            "mode": "Button pairing and behavior mode. Use Standard for most buttons. AKM modes are for dry-contact inputs wired to a digitalSTROM contact module.",
+            "channel": "Which output channel this button controls: 0=default channel.",
+            "supportsLocalKeyMode": "If enabled, this button can operate locally on the device without a dSS connection.",
+            "setsLocalPriority": "If enabled, pressing this button sets local priority on the output, causing it to ignore scene calls until priority is cleared.",
+            "callsPresent": "If enabled, pressing this button switches the system presence state from absent to present.",
+            "callbackType": "How button press events reach digitalSTROM: 'Click types' passes the raw click type from entity state; 'Auto-detect' recognises binary sensor, event, or button entities automatically."
           }
         },
         "binary_input": {
@@ -194,13 +209,22 @@
           "data": {
             "name": "Name of the binary input",
             "group": "dS group the binary input belongs to",
-            "sensorFunction": "Function controlled by this binary input",
-            "hardwiredFunction": "Is the function hardwired or configurable at runtime?",
+            "sensorFunction": "What this input detects",
+            "hardwiredFunction": "Is the detected function hardwired or configurable at runtime?",
             "updateInterval": "Time (in seconds) the hardware updates the value",
-            "inputType": "Is the value polled by DSS or pushed at change?",
-            "inputUsage": "Usage field of the binary input",
+            "inputType": "Is the value polled by dSS or pushed at change?",
+            "inputUsage": "Usage context of the binary input",
             "valueType": "Does the binary input deliver boolean or integer values?",
             "callback_entity": "Entity providing binary input state value"
+          },
+          "data_description": {
+            "name": "Human-readable label for this binary input, matching the physical hardware connector or panel label.",
+            "group": "dS color group this binary input belongs to.",
+            "sensorFunction": "What this binary input detects: e.g. presence, motion, smoke, window contact, window handle.",
+            "hardwiredFunction": "If non-zero, the sensor function is fixed by hardware and cannot be changed at runtime. Value 0 means freely configurable.",
+            "updateInterval": "How frequently the hardware tracks and reports the physical value, in seconds.",
+            "inputType": "How the dSS receives the value: polled on request, or hardware pushes updates when the value changes.",
+            "inputUsage": "Usage context of this input: room climate, outdoor climate, or climate setting."
           }
         },
         "sensor": {
@@ -209,7 +233,7 @@
             "name": "Name of the sensor",
             "group": "Group the sensor belongs to",
             "sensorType": "What does the sensor measure?",
-            "sensorUsage": "Usage field of the sensor",
+            "sensorUsage": "Usage context of the sensor",
             "min": "Minimum value the sensor supports",
             "max": "Maximum value the sensor supports",
             "resolution": "Sensor resolution — smallest deviation that can be displayed (LSB)",
@@ -218,85 +242,98 @@
             "minPushInterval": "Minimum time (in seconds) to wait between pushes of changed sensor values (default: 2 s)",
             "changesOnlyInterval": "Minimum time (in seconds) between pushes of unchanged values (0 = push all updates)",
             "callback_entity": "Entity providing the sensor value"
+          },
+          "data_description": {
+            "name": "Human-readable label for this sensor, matching the physical hardware connector or panel label.",
+            "group": "dS color group this sensor belongs to.",
+            "sensorType": "Physical quantity this sensor measures: temperature, humidity, illuminance, CO₂, wind speed, active power, etc.",
+            "sensorUsage": "Usage context: room, outdoor, user interaction, or device-level measurement.",
+            "min": "Minimum physical value the sensor hardware can deliver.",
+            "max": "Maximum physical value the sensor hardware can deliver.",
+            "resolution": "Smallest value change the sensor hardware can detect — the size of one LSB of the hardware sensor.",
+            "updateInterval": "Approximate time between hardware value updates in seconds.",
+            "aliveSignInterval": "Maximum time in seconds between sensor updates before the sensor is considered out-of-order.",
+            "minPushInterval": "Minimum time in seconds between consecutive push reports to dSS (throttle). Default is 2 seconds.",
+            "changesOnlyInterval": "Minimum time in seconds between pushes of the same (unchanged) value. Default 0 means every update triggers a push."
           }
         },
         "output": {
           "title": "Configure Output",
           "data": {
             "name": "Name for this output",
-            "groups": "Groups the output generally supports",
-            "defaultGroup": "Default group of the output",
-            "function": "Function defining the output behavior",
-            "outputUsage": "Usage field of the output",
-            "variableRamp": "Output supports variable / configurable ramps",
+            "groups": "Color groups the output supports",
+            "defaultGroup": "Default color group of the output",
+            "function": "Output function",
+            "outputUsage": "Usage context",
+            "variableRamp": "Output supports configurable ramp/transition speeds",
             "mode": "Operating mode of the output",
             "action": "Next step"
+          },
+          "data_description": {
+            "name": "Human-readable label for this output, matching the physical hardware connector or panel label.",
+            "groups": "Set of dS color groups this output can operate in, e.g. Yellow=lights, Grey=blinds. An output may belong to multiple groups.",
+            "defaultGroup": "Primary dS color group for this output, used when no explicit group is specified.",
+            "function": "Output capability: on/off only, dimmer, positional (blinds/valves), dimmer with color temperature, full color (RGB+CT), or bipolar (heating/cooling valve).",
+            "outputUsage": "Usage context of this output: room, outdoors, or user display.",
+            "variableRamp": "If enabled, this output supports configurable transition speeds (dim time settings become meaningful).",
+            "mode": "Operating mode: disabled, binary (on/off), or gradual (continuous range)."
           }
         },
         "output_optional": {
           "title": "Optional Output Settings",
           "data": {
-            "onThreshold": "Minimum output value that switches on the output (default: 50)",
-            "minBrightness": "Minimum output value the hardware supports (e.g. dimming value at which a bulb ignites)",
+            "onThreshold": "Minimum output level that switches the output on (default: 50%)",
+            "minBrightness": "Minimum output level the hardware supports (e.g. ignition threshold for bulbs)",
             "maxPower": "Maximum power the output can deliver (W)",
-            "activeCoolingMode": "Output provides active cooling capabilities (e.g. air-conditioning, FCU)"
+            "activeCoolingMode": "Output provides active cooling capabilities (e.g. air-conditioning, fan coil unit)"
+          },
+          "data_description": {
+            "onThreshold": "The brightness level (0–100%) at which the output switches ON. Defaults to 50%.",
+            "minBrightness": "Minimum brightness level (0–100%) the hardware supports.",
+            "maxPower": "Maximum power output in watts. Leave empty if unknown.",
+            "activeCoolingMode": "If enabled, this output can actively cool (e.g. air conditioning unit)."
           }
         },
         "channel": {
           "title": "Configure Output Channel",
           "data": {
-            "channelType": "Type of channel to add to the output",
+            "channelType": "Channel type",
             "name": "Name of this channel",
             "min": "Minimum value for the channel",
             "max": "Maximum value for the channel",
             "resolution": "Channel resolution — smallest deviation that can be displayed (LSB)",
             "action": "Next step"
+          },
+          "data_description": {
+            "channelType": "Type of this control channel as defined by digitalSTROM: brightness, hue, saturation, color temperature, position, angle, etc.",
+            "name": "Human-readable label for this output channel.",
+            "min": "Minimum physical value this channel can accept or deliver.",
+            "max": "Maximum physical value this channel can accept or deliver.",
+            "resolution": "Smallest step this channel can resolve — the finest granularity of control available."
           }
         },
         "channel_mapping": {
           "title": "Bind Output Channels to HA",
           "description": "Select the entities that reflect the channel values of the output."
         },
-        "channel_push_binding": {
-          "title": "HA → dS Binding — {channel}",
-          "description": "Configure how to read a value from Home Assistant and push it to the dS channel '{channel}'.",
+        "name_inputs": {
+          "title": "Name Inputs & Channels ({current}/{total})",
+          "description": "Enter a name for: **{label}**",
           "data": {
-            "source_entity": "Source entity (watched for changes)",
-            "source_attribute": "Attribute to read (empty = use main state)",
-            "transform": "Value transformation"
+            "name": "Name"
           }
         },
-        "channel_apply_binding": {
-          "title": "dS → HA Binding — {channel}",
-          "description": "Configure how to translate a dS channel value from '{channel}' into a Home Assistant action.",
+        "name_confirm": {
+          "title": "Confirm Device Names",
+          "description": "Review and confirm the names for this virtual device. These names appear in Home Assistant and in the digitalSTROM configurator.",
           "data": {
-            "service": "HA service to call (empty = no dS→HA control)",
-            "parameter": "Service data parameter to pass the mapped value to",
-            "transform": "Value transformation (applied to dS channel value)"
-          }
-        },
-        "binary_input_binding": {
-          "title": "Binary Input Binding",
-          "description": "Configure how to derive an on/off value from Home Assistant for this binary input.",
-          "data": {
-            "binding_type": "Binding type",
-            "source_entity": "Source entity",
-            "source_attribute": "Attribute (empty = use state)",
-            "transform": "Value transform"
-          }
-        },
-        "sensor_binding": {
-          "title": "Sensor Input Binding",
-          "description": "Configure how to derive a numeric value from Home Assistant for this sensor input.",
-          "data": {
-            "source_entity": "Source entity",
-            "source_attribute": "Attribute (empty = use state)",
-            "transform": "Value transform"
+            "device_name": "Device name (shown in dSS configurator)",
+            "entity_name": "Entity name (shown in Home Assistant)"
           }
         },
         "vdsd_name": {
           "title": "Name this Device",
-          "description": "This vdSD has multiple artefacts. Enter a name for the Home Assistant device and the digitalSTROM virtual device.",
+          "description": "This virtual device has multiple elements. Enter a name that will appear both in Home Assistant and in the digitalSTROM configurator.",
           "data": {
             "name": "Device name"
           },
@@ -305,23 +342,23 @@
           }
         },
         "model_features": {
-          "title": "Model Features",
-          "description": "The following model features will be added to the vdSD. Auto-derived features are pre-selected; adjust as needed."
+          "title": "Configurator Features",
+          "description": "These settings control which options appear in the digitalSTROM configurator for this device. Auto-derived selections are pre-filled based on your device configuration — adjust only if needed."
         },
         "entity_completion": {
           "title": "Complete Device — {device_name}",
-          "description": "Configured vdSD components: {vdsds}\n\nChoose how to proceed.",
+          "description": "Configured components: {vdsds}\n\nChoose how to proceed.",
           "menu_options": {
             "entity_completion_create": "Create device",
-            "entity_completion_add": "Add vdSD from another entity"
+            "entity_completion_add": "Add another component from an HA entity"
           }
         },
         "device_summary": {
           "title": "Device Summary — {device_name}",
-          "description": "vdSD components: {vdsds}\n\nChoose how to proceed.",
+          "description": "Virtual device components: {vdsds}\n\nChoose how to proceed.",
           "menu_options": {
             "device_summary_create": "Create device",
-            "device_summary_add_vdsd": "Add another vdSD first"
+            "device_summary_add_vdsd": "Add another vdSD component first"
           }
         }
       },
@@ -329,6 +366,359 @@
         "entity_not_found": "Entity not found.",
         "entity_not_supported": "This entity type / device class combination is not supported."
       }
+    }
+  },
+  "model_features": {
+    "auto": {
+      "dontcare":                     "Scene editor: adds 'keep current value' checkbox — device ignores scene changes",
+      "blink":                        "Scene editor: adds blink effect option per scene",
+      "transt":                       "Scene editor: adds transition speed selector (standard / slow) per scene",
+      "outvalue8":                    "Scene editor: adds output brightness slider (0–100%) per scene",
+      "outputchannels":               "Scene editor: adds individual sliders for each output channel (colour, temperature, etc.)",
+      "shadeposition":                "Scene editor: adds position slider and up/down buttons for shades",
+      "shadebladeang":                "Scene editor: adds blade angle slider for jalousie slat control",
+      "dimtimeconfig":                "Device config: adds ramp time settings (how fast the output dims up and down)",
+      "outconfigswitch":              "Device config: adds threshold setting at which the output switches on/off",
+      "impulseconfig":                "Device config: adds impulse output mode tab",
+      "pwmvalue":                     "Device config: shows output value as PWM duty cycle",
+      "ventconfig":                   "Device config: adds ventilation fan speed steps and flap angle settings",
+      "shadeprops":                   "Device config: adds shade travel timing (time to fully open / close)",
+      "motiontimefins":               "Device config: adds blade motion timing in shade properties",
+      "locationconfig":               "Device config: adds orientation/direction dropdown (e.g. south facade)",
+      "operationlock":                "Device config: allows weather alarms to override the operation lock on this device",
+      "windprotectionconfigblind":    "Device config: adds wind protection class for jalousie / blind",
+      "windprotectionconfigawning":   "Device config: adds wind protection class for awning / roller blind",
+      "heatingprops":                 "Device config: adds valve type, PWM period and heating zone settings",
+      "heatinggroup":                 "Device config: adds heating group assignment dropdown",
+      "valvetype":                    "Device config: adds attached valve or terminal device type selector",
+      "extendedvalvetypes":           "Device config: adds extended valve type options beyond the standard set",
+      "fcu":                          "Device config: adds fan coil unit settings (fan speed, heating/cooling/ventilation modes)",
+      "temperatureoffset":            "Device config: adds temperature correction offset field",
+      "consumption":                  "Device config: adds energy consumption monitoring and events menu",
+      "akmsensor":                    "Device config: adds selector for what the dry-contact input detects (presence, motion, window open, etc.)",
+      "pushbutton":                   "Device config: adds button type assignment selector (single, rocker, 4-way, etc.)",
+      "pushbadvanced":                "Device config: adds per-scene click-type configuration and local priority toggle",
+      "pushbdisabled":                "Device config: adds dialog to deactivate unused button elements",
+      "jokerconfig":                  "Device config: adds color group assignment for flexible/joker-class devices",
+      "pushbarea":                    "Button config: adds 'area' as a selectable button function type",
+      "pushbdevice":                  "Button config: adds 'device' as a selectable button function type",
+      "pushbsensor":                  "Button config: adds 'sensor-style' as a selectable button function type",
+      "highlevel":                    "Button config: adds 'app / scene trigger' as a selectable button function type",
+      "identification":               "Adds an 'Identify' entry — triggers a visual signal on the physical device from the configurator"
+    },
+    "optional": {
+      "blinkconfig":                      "Device config: adds blink pattern and behaviour settings (not tested)",
+      "customtransitiontime":             "Scene editor: adds a custom transition time field per scene (not tested)",
+      "consumptiontimer":                 "Device config: adds consumption timer and run-time tracking panel (not tested)",
+      "outmodegeneric":                   "Device config: adds output mode selector with generic values 0–6 (not tested)",
+      "outmodeauto":                      "Device config: adds 'Auto' option to the output mode selector (not tested)",
+      "jokertempcontrol":                 "Enables temperature-controlled output behaviour for flexible/joker-class devices (not tested)",
+      "umvrelay":                         "Device config: adds relay function selector for universal module hardware (not tested)",
+      "ftwtempcontrolventilationselect":  "Device config: adds combined temperature and ventilation mode selector (not tested)",
+      "setumr200config":                  "Device config: adds hardware configuration for UMR200 module (not tested)",
+      "apartmentapplication":             "Enables apartment-level application integration for this device (not tested)",
+      "customactivityconfig":             "Adds custom activity and app configuration options (not tested)"
+    }
+  },
+  "labels": {
+    "color_group": {
+      "1": "Yellow — Lights / Dimmers",
+      "2": "Grey — Shades / Blinds",
+      "3": "Blue — Climate (Heating, Cooling, Ventilation)",
+      "4": "Cyan — Audio",
+      "5": "Magenta — Video",
+      "6": "Red — Security",
+      "7": "Green — Access Control",
+      "8": "Black — Joker / Configurable",
+      "9": "White — Single Device / Appliance"
+    },
+    "button_group": {
+      "1": "Yellow / Light",
+      "2": "Grey / Shadow",
+      "3": "Blue / Heating",
+      "4": "Cyan / Audio",
+      "5": "Magenta / Video",
+      "6": "Red / Security",
+      "7": "Green / Access",
+      "8": "Black / Joker",
+      "9": "Blue / Cooling",
+      "10": "Blue / Ventilation",
+      "11": "Blue / Window",
+      "12": "Blue / Recirculation",
+      "48": "Room Temperature Control"
+    },
+    "binary_input_group": {
+      "1": "Yellow / Light",
+      "2": "Grey / Shadow",
+      "3": "Blue / Heating",
+      "4": "Cyan / Audio",
+      "5": "Magenta / Video",
+      "6": "Red / Security",
+      "7": "Green / Access",
+      "8": "Black / Joker",
+      "10": "Blue / Ventilation",
+      "12": "Blue / Recirculation"
+    },
+    "sensor_group": {
+      "0": "No group / Joker",
+      "1": "Yellow / Light",
+      "2": "Grey / Shadow",
+      "3": "Blue / Climate",
+      "4": "Cyan / Audio",
+      "5": "Magenta / Video",
+      "6": "Red / Security",
+      "7": "Green / Access"
+    },
+    "color_class": {
+      "1": "Lights (Yellow)",
+      "2": "Blinds / Shades (Grey)",
+      "3": "Heating (Blue)",
+      "4": "Audio (Cyan)",
+      "5": "Video (Magenta)",
+      "6": "Security (Red)",
+      "7": "Access (Green)",
+      "8": "Joker / Configurable (Black)",
+      "9": "Cooling (Blue)",
+      "10": "Ventilation (Blue)",
+      "11": "Window (Blue)",
+      "12": "Recirculation / Fan-coil (Blue)",
+      "48": "Temperature Control (Blue)"
+    },
+    "button_type": {
+      "0": "Undefined (unlimited elements)",
+      "1": "Single pushbutton (1 element)",
+      "2": "Two-way pushbutton (2 elements)",
+      "3": "Four-way navigation (4 elements)",
+      "4": "Four-way with center (5 elements)",
+      "5": "Eight-way with center (9 elements)",
+      "6": "On/Off switch (1 element)"
+    },
+    "button_function": {
+      "0": "Device",
+      "1": "Area 1",
+      "2": "Area 2",
+      "3": "Area 3",
+      "4": "Area 4",
+      "5": "Room",
+      "6": "Extended 1",
+      "7": "Extended 2",
+      "8": "Extended 3",
+      "9": "Extended 4",
+      "10": "Extended Area 1",
+      "11": "Extended Area 2",
+      "12": "Extended Area 3",
+      "13": "Extended Area 4",
+      "14": "Apartment",
+      "15": "App"
+    },
+    "button_mode": {
+      "0": "Standard (1-way pushbutton)",
+      "1": "Turbo (1-way)",
+      "2": "Switched / Toggle",
+      "5": "2-way Down, pair 1",
+      "6": "2-way Down, pair 2",
+      "7": "2-way Down, pair 3",
+      "8": "2-way Down, pair 4",
+      "9": "2-way Up, pair 1",
+      "10": "2-way Up, pair 2",
+      "11": "2-way Up, pair 3",
+      "12": "2-way Up, pair 4",
+      "13": "2-way",
+      "14": "1-way (explicit)",
+      "16": "AKM Standard (contact module)",
+      "17": "AKM Inverted (contact module)",
+      "18": "AKM On (rising edge)",
+      "19": "AKM On (falling edge)",
+      "20": "AKM Off (rising edge)",
+      "21": "AKM Off (falling edge)",
+      "22": "AKM Rising Edge",
+      "23": "AKM Falling Edge",
+      "65": "Heating Pushbutton (1-way)",
+      "255": "Deactivated"
+    },
+    "binary_input_type": {
+      "0": "Generic",
+      "1": "Presence",
+      "2": "Brightness",
+      "3": "Presence in Darkness",
+      "4": "Twilight",
+      "5": "Motion",
+      "6": "Motion in Darkness",
+      "7": "Smoke",
+      "8": "Wind",
+      "9": "Rain",
+      "10": "Sun Radiation",
+      "11": "Thermostat",
+      "12": "Battery Low",
+      "13": "Window Open",
+      "14": "Door Open",
+      "15": "Window Tilted",
+      "16": "Garage Door Open",
+      "17": "Sun Protection",
+      "18": "Frost",
+      "19": "Heating System Enabled",
+      "20": "Heating Changeover",
+      "21": "Initialization",
+      "22": "Malfunction",
+      "23": "Service"
+    },
+    "binary_input_usage": {
+      "0": "Generic",
+      "1": "Room Climate",
+      "2": "Outdoor Climate",
+      "3": "Climate Setting"
+    },
+    "binary_input_value_type": {
+      "boolean": "Boolean (true / false)",
+      "integer": "Integer (extended value)"
+    },
+    "sensor_type": {
+      "0": "None",
+      "1": "Temperature",
+      "2": "Humidity",
+      "3": "Illumination",
+      "4": "Supply Voltage",
+      "5": "CO Concentration",
+      "6": "Radon Activity",
+      "7": "Gas Type",
+      "8": "Particles PM10",
+      "9": "Particles PM2.5",
+      "10": "Particles PM1",
+      "11": "Room Operating Panel",
+      "12": "Fan Speed",
+      "13": "Wind Speed",
+      "14": "Active Power",
+      "15": "Electric Current",
+      "16": "Energy Meter",
+      "17": "Apparent Power",
+      "18": "Air Pressure",
+      "19": "Wind Direction",
+      "20": "Sound Pressure Level",
+      "21": "Precipitation",
+      "22": "CO₂ Concentration",
+      "23": "Wind Gust Speed",
+      "24": "Wind Gust Direction",
+      "25": "Generated Active Power",
+      "26": "Generated Energy",
+      "27": "Water Quantity",
+      "28": "Water Flow Rate",
+      "29": "Length",
+      "30": "Mass",
+      "31": "Duration",
+      "32": "Percent",
+      "33": "Percent Speed",
+      "34": "Frequency"
+    },
+    "sensor_usage": {
+      "1": "Room",
+      "2": "Outdoor",
+      "3": "User Interaction",
+      "4": "Device Level",
+      "5": "Device Last Run",
+      "6": "Device Average"
+    },
+    "output_function": {
+      "0": "On / Off",
+      "1": "Dimmer",
+      "2": "Positional (shade, valve)",
+      "3": "Dimmer with Color Temperature",
+      "4": "Full Color Dimmer (RGB / HSV)",
+      "5": "Bipolar",
+      "6": "Internally Controlled",
+      "127": "Custom (no standard channels)"
+    },
+    "output_mode": {
+      "0": "Disabled",
+      "1": "Binary (on/off only)",
+      "2": "Gradual (continuous range)",
+      "127": "Default (device decides)"
+    },
+    "output_usage": {
+      "0": "Undefined",
+      "1": "Room",
+      "2": "Outdoors",
+      "3": "User"
+    },
+    "input_type": {
+      "0": "Manual (no automatic detection)",
+      "1": "Detects changes (push at change)",
+      "2": "Polled (regular polling by dSS)"
+    },
+    "cover_placement": {
+      "indoor": "Indoor (room-facing)",
+      "outdoor": "Outdoor (weather-exposed)"
+    },
+    "channel_type": {
+      "0": "Default (none / catch-all)",
+      "1": "Brightness",
+      "2": "Hue",
+      "3": "Saturation",
+      "4": "Color Temperature (mired, 100–1000)",
+      "5": "CIE X",
+      "6": "CIE Y",
+      "7": "Shade Position — Outside (0–100%)",
+      "8": "Shade Position — Indoor (0–100%)",
+      "9": "Shade Opening Angle — Outside",
+      "10": "Shade Opening Angle — Indoor",
+      "11": "Transparency",
+      "12": "Air Flow Intensity",
+      "13": "Air Flow Direction",
+      "14": "Air Flap Position",
+      "15": "Air Louver Position",
+      "16": "Heating Power",
+      "17": "Cooling Capacity",
+      "18": "Audio Volume",
+      "19": "Power State",
+      "20": "Air Louver Auto",
+      "21": "Air Flow Auto",
+      "22": "Water Temperature",
+      "23": "Water Flow Rate",
+      "24": "Power Level",
+      "25": "Video Station",
+      "26": "Video Input Source",
+      "192": "FCU Operation Mode"
+    },
+    "creation_mode": {
+      "from_entity": "Create device based on HA entities (recommended)",
+      "from_ha_device": "Create device based on HA device",
+      "from_scratch": "Create device from scratch (BETA)"
+    },
+    "state_files_action": {
+      "keep": "Use existing state (restore saved device configuration)",
+      "delete": "Delete and start fresh"
+    },
+    "callback_type": {
+      "clickTypes": "Click types (entity state = click type number)",
+      "actionIds": "Scene / action IDs (entity state = scene number)",
+      "detect_clicks": "Auto-detect (binary sensor / event / button entity)"
+    },
+    "vdsd_action": {
+      "optional_settings": "Optional Settings",
+      "add_button": "Add Button",
+      "add_binary_input": "Add Binary Input",
+      "add_sensor": "Add Sensor",
+      "add_output": "Add Output",
+      "next": "Next →"
+    },
+    "entity_build_action": {
+      "add": "Add entity →",
+      "done": "Done — create vdSD"
+    },
+    "plan_summary_action": {
+      "proceed": "Proceed",
+      "cancel": "Cancel"
+    },
+    "output_action": {
+      "next": "Continue",
+      "output_optional": "Optional output settings…"
+    },
+    "channel_action": {
+      "next": "Done",
+      "add_another": "Add another channel"
+    },
+    "binary_input_binding_type": {
+      "entity_state": "Use entity on/off state",
+      "entity_attribute": "Use attribute value with transform"
     }
   }
 }

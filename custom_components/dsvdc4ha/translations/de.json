@@ -1,0 +1,724 @@
+{
+  "config": {
+    "step": {
+      "hub": {
+        "title": "dSVDC Hub einrichten",
+        "description": "Gib den Port ein, auf dem der virtualDC-Host lauschen soll. Dein digitalSTROM-Server (dSS) muss diesen Port auf dem Home Assistant Host erreichen können.",
+        "data": {
+          "port": "vDC-Host-Port"
+        }
+      },
+      "wait_for_dss": {
+        "title": "Warte auf dSS-Verbindung",
+        "description": "Der virtualDC-Host ist nun im Netzwerk angekündigt. Warte auf eine Verbindung eines digitalSTROM-Servers (Timeout: 2 Minuten)…"
+      },
+      "state_files": {
+        "title": "Vorhandene Zustandsdateien gefunden",
+        "description": "Die folgenden Zustandsdateien einer früheren Installation wurden gefunden:\n{files}\n\nDiese Dateien speichern den letzten bekannten Zustand deiner virtuellen Geräte (Ausgabewerte, Szenen usw.), damit der digitalSTROM-Server dort weitermachen kann, wo er aufgehört hat. Du kannst sie wiederherstellen oder neu beginnen.",
+        "data": {
+          "action": "Was möchtest du tun?"
+        }
+      }
+    },
+    "error": {
+      "port_in_use": "Port ist bereits belegt.",
+      "cannot_connect": "Verbindung zum digitalSTROM-Server nicht möglich.",
+      "unknown": "Unerwarteter Fehler."
+    },
+    "abort": {
+      "already_configured": "Integration ist bereits konfiguriert.",
+      "no_dss_found": "Innerhalb von 2 Minuten hat sich kein digitalSTROM-Server verbunden. Der virtualDC-Host wurde gestoppt und der Port freigegeben. Prüfe, ob der dSS im selben Netzwerk ist, und versuche es erneut.",
+      "cannot_connect": "Der virtualDC-Host konnte auf dem gewählten Port nicht gestartet werden. Der Port ist möglicherweise nicht mehr verfügbar."
+    }
+  },
+  "config_subentries": {
+    "device": {
+      "initiate_flow": {
+        "user": "Gerät hinzufügen"
+      },
+      "entry": "{title}",
+      "step": {
+        "config_entry_name": {
+          "title": "Name des physischen Geräts",
+          "description": "Gib einen Namen für das physische Gerät ein. Dieser Name wird nur in Home Assistant zur Identifizierung verwendet und nicht an digitalSTROM übermittelt.",
+          "data": {
+            "entry_name": "Gerätename"
+          },
+          "data_description": {
+            "entry_name": "Bezeichnung für dieses physische Gerät, wie es in Home Assistant angezeigt wird. Beispiel: 'Intelligentes Wohnzimmerlicht'."
+          }
+        },
+        "creation_mode": {
+          "title": "Wie soll das virtuelle Gerät erstellt werden?",
+          "description": "Ein virtuelles digitalSTROM-Gerät (vdSD) verbindet dein Home Assistant Gerät mit dem digitalSTROM-Ökosystem. Wähle aus, wie du es definieren möchtest.",
+          "data": {
+            "mode": "Erstellungsmethode"
+          },
+          "data_description": {
+            "mode": "'Aus HA-Entitäten' bildet jeweils eine HA-Entität ab — optimal für präzise Steuerung. 'Aus HA-Gerät' importiert alle unterstützten Entitäten eines vorhandenen HA-Geräts auf einmal. 'Von Grund auf' ermöglicht die manuelle Definition jeder Komponente — für erfahrene Benutzer."
+          }
+        },
+        "device_picker": {
+          "title": "HA-Gerät auswählen",
+          "description": "Wähle das Home Assistant Gerät aus, aus dem das virtuelle dS-Gerät erstellt werden soll. Du kannst dann seine unterstützten Entitäten einzeln hinzufügen.",
+          "data": {
+            "device_id": "Home Assistant Gerät"
+          }
+        },
+        "device_entity_build": {
+          "title": "Entitäten zum vdSD hinzufügen",
+          "description": "Bereits hinzugefügt:\n{added}\n\nVerbleibende unterstützte Entitäten auf diesem Gerät:\n{remaining}",
+          "data": {
+            "action": "Aktion"
+          }
+        },
+        "device_entity_add": {
+          "title": "Entität zum Hinzufügen auswählen",
+          "description": "Wähle eine Entität aus den verbleibenden unterstützten Entitäten dieses HA-Geräts.",
+          "data": {
+            "entity_id": "Entität"
+          }
+        },
+        "device_entity_user_input": {
+          "title": "Entitätsoptionen ({current} von {total})",
+          "description": "Entität: {entity_name} ({domain}). Diese Einstellungen teilen digitalSTROM mit, wie diese Entität zu interpretieren ist. Die Standardwerte funktionieren in den meisten Fällen.",
+          "data": {
+            "sensor_function": "Was dieser Eingang erkennt",
+            "group": "Tastengruppe (dS-Farbe)",
+            "sensor_type": "Sensortyp",
+            "min": "Mindestwert",
+            "max": "Maximalwert",
+            "resolution": "Auflösung (LSB)",
+            "output_usage": "Ausgangsverwendung (innen / außen)",
+            "function": "Ausgangsfunktion",
+            "has_tilt": "Gerät unterstützt Neigung / Lamellenwinkelsteuerung"
+          }
+        },
+        "device_plan_summary": {
+          "title": "Geräteplanübersicht",
+          "description": "Die folgenden vdSDs werden erstellt:\n{summary}\n\nEntitäten ohne dS-Zuordnung (manuelle Erstellung erforderlich, falls benötigt):\n{unsupported}",
+          "data": {
+            "action": "Aktion"
+          }
+        },
+        "device_model_features": {
+          "title": "Konfigurator-Funktionen — {vdsd_name} ({current} von {total})",
+          "description": "Diese Einstellungen steuern, welche Optionen im digitalSTROM-Konfigurator für dieses Gerät angezeigt werden. Automatisch abgeleitete Einstellungen sind basierend auf deiner Gerätekonfiguration vorausgefüllt — nur bei Bedarf anpassen."
+        },
+        "entity_picker": {
+          "title": "Entität auswählen",
+          "description": "Wähle die Home Assistant Entität aus, die du digitalSTROM bereitstellen möchtest. Es werden nur Entitäten mit einem unterstützten Typ angezeigt.",
+          "data": {
+            "entity_id": "Entität"
+          }
+        },
+        "entity_user_input": {
+          "title": "Zusätzliche Konfiguration",
+          "description": "Diese Einstellungen teilen digitalSTROM mit, wie diese Entität zu interpretieren ist. Die Standardwerte funktionieren in den meisten Fällen — überprüfe die Beschreibungen bei Unsicherheit.",
+          "data": {
+            "sensor_function": "Was dieser Eingang erkennt",
+            "group": "Tastengruppe (dS-Farbe)",
+            "sensor_type": "Sensortyp",
+            "min": "Mindestwert",
+            "max": "Maximalwert",
+            "resolution": "Auflösung (LSB)",
+            "output_usage": "Ausgangsverwendung (innen / außen)",
+            "function": "Ausgangsfunktion",
+            "has_tilt": "Gerät unterstützt Neigung / Lamellenwinkelsteuerung"
+          }
+        },
+        "entity_channel_mapping": {
+          "title": "Ausgangskanäle mit HA verknüpfen",
+          "description": "Für jeden Ausgangskanal ({channels}): Die 'Lesen'-Entität ist das, was digitalSTROM abfragt, um den aktuellen Wert zu erhalten; die 'Schreiben'-Aktion wird aufgerufen, wenn digitalSTROM einen Befehl sendet. Die von dir gewählte Entität ist als Lesequelle vorausgefüllt."
+        },
+        "device_info": {
+          "title": "Physisches Gerät hinzufügen",
+          "description": "Zur Erstellung deines Geräts erwäge, es in mehrere logische vdSDs aufzuteilen:\n- Sind Teile physisch trennbar? → einzelne vdSDs verwenden.\n- Enthält das (Sub-)Gerät mehrere Sensoren? → als ein vdSD behalten.\n- Enthält das (Sub-)Gerät verschiedene Arten von Fähigkeiten (Taste, Binäreingang, Sensoren, Ausgang)? → als ein vdSD behalten.\n- Gehören Funktionseinheiten verschiedenen dS-Klassen (Farben) an? → separate vdSDs.\n- Können Funktionseinheiten in verschiedenen Zonen enden? → separate vdSDs.\n- Enthält das Gerät mehrere verschiedene Ausgänge (nicht Kanäle!)? → ein vdSD pro Ausgang erforderlich.\n- Gibt es mehrere Tasten/Binäreingänge, die über den DSS-Konfigurator konfigurierbar sein sollen? → separate vdSDs (max. eine (Multi-)Taste und ein Binäreingang pro vdSD).",
+          "data": {
+            "vendorName": "Hersteller / Anbieter",
+            "displayId": "Gerätemodellname"
+          },
+          "data_description": {
+            "vendorName": "Hersteller oder Anbieter des physischen Hardware-Geräts. Beispiel: 'Occhio'.",
+            "displayId": "Modell- oder Typbezeichnung, wie auf dem Gerät aufgedruckt oder zur Identifizierung verwendet. Beispiel: 'Lunanova'."
+          }
+        },
+        "vdsd_creation": {
+          "title": "vdSD-Komponente erstellen",
+          "data": {
+            "displayId": "Komponentenname",
+            "primaryGroup": "Geräteklasse (Farbgruppe)",
+            "modelVersion": "Modellvariantenname",
+            "identify_action": "HA-Aktion zur Geräteidentifizierung (optional)",
+            "firmwareUpdate_action": "HA-Aktion zum Auslösen eines Firmware-Updates (optional)"
+          },
+          "data_description": {
+            "displayId": "Name oder Bezeichnung für diese virtuelle Gerätekomponente, wie sie im digitalSTROM-Konfigurator erscheint. Beispiel: 'Lunanova PowerUnit'.",
+            "primaryGroup": "Haupt-dS-Farbgruppe für diese Komponente: Gelb=Lichter, Grau=Jalousien, Blau=Klima.",
+            "modelVersion": "Modellvarianten-Zeichenkette zur Unterscheidung verschiedener Hardware-Konfigurationen.",
+            "identify_action": "Home Assistant Aktion, die aufgerufen wird, wenn der dSS eine visuelle Identifizierung dieses Geräts anfordert.",
+            "firmwareUpdate_action": "Home Assistant Aktion, die aufgerufen wird, wenn der dSS ein Firmware-Update für dieses Gerät anfordert."
+          }
+        },
+        "optional_settings": {
+          "title": "Optionale vdSD-Einstellungen",
+          "data": {
+            "hardwareVersion": "Hardware-Version",
+            "hardwareGuid": "Hardware-GUID",
+            "vendorGuid": "Anbieter-GUID",
+            "oemGuid": "OEM-GUID"
+          }
+        },
+        "vdsd_overview": {
+          "title": "vdSD-Übersicht — {vdsd_name}",
+          "description": "Konfiguriere diese virtuelle Gerätekomponente. Füge nach Bedarf Tasten, Binäreingänge, Sensoren und einen Ausgang hinzu. Wenn fertig, klicke auf 'Weiter →', um Konfigurator-Funktionen auszuwählen.",
+          "data": {
+            "action": "Aktion"
+          }
+        },
+        "button": {
+          "title": "Taste konfigurieren",
+          "data": {
+            "name": "Name dieser Taste",
+            "buttonType": "Physischer Tastentyp",
+            "group": "Tastengruppe (dS-Farbe)",
+            "function": "Funktionsbereich der Taste",
+            "mode": "Tasten-Verhaltensmodus",
+            "channel": "Ausgangskanal, der von dieser Taste gesteuert wird",
+            "supportsLocalKeyMode": "Taste kann als lokale Taste fungieren",
+            "setsLocalPriority": "Taste setzt lokale Priorität (ignoriert Szenenaufrufe bis zum Rücksetzen)",
+            "callsPresent": "Tastendruck setzt Anwesenheitsstatus auf 'anwesend'",
+            "callbackType": "Wie Tastendrücke an dS weitergeleitet werden",
+            "callback_entity": "Entität, die Tastendruckereignisse bereitstellt"
+          },
+          "data_description": {
+            "name": "Menschenlesbare Bezeichnung für diese Taste, passend zur physischen Hardware-Anschluss- oder Panel-Beschriftung.",
+            "buttonType": "Physischer Tastentyp: einfacher Taster, Wechseltaster, 4-Wege-Navigation usw.",
+            "group": "dS-Farbgruppe, die diese Taste steuert, z.B. Gelb=Lichter, Grau=Jalousien.",
+            "function": "Bereich der Tastenaktion: Raum, Bereich 1–4, Wohnung usw.",
+            "mode": "Tastenpaarungs- und Verhaltensmodus. Standard für die meisten Tasten verwenden. AKM-Modi sind für Trockenkontakt-Eingänge, die an ein digitalSTROM-Kontaktmodul angeschlossen sind.",
+            "channel": "Welchen Ausgangskanal diese Taste steuert: 0=Standardkanal.",
+            "supportsLocalKeyMode": "Wenn aktiviert, kann diese Taste lokal auf dem Gerät ohne dSS-Verbindung betrieben werden.",
+            "setsLocalPriority": "Wenn aktiviert, setzt das Drücken dieser Taste lokale Priorität am Ausgang, wodurch Szenenaufrufe ignoriert werden, bis die Priorität aufgehoben wird.",
+            "callsPresent": "Wenn aktiviert, schaltet das Drücken dieser Taste den Systemanwesenheitsstatus von abwesend auf anwesend.",
+            "callbackType": "Wie Tastendruckereignisse digitalSTROM erreichen: 'Klicktypen' übergibt den rohen Klicktyp aus dem Entitätsstatus; 'Auto-Erkennung' erkennt Binärsensor-, Ereignis- oder Tastenentitäten automatisch."
+          }
+        },
+        "binary_input": {
+          "title": "Binäreingang konfigurieren",
+          "data": {
+            "name": "Name des Binäreingangs",
+            "group": "dS-Gruppe, zu der der Binäreingang gehört",
+            "sensorFunction": "Was dieser Eingang erkennt",
+            "hardwiredFunction": "Ist die erkannte Funktion fest verdrahtet oder zur Laufzeit konfigurierbar?",
+            "updateInterval": "Zeit (in Sekunden), in der die Hardware den Wert aktualisiert",
+            "inputType": "Wird der Wert vom dSS abgefragt oder bei Änderung gesendet?",
+            "inputUsage": "Verwendungskontext des Binäreingangs",
+            "valueType": "Liefert der Binäreingang boolesche oder ganzzahlige Werte?",
+            "callback_entity": "Entität, die den Binäreingangs-Statuswert bereitstellt"
+          },
+          "data_description": {
+            "name": "Menschenlesbare Bezeichnung für diesen Binäreingang, passend zur physischen Hardware-Anschluss- oder Panel-Beschriftung.",
+            "group": "dS-Farbgruppe, zu der dieser Binäreingang gehört.",
+            "sensorFunction": "Was dieser Binäreingang erkennt: z.B. Anwesenheit, Bewegung, Rauch, Fensterkontakt, Fenstergriff.",
+            "hardwiredFunction": "Wenn ungleich Null, ist die Sensorfunktion durch die Hardware festgelegt und kann zur Laufzeit nicht geändert werden. Wert 0 bedeutet frei konfigurierbar.",
+            "updateInterval": "Wie häufig die Hardware den physischen Wert verfolgt und meldet, in Sekunden.",
+            "inputType": "Wie der dSS den Wert erhält: auf Anforderung abgefragt, oder die Hardware sendet Aktualisierungen bei Wertänderungen.",
+            "inputUsage": "Verwendungskontext dieses Eingangs: Raumklima, Außenklima oder Klimaeinstellung."
+          }
+        },
+        "sensor": {
+          "title": "Sensor konfigurieren",
+          "data": {
+            "name": "Name des Sensors",
+            "group": "Gruppe, zu der der Sensor gehört",
+            "sensorType": "Was misst der Sensor?",
+            "sensorUsage": "Verwendungskontext des Sensors",
+            "min": "Mindestwert, den der Sensor unterstützt",
+            "max": "Maximalwert, den der Sensor unterstützt",
+            "resolution": "Sensorauflösung — kleinste darstellbare Abweichung (LSB)",
+            "updateInterval": "Zeit (in Sekunden), in der die Hardware den Sensorwert verfolgt",
+            "aliveSignInterval": "Maximale Zeit (in Sekunden) zwischen Aktualisierungen, bevor der Sensor als ausgefallen gilt",
+            "minPushInterval": "Mindestzeit (in Sekunden) zwischen Sendungen geänderter Sensorwerte (Standard: 2 s)",
+            "changesOnlyInterval": "Mindestzeit (in Sekunden) zwischen Sendungen unveränderter Werte (0 = alle Aktualisierungen senden)",
+            "callback_entity": "Entität, die den Sensorwert bereitstellt"
+          },
+          "data_description": {
+            "name": "Menschenlesbare Bezeichnung für diesen Sensor, passend zur physischen Hardware-Anschluss- oder Panel-Beschriftung.",
+            "group": "dS-Farbgruppe, zu der dieser Sensor gehört.",
+            "sensorType": "Physikalische Größe, die dieser Sensor misst: Temperatur, Luftfeuchtigkeit, Beleuchtungsstärke, CO₂, Windgeschwindigkeit, Wirkleistung usw.",
+            "sensorUsage": "Verwendungskontext: Raum, Außen, Benutzerinteraktion oder Messung auf Geräteebene.",
+            "min": "Minimaler physikalischer Wert, den die Sensor-Hardware liefern kann.",
+            "max": "Maximaler physikalischer Wert, den die Sensor-Hardware liefern kann.",
+            "resolution": "Kleinste Wertänderung, die die Sensor-Hardware erkennen kann — die Größe eines LSB des Hardware-Sensors.",
+            "updateInterval": "Ungefähre Zeit zwischen Hardware-Wertaktualisierungen in Sekunden.",
+            "aliveSignInterval": "Maximale Zeit in Sekunden zwischen Sensoraktualisierungen, bevor der Sensor als ausgefallen gilt.",
+            "minPushInterval": "Mindestzeit in Sekunden zwischen aufeinanderfolgenden Push-Berichten an den dSS (Drosselung). Standard sind 2 Sekunden.",
+            "changesOnlyInterval": "Mindestzeit in Sekunden zwischen Sendungen desselben (unveränderten) Werts. Standard 0 bedeutet, dass jede Aktualisierung einen Push auslöst."
+          }
+        },
+        "output": {
+          "title": "Ausgang konfigurieren",
+          "data": {
+            "name": "Name für diesen Ausgang",
+            "groups": "Farbgruppen, die der Ausgang unterstützt",
+            "defaultGroup": "Standard-Farbgruppe des Ausgangs",
+            "function": "Ausgangsfunktion",
+            "outputUsage": "Verwendungskontext",
+            "variableRamp": "Ausgang unterstützt konfigurierbare Rampen-/Übergangsgeschwindigkeiten",
+            "mode": "Betriebsmodus des Ausgangs",
+            "action": "Nächster Schritt"
+          },
+          "data_description": {
+            "name": "Menschenlesbare Bezeichnung für diesen Ausgang, passend zur physischen Hardware-Anschluss- oder Panel-Beschriftung.",
+            "groups": "Menge der dS-Farbgruppen, in denen dieser Ausgang betrieben werden kann, z.B. Gelb=Lichter, Grau=Jalousien. Ein Ausgang kann zu mehreren Gruppen gehören.",
+            "defaultGroup": "Primäre dS-Farbgruppe für diesen Ausgang, verwendet wenn keine explizite Gruppe angegeben ist.",
+            "function": "Ausgangskapabilität: Ein/Aus, Dimmer, Positionell (Jalousien/Ventile), Dimmer mit Farbtemperatur, Vollfarbe (RGB+CT) oder bipolar (Heizungs-/Kühlventil).",
+            "outputUsage": "Verwendungskontext dieses Ausgangs: Raum, Außen oder Benutzeranzeige.",
+            "variableRamp": "Wenn aktiviert, unterstützt dieser Ausgang konfigurierbare Übergangsgeschwindigkeiten (Dimmzeiteinstellungen werden bedeutungsvoll).",
+            "mode": "Betriebsmodus: deaktiviert, binär (Ein/Aus) oder stufenlos (kontinuierlicher Bereich)."
+          }
+        },
+        "output_optional": {
+          "title": "Optionale Ausgangseinstellungen",
+          "data": {
+            "onThreshold": "Minimaler Ausgangsstand, der den Ausgang einschaltet (Standard: 50%)",
+            "minBrightness": "Minimaler Ausgangsstand, den die Hardware unterstützt (z.B. Zündgrenzwert für Leuchtmittel)",
+            "maxPower": "Maximale Leistung, die der Ausgang liefern kann (W)",
+            "activeCoolingMode": "Ausgang bietet aktive Kühlkapabilität (z.B. Klimaanlage, Fan-Coil-Unit)"
+          },
+          "data_description": {
+            "onThreshold": "Der Helligkeitswert (0–100%), bei dem der Ausgang EINSCHALTET. Standard 50%.",
+            "minBrightness": "Minimaler Helligkeitswert (0–100%), den die Hardware unterstützt.",
+            "maxPower": "Maximale Ausgangsleistung in Watt. Leer lassen, wenn unbekannt.",
+            "activeCoolingMode": "Wenn aktiviert, kann dieser Ausgang aktiv kühlen (z.B. Klimaanlage)."
+          }
+        },
+        "channel": {
+          "title": "Ausgangskanal konfigurieren",
+          "data": {
+            "channelType": "Kanaltyp",
+            "name": "Name dieses Kanals",
+            "min": "Mindestwert für den Kanal",
+            "max": "Maximalwert für den Kanal",
+            "resolution": "Kanalauflösung — kleinste darstellbare Abweichung (LSB)",
+            "action": "Nächster Schritt"
+          },
+          "data_description": {
+            "channelType": "Typ dieses Steuerungskanals gemäß digitalSTROM-Definition: Helligkeit, Farbton, Sättigung, Farbtemperatur, Position, Winkel usw.",
+            "name": "Menschenlesbare Bezeichnung für diesen Ausgangskanal.",
+            "min": "Minimaler physikalischer Wert, den dieser Kanal akzeptieren oder liefern kann.",
+            "max": "Maximaler physikalischer Wert, den dieser Kanal akzeptieren oder liefern kann.",
+            "resolution": "Kleinster Schritt, den dieser Kanal auflösen kann — die feinste verfügbare Steuerungsgranularität."
+          }
+        },
+        "channel_mapping": {
+          "title": "Ausgangskanäle mit HA verknüpfen",
+          "description": "Wähle die Entitäten, die die Kanalwerte des Ausgangs widerspiegeln."
+        },
+        "name_inputs": {
+          "title": "Eingänge und Kanäle benennen ({current}/{total})",
+          "description": "Gib einen Namen ein für: **{label}**",
+          "data": {
+            "name": "Name"
+          }
+        },
+        "name_confirm": {
+          "title": "Gerätenamen bestätigen",
+          "description": "Überprüfe und bestätige die Namen für dieses virtuelle Gerät. Diese Namen erscheinen in Home Assistant und im digitalSTROM-Konfigurator.",
+          "data": {
+            "device_name": "Gerätename (im dSS-Konfigurator angezeigt)",
+            "entity_name": "Entitätsname (in Home Assistant angezeigt)"
+          }
+        },
+        "vdsd_name": {
+          "title": "Gerät benennen",
+          "description": "Dieses virtuelle Gerät hat mehrere Elemente. Gib einen Namen ein, der sowohl in Home Assistant als auch im digitalSTROM-Konfigurator erscheint.",
+          "data": {
+            "name": "Gerätename"
+          },
+          "data_description": {
+            "name": "Name, der auf der Home Assistant Geräteseite und im digitalSTROM-Konfigurator angezeigt wird."
+          }
+        },
+        "model_features": {
+          "title": "Konfigurator-Funktionen",
+          "description": "Diese Einstellungen steuern, welche Optionen im digitalSTROM-Konfigurator für dieses Gerät angezeigt werden. Automatisch abgeleitete Einstellungen sind basierend auf deiner Gerätekonfiguration vorausgefüllt — nur bei Bedarf anpassen."
+        },
+        "entity_completion": {
+          "title": "Gerät abschließen — {device_name}",
+          "description": "Konfigurierte Komponenten: {vdsds}\n\nWähle aus, wie du fortfahren möchtest.",
+          "menu_options": {
+            "entity_completion_create": "Gerät erstellen",
+            "entity_completion_add": "Weitere Komponente aus einer HA-Entität hinzufügen"
+          }
+        },
+        "device_summary": {
+          "title": "Geräteübersicht — {device_name}",
+          "description": "Virtuelle Gerätekomponenten: {vdsds}\n\nWähle aus, wie du fortfahren möchtest.",
+          "menu_options": {
+            "device_summary_create": "Gerät erstellen",
+            "device_summary_add_vdsd": "Erst weitere vdSD-Komponente hinzufügen"
+          }
+        }
+      },
+      "error": {
+        "entity_not_found": "Entität nicht gefunden.",
+        "entity_not_supported": "Diese Kombination aus Entitätstyp und Geräteklasse wird nicht unterstützt."
+      }
+    }
+  },
+  "model_features": {
+    "auto": {
+      "dontcare":                     "Szeneneditor: fügt 'aktuellen Wert beibehalten'-Kontrollkästchen hinzu — Gerät ignoriert Szenenänderungen",
+      "blink":                        "Szeneneditor: fügt Blink-Effektoption pro Szene hinzu",
+      "transt":                       "Szeneneditor: fügt Übergangsgeschwindigkeitsauswahl (Standard / langsam) pro Szene hinzu",
+      "outvalue8":                    "Szeneneditor: fügt Ausgangshelligkeitsschieberegler (0–100%) pro Szene hinzu",
+      "outputchannels":               "Szeneneditor: fügt einzelne Schieberegler für jeden Ausgangskanal hinzu (Farbe, Temperatur usw.)",
+      "shadeposition":                "Szeneneditor: fügt Positionsschieberegler und Auf/Ab-Tasten für Jalousien hinzu",
+      "shadebladeang":                "Szeneneditor: fügt Lamellenwinkel-Schieberegler für Jalousie-Lamellensteuerung hinzu",
+      "dimtimeconfig":                "Gerätekonfiguration: fügt Rampenzeit-Einstellungen hinzu (wie schnell der Ausgang hoch- und herunterdimmt)",
+      "outconfigswitch":              "Gerätekonfiguration: fügt Schwellenwerteinstellung hinzu, bei der der Ausgang ein/ausschaltet",
+      "impulseconfig":                "Gerätekonfiguration: fügt Impulsausgangsmodus-Registerkarte hinzu",
+      "pwmvalue":                     "Gerätekonfiguration: zeigt Ausgangswert als PWM-Tastverhältnis",
+      "ventconfig":                   "Gerätekonfiguration: fügt Lüftungsventilator-Geschwindigkeitsstufen und Klappenwinkeleinstellungen hinzu",
+      "shadeprops":                   "Gerätekonfiguration: fügt Jalousie-Fahrzeiteinstellungen hinzu (Zeit zum vollständigen Öffnen / Schließen)",
+      "motiontimefins":               "Gerätekonfiguration: fügt Lamellenbewegungs-Timing in Jalousie-Eigenschaften hinzu",
+      "locationconfig":               "Gerätekonfiguration: fügt Orientierungs-/Richtungsauswahl hinzu (z.B. Südfassade)",
+      "operationlock":                "Gerätekonfiguration: erlaubt Wetteralarmen, die Betriebssperre auf diesem Gerät zu überschreiben",
+      "windprotectionconfigblind":    "Gerätekonfiguration: fügt Windschutzklasse für Jalousie / Rolllade hinzu",
+      "windprotectionconfigawning":   "Gerätekonfiguration: fügt Windschutzklasse für Markise / Rollladenschutz hinzu",
+      "heatingprops":                 "Gerätekonfiguration: fügt Ventiltyp, PWM-Periode und Heizzoneneinstellungen hinzu",
+      "heatinggroup":                 "Gerätekonfiguration: fügt Heizgruppenauswahl-Dropdown hinzu",
+      "valvetype":                    "Gerätekonfiguration: fügt Auswahl für angeschlossenes Ventil oder Klemmengerät hinzu",
+      "extendedvalvetypes":           "Gerätekonfiguration: fügt erweiterte Ventiltypoptionen jenseits des Standardsatzes hinzu",
+      "fcu":                          "Gerätekonfiguration: fügt Fan-Coil-Unit-Einstellungen hinzu (Lüftergeschwindigkeit, Heiz-/Kühl-/Lüftungsmodi)",
+      "temperatureoffset":            "Gerätekonfiguration: fügt Temperaturkorrektur-Offset-Feld hinzu",
+      "consumption":                  "Gerätekonfiguration: fügt Energieverbrauchsüberwachung und Ereignismenü hinzu",
+      "akmsensor":                    "Gerätekonfiguration: fügt Auswahl hinzu, was der Trockenkontakt-Eingang erkennt (Anwesenheit, Bewegung, Fenster offen usw.)",
+      "pushbutton":                   "Gerätekonfiguration: fügt Tastentypzuweisungsauswahl hinzu (einfach, Wechsel, 4-Wege usw.)",
+      "pushbadvanced":                "Gerätekonfiguration: fügt Klicktyp-Konfiguration pro Szene und lokale Prioritätsumschalter hinzu",
+      "pushbdisabled":                "Gerätekonfiguration: fügt Dialog zum Deaktivieren ungenutzter Tastenelemente hinzu",
+      "jokerconfig":                  "Gerätekonfiguration: fügt Farbgruppenauswahl für flexible/Joker-Klasse-Geräte hinzu",
+      "pushbarea":                    "Tastenkonfiguration: fügt 'Bereich' als auswählbaren Tastenfunktionstyp hinzu",
+      "pushbdevice":                  "Tastenkonfiguration: fügt 'Gerät' als auswählbaren Tastenfunktionstyp hinzu",
+      "pushbsensor":                  "Tastenkonfiguration: fügt 'sensorartig' als auswählbaren Tastenfunktionstyp hinzu",
+      "highlevel":                    "Tastenkonfiguration: fügt 'App / Szenenauslöser' als auswählbaren Tastenfunktionstyp hinzu",
+      "identification":               "Fügt einen 'Identifizieren'-Eintrag hinzu — löst ein visuelles Signal am physischen Gerät vom Konfigurator aus"
+    },
+    "optional": {
+      "blinkconfig":                      "Gerätekonfiguration: fügt Blink-Muster- und Verhaltenseinstellungen hinzu (nicht getestet)",
+      "customtransitiontime":             "Szeneneditor: fügt ein benutzerdefiniertes Übergangszeit-Feld pro Szene hinzu (nicht getestet)",
+      "consumptiontimer":                 "Gerätekonfiguration: fügt Verbrauchstimer- und Laufzeit-Tracking-Panel hinzu (nicht getestet)",
+      "outmodegeneric":                   "Gerätekonfiguration: fügt Ausgangsmodus-Auswahl mit generischen Werten 0–6 hinzu (nicht getestet)",
+      "outmodeauto":                      "Gerätekonfiguration: fügt 'Auto'-Option zur Ausgangsmodus-Auswahl hinzu (nicht getestet)",
+      "jokertempcontrol":                 "Aktiviert temperaturgesteuerte Ausgangsverhalten für flexible/Joker-Klasse-Geräte (nicht getestet)",
+      "umvrelay":                         "Gerätekonfiguration: fügt Relaisfunktionsauswahl für Universal-Modul-Hardware hinzu (nicht getestet)",
+      "ftwtempcontrolventilationselect":  "Gerätekonfiguration: fügt kombinierten Temperatur- und Lüftungsmodusauswahl hinzu (nicht getestet)",
+      "setumr200config":                  "Gerätekonfiguration: fügt Hardware-Konfiguration für UMR200-Modul hinzu (nicht getestet)",
+      "apartmentapplication":             "Aktiviert wohnungsweite Anwendungsintegration für dieses Gerät (nicht getestet)",
+      "customactivityconfig":             "Fügt benutzerdefinierte Aktivitäts- und App-Konfigurationsoptionen hinzu (nicht getestet)"
+    }
+  },
+  "labels": {
+    "color_group": {
+      "1": "Gelb — Lichter / Dimmer",
+      "2": "Grau — Jalousien / Rollläden",
+      "3": "Blau — Klima (Heizung, Kühlung, Lüftung)",
+      "4": "Cyan — Audio",
+      "5": "Magenta — Video",
+      "6": "Rot — Sicherheit",
+      "7": "Grün — Zugang",
+      "8": "Schwarz — Joker / Konfigurierbar",
+      "9": "Weiß — Einzelgerät / Haushaltsgerät"
+    },
+    "button_group": {
+      "1": "Gelb / Licht",
+      "2": "Grau / Schatten",
+      "3": "Blau / Heizung",
+      "4": "Cyan / Audio",
+      "5": "Magenta / Video",
+      "6": "Rot / Sicherheit",
+      "7": "Grün / Zugang",
+      "8": "Schwarz / Joker",
+      "9": "Blau / Kühlung",
+      "10": "Blau / Lüftung",
+      "11": "Blau / Fenster",
+      "12": "Blau / Umwälzung",
+      "48": "Raumtemperaturregelung"
+    },
+    "binary_input_group": {
+      "1": "Gelb / Licht",
+      "2": "Grau / Schatten",
+      "3": "Blau / Heizung",
+      "4": "Cyan / Audio",
+      "5": "Magenta / Video",
+      "6": "Rot / Sicherheit",
+      "7": "Grün / Zugang",
+      "8": "Schwarz / Joker",
+      "10": "Blau / Lüftung",
+      "12": "Blau / Umwälzung"
+    },
+    "sensor_group": {
+      "0": "Keine Gruppe / Joker",
+      "1": "Gelb / Licht",
+      "2": "Grau / Schatten",
+      "3": "Blau / Klima",
+      "4": "Cyan / Audio",
+      "5": "Magenta / Video",
+      "6": "Rot / Sicherheit",
+      "7": "Grün / Zugang"
+    },
+    "color_class": {
+      "1": "Lichter (Gelb)",
+      "2": "Jalousien / Rollläden (Grau)",
+      "3": "Heizung (Blau)",
+      "4": "Audio (Cyan)",
+      "5": "Video (Magenta)",
+      "6": "Sicherheit (Rot)",
+      "7": "Zugang (Grün)",
+      "8": "Joker / Konfigurierbar (Schwarz)",
+      "9": "Kühlung (Blau)",
+      "10": "Lüftung (Blau)",
+      "11": "Fenster (Blau)",
+      "12": "Umwälzung / Fan-Coil (Blau)",
+      "48": "Temperaturregelung (Blau)"
+    },
+    "button_type": {
+      "0": "Undefiniert (unbegrenzte Elemente)",
+      "1": "Einfacher Taster (1 Element)",
+      "2": "Wechseltaster (2 Elemente)",
+      "3": "Vier-Wege-Navigation (4 Elemente)",
+      "4": "Vier-Wege mit Mitte (5 Elemente)",
+      "5": "Acht-Wege mit Mitte (9 Elemente)",
+      "6": "Ein/Aus-Schalter (1 Element)"
+    },
+    "button_function": {
+      "0": "Gerät",
+      "1": "Bereich 1",
+      "2": "Bereich 2",
+      "3": "Bereich 3",
+      "4": "Bereich 4",
+      "5": "Raum",
+      "6": "Erweitert 1",
+      "7": "Erweitert 2",
+      "8": "Erweitert 3",
+      "9": "Erweitert 4",
+      "10": "Erweiterter Bereich 1",
+      "11": "Erweiterter Bereich 2",
+      "12": "Erweiterter Bereich 3",
+      "13": "Erweiterter Bereich 4",
+      "14": "Wohnung",
+      "15": "App"
+    },
+    "button_mode": {
+      "0": "Standard (1-Wege-Taster)",
+      "1": "Turbo (1-Wege)",
+      "2": "Geschaltet / Wechsel",
+      "5": "2-Wege Runter, Paar 1",
+      "6": "2-Wege Runter, Paar 2",
+      "7": "2-Wege Runter, Paar 3",
+      "8": "2-Wege Runter, Paar 4",
+      "9": "2-Wege Hoch, Paar 1",
+      "10": "2-Wege Hoch, Paar 2",
+      "11": "2-Wege Hoch, Paar 3",
+      "12": "2-Wege Hoch, Paar 4",
+      "13": "2-Wege",
+      "14": "1-Wege (explizit)",
+      "16": "AKM Standard (Kontaktmodul)",
+      "17": "AKM Invertiert (Kontaktmodul)",
+      "18": "AKM Ein (steigende Flanke)",
+      "19": "AKM Ein (fallende Flanke)",
+      "20": "AKM Aus (steigende Flanke)",
+      "21": "AKM Aus (fallende Flanke)",
+      "22": "AKM Steigende Flanke",
+      "23": "AKM Fallende Flanke",
+      "65": "Heiz-Taster (1-Wege)",
+      "255": "Deaktiviert"
+    },
+    "binary_input_type": {
+      "0": "Generisch",
+      "1": "Anwesenheit",
+      "2": "Helligkeit",
+      "3": "Anwesenheit bei Dunkelheit",
+      "4": "Dämmerung",
+      "5": "Bewegung",
+      "6": "Bewegung bei Dunkelheit",
+      "7": "Rauch",
+      "8": "Wind",
+      "9": "Regen",
+      "10": "Sonnenstrahlung",
+      "11": "Thermostat",
+      "12": "Batterie schwach",
+      "13": "Fenster offen",
+      "14": "Tür offen",
+      "15": "Fenster gekippt",
+      "16": "Garagentor offen",
+      "17": "Sonnenschutz",
+      "18": "Frost",
+      "19": "Heizung aktiviert",
+      "20": "Heizungsumschaltung",
+      "21": "Initialisierung",
+      "22": "Störung",
+      "23": "Wartung"
+    },
+    "binary_input_usage": {
+      "0": "Generisch",
+      "1": "Raumklima",
+      "2": "Außenklima",
+      "3": "Klimaeinstellung"
+    },
+    "binary_input_value_type": {
+      "boolean": "Boolean (wahr / falsch)",
+      "integer": "Ganzzahl (erweiterter Wert)"
+    },
+    "sensor_type": {
+      "0": "Keiner",
+      "1": "Temperatur",
+      "2": "Luftfeuchtigkeit",
+      "3": "Beleuchtungsstärke",
+      "4": "Versorgungsspannung",
+      "5": "CO-Konzentration",
+      "6": "Radon-Aktivität",
+      "7": "Gastyp",
+      "8": "Partikel PM10",
+      "9": "Partikel PM2,5",
+      "10": "Partikel PM1",
+      "11": "Raumbediengerät",
+      "12": "Lüftergeschwindigkeit",
+      "13": "Windgeschwindigkeit",
+      "14": "Wirkleistung",
+      "15": "Elektrischer Strom",
+      "16": "Stromzähler",
+      "17": "Scheinleistung",
+      "18": "Luftdruck",
+      "19": "Windrichtung",
+      "20": "Schalldruckpegel",
+      "21": "Niederschlag",
+      "22": "CO₂-Konzentration",
+      "23": "Windböengeschwindigkeit",
+      "24": "Windböenrichtung",
+      "25": "Erzeugte Wirkleistung",
+      "26": "Erzeugte Energie",
+      "27": "Wassermenge",
+      "28": "Wasserflussrate",
+      "29": "Länge",
+      "30": "Masse",
+      "31": "Dauer",
+      "32": "Prozent",
+      "33": "Prozentgeschwindigkeit",
+      "34": "Frequenz"
+    },
+    "sensor_usage": {
+      "1": "Raum",
+      "2": "Außen",
+      "3": "Benutzerinteraktion",
+      "4": "Geräteebene",
+      "5": "Letzter Gerätebetrieb",
+      "6": "Gerätedurchschnitt"
+    },
+    "output_function": {
+      "0": "Ein / Aus",
+      "1": "Dimmer",
+      "2": "Positionell (Jalousie, Ventil)",
+      "3": "Dimmer mit Farbtemperatur",
+      "4": "Vollfarb-Dimmer (RGB / HSV)",
+      "5": "Bipolar",
+      "6": "Intern geregelt",
+      "127": "Benutzerdefiniert (keine Standardkanäle)"
+    },
+    "output_mode": {
+      "0": "Deaktiviert",
+      "1": "Binär (nur Ein/Aus)",
+      "2": "Stufenlos (kontinuierlicher Bereich)",
+      "127": "Standard (Gerät entscheidet)"
+    },
+    "output_usage": {
+      "0": "Undefiniert",
+      "1": "Raum",
+      "2": "Außen",
+      "3": "Benutzer"
+    },
+    "input_type": {
+      "0": "Manuell (keine automatische Erkennung)",
+      "1": "Erkennt Änderungen (Senden bei Änderung)",
+      "2": "Abgefragt (regelmäßige Abfrage durch dSS)"
+    },
+    "cover_placement": {
+      "indoor": "Innen (raumzugewandt)",
+      "outdoor": "Außen (witterungsausgesetzt)"
+    },
+    "channel_type": {
+      "0": "Standard (keine / Sammelkanal)",
+      "1": "Helligkeit",
+      "2": "Farbton",
+      "3": "Sättigung",
+      "4": "Farbtemperatur (Mired, 100–1000)",
+      "5": "CIE X",
+      "6": "CIE Y",
+      "7": "Jalousieposition — Außen (0–100%)",
+      "8": "Jalousieposition — Innen (0–100%)",
+      "9": "Jalousie-Öffnungswinkel — Außen",
+      "10": "Jalousie-Öffnungswinkel — Innen",
+      "11": "Transparenz",
+      "12": "Luftstromintensität",
+      "13": "Luftstromrichtung",
+      "14": "Luftklappenposition",
+      "15": "Luftlamellen-Position",
+      "16": "Heizleistung",
+      "17": "Kühlkapazität",
+      "18": "Audiolautstärke",
+      "19": "Leistungsstatus",
+      "20": "Luftlamellen Auto",
+      "21": "Luftstrom Auto",
+      "22": "Wassertemperatur",
+      "23": "Wasserflussrate",
+      "24": "Leistungsniveau",
+      "25": "Videostation",
+      "26": "Video-Eingangsquelle",
+      "192": "FCU-Betriebsmodus"
+    },
+    "creation_mode": {
+      "from_entity": "Gerät basierend auf HA-Entitäten erstellen (empfohlen)",
+      "from_ha_device": "Gerät basierend auf HA-Gerät erstellen",
+      "from_scratch": "Gerät von Grund auf erstellen (BETA)"
+    },
+    "state_files_action": {
+      "keep": "Vorhandenen Zustand verwenden (gespeicherte Gerätekonfiguration wiederherstellen)",
+      "delete": "Löschen und neu beginnen"
+    },
+    "callback_type": {
+      "clickTypes": "Klicktypen (Entitätsstatus = Klicktyp-Nummer)",
+      "actionIds": "Szenen- / Aktions-IDs (Entitätsstatus = Szenennummer)",
+      "detect_clicks": "Auto-Erkennung (Binärsensor / Ereignis / Tastenentität)"
+    },
+    "vdsd_action": {
+      "optional_settings": "Optionale Einstellungen",
+      "add_button": "Taste hinzufügen",
+      "add_binary_input": "Binäreingang hinzufügen",
+      "add_sensor": "Sensor hinzufügen",
+      "add_output": "Ausgang hinzufügen",
+      "next": "Weiter →"
+    },
+    "entity_build_action": {
+      "add": "Entität hinzufügen →",
+      "done": "Fertig — vdSD erstellen"
+    },
+    "plan_summary_action": {
+      "proceed": "Fortfahren",
+      "cancel": "Abbrechen"
+    },
+    "output_action": {
+      "next": "Weiter",
+      "output_optional": "Optionale Ausgangseinstellungen…"
+    },
+    "channel_action": {
+      "next": "Fertig",
+      "add_another": "Weiteren Kanal hinzufügen"
+    },
+    "binary_input_binding_type": {
+      "entity_state": "Ein/Aus-Status der Entität verwenden",
+      "entity_attribute": "Attributwert mit Transformation verwenden"
+    }
+  }
+}

@@ -3,11 +3,74 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import functools
+import json
 import logging
 import re
 import socket
 from pathlib import Path
 from typing import Any
+
+_STRINGS: dict = json.loads(
+    (Path(__file__).parent / "strings.json").read_text()
+)
+_MF = _STRINGS.get("model_features", {})
+
+
+@functools.lru_cache(maxsize=16)
+def _translation_data(lang: str) -> dict:
+    """Load translation JSON for a language code, falling back to English."""
+    base = Path(__file__).parent
+    for code in (lang, lang.split("-")[0].split("_")[0], "en"):
+        p = base / "translations" / f"{code}.json"
+        if p.exists():
+            try:
+                return json.loads(p.read_text())
+            except Exception:
+                pass
+    return _STRINGS
+
+
+def _i18n_labels(hass: Any, section: str) -> dict[str, str]:
+    """Return label dict for a section in the user's HA language."""
+    lang = (getattr(getattr(hass, "config", None), "language", None) or "en").lower()
+    data = _translation_data(lang)
+    en = _STRINGS.get("labels", {}).get(section, {})
+    return {**en, **data.get("labels", {}).get(section, {})}
+
+
+def _translate_opts(
+    hass: Any, section: str, opts: list
+) -> list:
+    """Return option list with labels translated to the user's HA language.
+    Falls back to the English label already in each option dict."""
+    from homeassistant.helpers import selector as _sel
+    labels = _i18n_labels(hass, section)
+    return [
+        _sel.SelectOptionDict(
+            value=o["value"],
+            label=labels.get(o["value"], o.get("label", o["value"])),
+        )
+        for o in opts
+    ]
+
+
+def _build_section_opts(hass: Any, section: str) -> list:
+    """Build a SelectOptionDict list from a strings.json labels section.
+    Preserves insertion order of the English strings.json as the canonical order."""
+    from homeassistant.helpers import selector as _sel
+    en = _STRINGS.get("labels", {}).get(section, {})
+    lang = (getattr(getattr(hass, "config", None), "language", None) or "en").lower()
+    if lang == "en":
+        translated = {}
+    else:
+        data = _translation_data(lang)
+        translated = data.get("labels", {}).get(section, {})
+    return [
+        _sel.SelectOptionDict(value=k, label=translated.get(k, v))
+        for k, v in en.items()
+    ]
+
 
 try:
     import cairosvg as _cairosvg
@@ -433,57 +496,10 @@ _BUTTON_ELEMENTS_BY_TYPE: dict[int, int] = {0: 1, 1: 1, 2: 2, 3: 4, 4: 5, 5: 9, 
 # Model features — labels, options, and auto-derive helper
 # ---------------------------------------------------------------------------
 
-_AUTO_FEATURE_LABELS: dict[str, str] = {
-    "dontcare":                     "Per-scene 'retain current value' checkbox",
-    "blink":                        "Per-scene blink effect checkbox",
-    "transt":                       "Per-scene transition time (standard / slow)",
-    "outvalue8":                    "8-bit output value slider",
-    "outputchannels":               "Multi-channel colour output controls",
-    "dimtimeconfig":                "Dim-time settings (up / down)",
-    "outconfigswitch":              "Switch output threshold configuration",
-    "impulseconfig":                "Impulse mode tab in device properties",
-    "pwmvalue":                     "PWM-mode indicator in output values",
-    "ventconfig":                   "Ventilation speed / flap configuration",
-    "shadeprops":                   "Shade device properties (positional timing)",
-    "shadeposition":                "16-bit position slider and up/down buttons",
-    "shadebladeang":                "Blade angle input / slider",
-    "motiontimefins":               "Blade motion timing in shade properties",
-    "locationconfig":               "Direction / orientation dropdown",
-    "operationlock":                "Ignore operation lock for weather alarms",
-    "windprotectionconfigblind":    "Wind protection class — jalousie / blind",
-    "windprotectionconfigawning":   "Wind protection class — awning / roller blind",
-    "heatingprops":                 "Climate device properties (valve / PWM settings)",
-    "heatinggroup":                 "Heating group dropdown",
-    "valvetype":                    "Attached terminal device dropdown",
-    "extendedvalvetypes":           "Extended valve type options",
-    "fcu":                          "Fan coil unit profile",
-    "temperatureoffset":            "Temperature offset adjustment",
-    "consumption":                  "Energy monitoring / consumption events menu",
-    "akmsensor":                    "AKM sensor function dropdown",
-    "pushbutton":                   "Push button type dropdown",
-    "pushbadvanced":                "Per-preset click-type config and local priority",
-    "pushbdisabled":                "Dialog for disabling unused buttons",
-    "pushbarea":                    "Area push-button type option",
-    "pushbdevice":                  "Device push-button type option",
-    "pushbsensor":                  "Sensor-style button type option",
-    "highlevel":                    "App button type option",
-    "jokerconfig":                  "Colour group dropdown for Joker device",
-    "identification":               "Identify menu entry (sends Notify to VDC)",
-}
-
-_OPTIONAL_FEATURE_LABELS: dict[str, str] = {
-    "blinkconfig":                      "Blink behaviour configuration menu (not tested)",
-    "customtransitiontime":             "Per-scene custom transition time (not tested)",
-    "consumptiontimer":                 "Consumption timer / run-time panel (not tested)",
-    "outmodegeneric":                   "Output mode selector — generic values 0–6 (not tested)",
-    "outmodeauto":                      "Output mode: add Auto option (not tested)",
-    "jokertempcontrol":                 "Temperature-controlled output for Joker device (not tested)",
-    "umvrelay":                         "Relay function dropdown (not tested)",
-    "ftwtempcontrolventilationselect":  "FTW combined temperature + ventilation selector (not tested)",
-    "setumr200config":                  "UMR200 hardware configuration (not tested)",
-    "apartmentapplication":             "Apartment application integration (not tested)",
-    "customactivityconfig":             "Custom activity / app configuration (not tested)",
-}
+# Model feature labels are defined in strings.json under "model_features"
+# so they serve as the single source of truth for translations.
+_AUTO_FEATURE_LABELS: dict[str, str] = _MF.get("auto", {})
+_OPTIONAL_FEATURE_LABELS: dict[str, str] = _MF.get("optional", {})
 
 
 def _select(options: list, *, multiple: bool = False) -> selector.SelectSelector:
@@ -596,10 +612,7 @@ class DsvdcConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         schema = vol.Schema({
             vol.Required("action", default="keep"): selector.SelectSelector(
                 selector.SelectSelectorConfig(
-                    options=[
-                        selector.SelectOptionDict(value="keep", label="Use existing state (restore saved device configuration)"),
-                        selector.SelectOptionDict(value="delete", label="Delete and start fresh"),
-                    ]
+                    options=_build_section_opts(self.hass, "state_files_action")
                 )
             ),
         })
@@ -741,6 +754,7 @@ _OPTIONAL_RETURN_STEPS: frozenset[str] = frozenset({"vdsd_overview"})
 def _build_entity_choices_schema(
     mapping: dict,
     state_attrs: dict | None = None,
+    hass: Any = None,
 ) -> dict:
     """Build voluptuous schema_dict for entity-specific user choices.
 
@@ -748,6 +762,9 @@ def _build_entity_choices_schema(
     present the same fields; the device variant passes live state attributes
     so min/max/resolution are pre-filled with current values.
     """
+    def _t(section: str, opts: list) -> list:
+        return _translate_opts(hass, section, opts) if hass is not None else opts
+
     attrs = state_attrs or {}
     bi = mapping.get("binary_input", {})
     sen = mapping.get("sensor", {})
@@ -758,7 +775,7 @@ def _build_entity_choices_schema(
     sfc = bi.get("sensor_function_choices")
     if sfc == "any":
         schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
-            selector.SelectSelector(selector.SelectSelectorConfig(options=_BINARY_INPUT_TYPE_OPTIONS))
+            selector.SelectSelector(selector.SelectSelectorConfig(options=_t("binary_input_type", _BINARY_INPUT_TYPE_OPTIONS)))
         )
     elif sfc:
         schema_dict[vol.Required("sensor_function", default=str(bi["sensor_function"]))] = (
@@ -783,7 +800,7 @@ def _build_entity_choices_schema(
     stc = sen.get("sensor_type_choices")
     if stc == "any":
         schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
-            selector.SelectSelector(selector.SelectSelectorConfig(options=_SENSOR_TYPE_OPTIONS))
+            selector.SelectSelector(selector.SelectSelectorConfig(options=_t("sensor_type", _SENSOR_TYPE_OPTIONS)))
         )
     elif stc:
         schema_dict[vol.Required("sensor_type", default=str(sen["sensor_type"]))] = (
@@ -807,7 +824,7 @@ def _build_entity_choices_schema(
     suc = sen.get("sensor_usage_choices")
     if suc == "any":
         schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
-            selector.SelectSelector(selector.SelectSelectorConfig(options=_SENSOR_USAGE_OPTIONS))
+            selector.SelectSelector(selector.SelectSelectorConfig(options=_t("sensor_usage", _SENSOR_USAGE_OPTIONS)))
         )
     elif suc:
         schema_dict[vol.Required("sensor_usage", default=str(sen["sensor_usage"]))] = (
@@ -829,7 +846,7 @@ def _build_entity_choices_schema(
 
     if out.get("placement_choice"):
         schema_dict[vol.Required("cover_placement", default="indoor")] = (
-            selector.SelectSelector(selector.SelectSelectorConfig(options=_COVER_PLACEMENT_OPTIONS))
+            selector.SelectSelector(selector.SelectSelectorConfig(options=_t("cover_placement", _COVER_PLACEMENT_OPTIONS)))
         )
 
     def _timing_field(key: str):
@@ -978,14 +995,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             return await self.async_step_device_info()
         schema = vol.Schema({
             vol.Required("mode", default="from_entity"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="from_entity",
-                                              label="Create device based on HA entities (recommended)"),
-                    selector.SelectOptionDict(value="from_ha_device",
-                                              label="Create device based on HA device"),
-                    selector.SelectOptionDict(value="from_scratch",
-                                              label="Create device from scratch (BETA)"),
-                ])
+                selector.SelectSelectorConfig(options=_build_section_opts(self.hass, "creation_mode"))
             ),
         })
         return self.async_show_form(step_id="creation_mode", data_schema=schema)
@@ -1055,7 +1065,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 return await self._apply_entity_artefact_to_current(user_input)
             return await self._build_entity_vdsd_and_continue(user_input)
 
-        schema_dict = _build_entity_choices_schema(mapping)
+        schema_dict = _build_entity_choices_schema(mapping, hass=self.hass)
         return self.async_show_form(
             step_id="entity_user_input",
             data_schema=vol.Schema(schema_dict),
@@ -1357,10 +1367,8 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             return await self.async_step_model_features()
 
         has_remaining = bool(self._device_remaining_entities)
-        options = []
-        if has_remaining:
-            options.append(selector.SelectOptionDict(value="add", label="Add entity →"))
-        options.append(selector.SelectOptionDict(value="done", label="Done — create vdSD"))
+        all_opts = _build_section_opts(self.hass, "entity_build_action")
+        options = [o for o in all_opts if o["value"] != "add" or has_remaining]
 
         schema = vol.Schema({
             vol.Required("action", default="add" if has_remaining else "done"): selector.SelectSelector(
@@ -1645,7 +1653,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
         state = self.hass.states.get(entity_info.entity_id)
         attrs = state.attributes if state else {}
-        schema_dict = _build_entity_choices_schema(mapping, state_attrs=attrs)
+        schema_dict = _build_entity_choices_schema(mapping, state_attrs=attrs, hass=self.hass)
 
         current = self._pending_choice_idx + 1
         total = len(self._pending_choice_entities)
@@ -1725,10 +1733,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
         schema = vol.Schema({
             vol.Required("action", default="proceed"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="proceed", label="Proceed"),
-                    selector.SelectOptionDict(value="cancel", label="Cancel"),
-                ])
+                selector.SelectSelectorConfig(options=_build_section_opts(self.hass, "plan_summary_action"))
             ),
         })
         return self.async_show_form(
@@ -1815,7 +1820,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         schema = vol.Schema({
             vol.Required("displayId"): selector.TextSelector(),
             vol.Required("primaryGroup", default="1"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_COLOR_GROUP_OPTIONS)
+                selector.SelectSelectorConfig(options=_translate_opts(self.hass, "color_group", _COLOR_GROUP_OPTIONS))
             ),
             vol.Required("modelVersion"): selector.TextSelector(),
             vol.Optional("identify_action"): selector.ActionSelector(),
@@ -1847,17 +1852,8 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         si_summary = [s["name"] for s in self._current_sensors]
         has_output = self._current_output is not None
 
-        action_options = [
-            selector.SelectOptionDict(value="optional_settings", label="Optional Settings"),
-            selector.SelectOptionDict(value="add_button", label="Add Button"),
-            selector.SelectOptionDict(value="add_binary_input", label="Add Binary Input"),
-            selector.SelectOptionDict(value="add_sensor", label="Add Sensor"),
-        ]
-        if not has_output:
-            action_options.append(
-                selector.SelectOptionDict(value="add_output", label="Add Output")
-            )
-        action_options.append(selector.SelectOptionDict(value="next", label="Next →"))
+        all_actions = _build_section_opts(self.hass, "vdsd_action")
+        action_options = [a for a in all_actions if a["value"] != "add_output" or not has_output]
 
         schema = vol.Schema({
             vol.Required("action", default="next"): selector.SelectSelector(
@@ -2266,21 +2262,19 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
-            vol.Required("buttonType", default="1"): _select(_BUTTON_TYPE_OPTIONS),
-            vol.Required("group", default="1"): _select(_BUTTON_GROUP_OPTIONS),
-            vol.Required("function", default="0"): _select(_BUTTON_FUNCTION_OPTIONS),
-            vol.Required("mode", default="0"): _select(_BUTTON_MODE_OPTIONS),
+            vol.Required("buttonType", default="1"): _select(_translate_opts(self.hass, "button_type", _BUTTON_TYPE_OPTIONS)),
+            vol.Required("group", default="1"): _select(_translate_opts(self.hass, "button_group", _BUTTON_GROUP_OPTIONS)),
+            vol.Required("function", default="0"): _select(_translate_opts(self.hass, "button_function", _BUTTON_FUNCTION_OPTIONS)),
+            vol.Required("mode", default="0"): _select(_translate_opts(self.hass, "button_mode", _BUTTON_MODE_OPTIONS)),
             vol.Optional("channel", default=0): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, max=255, mode="box")
             ),
             vol.Optional("supportsLocalKeyMode", default=False): selector.BooleanSelector(),
             vol.Optional("setsLocalPriority", default=False): selector.BooleanSelector(),
             vol.Optional("callsPresent", default=True): selector.BooleanSelector(),
-            vol.Required("callbackType", default="clickTypes"): _select([
-                selector.SelectOptionDict(value="clickTypes", label="Click types (passthrough: entity state = click type number)"),
-                selector.SelectOptionDict(value="actionIds", label="Scene / action IDs (passthrough: entity state = scene number)"),
-                selector.SelectOptionDict(value="detect_clicks", label="Auto-detect (binary sensor / event / button entity)"),
-            ]),
+            vol.Required("callbackType", default="clickTypes"): _select(
+                _build_section_opts(self.hass, "callback_type")
+            ),
             vol.Optional("callback_entity"): selector.EntitySelector(),
         })
         return self.async_show_form(step_id="button", data_schema=schema)
@@ -2303,18 +2297,17 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             return await self.async_step_binary_input_binding()
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
-            vol.Required("group", default="8"): _select(_BINARY_INPUT_GROUP_OPTIONS),
-            vol.Required("sensorFunction", default="0"): _select(_BINARY_INPUT_TYPE_OPTIONS),
-            vol.Required("hardwiredFunction", default="0"): _select(_BINARY_INPUT_TYPE_OPTIONS),
+            vol.Required("group", default="8"): _select(_translate_opts(self.hass, "binary_input_group", _BINARY_INPUT_GROUP_OPTIONS)),
+            vol.Required("sensorFunction", default="0"): _select(_translate_opts(self.hass, "binary_input_type", _BINARY_INPUT_TYPE_OPTIONS)),
+            vol.Required("hardwiredFunction", default="0"): _select(_translate_opts(self.hass, "binary_input_type", _BINARY_INPUT_TYPE_OPTIONS)),
             vol.Optional("updateInterval", default=0): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, mode="box")
             ),
-            vol.Required("inputType", default="1"): _select(_INPUT_TYPE_OPTIONS),
-            vol.Required("inputUsage", default="0"): _select(_BINARY_INPUT_USAGE_OPTIONS),
-            vol.Required("valueType", default="boolean"): _select([
-                selector.SelectOptionDict(value="boolean", label="Boolean (true / false)"),
-                selector.SelectOptionDict(value="integer", label="Integer (extended value)"),
-            ]),
+            vol.Required("inputType", default="1"): _select(_translate_opts(self.hass, "input_type", _INPUT_TYPE_OPTIONS)),
+            vol.Required("inputUsage", default="0"): _select(_translate_opts(self.hass, "binary_input_usage", _BINARY_INPUT_USAGE_OPTIONS)),
+            vol.Required("valueType", default="boolean"): _select(
+                _build_section_opts(self.hass, "binary_input_value_type")
+            ),
             vol.Optional("callback_entity"): selector.EntitySelector(),
         })
         return self.async_show_form(step_id="binary_input", data_schema=schema)
@@ -2335,10 +2328,10 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
 
         schema = vol.Schema({
             vol.Required("binding_type", default="entity_state"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="entity_state", label="Use entity on/off state"),
-                    selector.SelectOptionDict(value="entity_attribute", label="Use attribute value with transform"),
-                ], mode=selector.SelectSelectorMode.LIST)
+                selector.SelectSelectorConfig(
+                    options=_build_section_opts(self.hass, "binary_input_binding_type"),
+                    mode=selector.SelectSelectorMode.LIST,
+                )
             ),
             vol.Optional("source_entity"): selector.EntitySelector(),
             vol.Optional("source_attribute", default=""): selector.TextSelector(),
@@ -2369,9 +2362,9 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             return await self.async_step_sensor_binding()
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
-            vol.Required("group", default="0"): _select(_SENSOR_GROUP_OPTIONS),
-            vol.Required("sensorType", default="1"): _select(_SENSOR_TYPE_OPTIONS),
-            vol.Required("sensorUsage", default="1"): _select(_SENSOR_USAGE_OPTIONS),
+            vol.Required("group", default="0"): _select(_translate_opts(self.hass, "sensor_group", _SENSOR_GROUP_OPTIONS)),
+            vol.Required("sensorType", default="1"): _select(_translate_opts(self.hass, "sensor_type", _SENSOR_TYPE_OPTIONS)),
+            vol.Required("sensorUsage", default="1"): _select(_translate_opts(self.hass, "sensor_usage", _SENSOR_USAGE_OPTIONS)),
             vol.Required("min", default=0): selector.NumberSelector(
                 selector.NumberSelectorConfig(mode="box")
             ),
@@ -2452,16 +2445,15 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             return await self.async_step_channel_mapping()
         schema = vol.Schema({
             vol.Required("name"): selector.TextSelector(),
-            vol.Required("groups", default=["1"]): _select(_COLOR_CLASS_OPTIONS, multiple=True),
-            vol.Required("defaultGroup", default="1"): _select(_COLOR_CLASS_OPTIONS),
-            vol.Required("function", default="0"): _select(_OUTPUT_FUNCTION_OPTIONS),
-            vol.Required("outputUsage", default="0"): _select(_OUTPUT_USAGE_OPTIONS),
+            vol.Required("groups", default=["1"]): _select(_translate_opts(self.hass, "color_class", _COLOR_CLASS_OPTIONS), multiple=True),
+            vol.Required("defaultGroup", default="1"): _select(_translate_opts(self.hass, "color_class", _COLOR_CLASS_OPTIONS)),
+            vol.Required("function", default="0"): _select(_translate_opts(self.hass, "output_function", _OUTPUT_FUNCTION_OPTIONS)),
+            vol.Required("outputUsage", default="0"): _select(_translate_opts(self.hass, "output_usage", _OUTPUT_USAGE_OPTIONS)),
             vol.Optional("variableRamp", default=False): selector.BooleanSelector(),
-            vol.Required("mode", default="127"): _select(_OUTPUT_MODE_OPTIONS),
-            vol.Required("action", default="next"): _select([
-                selector.SelectOptionDict(value="next", label="Continue"),
-                selector.SelectOptionDict(value="output_optional", label="Optional output settings…"),
-            ]),
+            vol.Required("mode", default="127"): _select(_translate_opts(self.hass, "output_mode", _OUTPUT_MODE_OPTIONS)),
+            vol.Required("action", default="next"): _select(
+                _build_section_opts(self.hass, "output_action")
+            ),
         })
         return self.async_show_form(step_id="output", data_schema=schema)
 
@@ -2558,7 +2550,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             return await self.async_step_channel_mapping()
         schema = vol.Schema({
             vol.Required("channelType", default="1"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=_CHANNEL_TYPE_OPTIONS)
+                selector.SelectSelectorConfig(options=_translate_opts(self.hass, "channel_type", _CHANNEL_TYPE_OPTIONS))
             ),
             vol.Required("name"): selector.TextSelector(),
             vol.Required("min", default=0): selector.NumberSelector(
@@ -2571,10 +2563,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 selector.NumberSelectorConfig(min=0, step=0.01, mode="box")
             ),
             vol.Required("action", default="next"): selector.SelectSelector(
-                selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="next", label="Done — go to channel mapping"),
-                    selector.SelectOptionDict(value="add_another", label="Add another channel"),
-                ])
+                selector.SelectSelectorConfig(options=_build_section_opts(self.hass, "channel_action"))
             ),
         })
         return self.async_show_form(step_id="channel", data_schema=schema)

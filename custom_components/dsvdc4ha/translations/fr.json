@@ -1,0 +1,724 @@
+{
+  "config": {
+    "step": {
+      "hub": {
+        "title": "Configurer le hub dSVDC",
+        "description": "Saisissez le port sur lequel l'hôte virtualDC écoutera. Votre serveur digitalSTROM (dSS) doit pouvoir atteindre ce port sur l'hôte Home Assistant.",
+        "data": {
+          "port": "Port de l'hôte vDC"
+        }
+      },
+      "wait_for_dss": {
+        "title": "En attente de connexion dSS",
+        "description": "L'hôte virtualDC est maintenant annoncé sur le réseau. En attente d'une connexion d'un serveur digitalSTROM (délai d'attente : 2 minutes)…"
+      },
+      "state_files": {
+        "title": "Fichiers d'état existants trouvés",
+        "description": "Les fichiers d'état suivants d'une installation précédente ont été trouvés :\n{files}\n\nCes fichiers stockent le dernier état connu de vos appareils virtuels (valeurs de sortie, scènes, etc.) afin que le serveur digitalSTROM puisse reprendre là où il s'était arrêté. Vous pouvez les restaurer ou repartir de zéro.",
+        "data": {
+          "action": "Que souhaitez-vous faire ?"
+        }
+      }
+    },
+    "error": {
+      "port_in_use": "Le port est déjà utilisé.",
+      "cannot_connect": "Impossible de se connecter au serveur digitalSTROM.",
+      "unknown": "Erreur inattendue."
+    },
+    "abort": {
+      "already_configured": "L'intégration est déjà configurée.",
+      "no_dss_found": "Aucun serveur digitalSTROM connecté dans les 2 minutes. L'hôte virtualDC a été arrêté et le port libéré. Vérifiez que le dSS est sur le même réseau et réessayez.",
+      "cannot_connect": "Impossible de démarrer l'hôte virtualDC sur le port sélectionné. Le port est peut-être devenu indisponible."
+    }
+  },
+  "config_subentries": {
+    "device": {
+      "initiate_flow": {
+        "user": "Ajouter un appareil"
+      },
+      "entry": "{title}",
+      "step": {
+        "config_entry_name": {
+          "title": "Nom de l'appareil physique",
+          "description": "Saisissez un nom pour l'appareil physique. Ce nom est utilisé uniquement dans Home Assistant pour identifier votre appareil et n'est pas transmis à digitalSTROM.",
+          "data": {
+            "entry_name": "Nom de l'appareil"
+          },
+          "data_description": {
+            "entry_name": "Étiquette pour cet appareil physique telle qu'elle apparaîtra dans Home Assistant. Exemple : 'Lumière intelligente du salon'."
+          }
+        },
+        "creation_mode": {
+          "title": "Comment créer l'appareil virtuel ?",
+          "description": "Un appareil digitalSTROM virtuel (vdSD) relie votre appareil Home Assistant à l'écosystème digitalSTROM. Choisissez comment vous souhaitez le définir.",
+          "data": {
+            "mode": "Méthode de création"
+          },
+          "data_description": {
+            "mode": "'Depuis les entités HA' mappe une entité HA à la fois — idéal pour un contrôle précis. 'Depuis l'appareil HA' importe toutes les entités supportées d'un appareil HA existant en une seule fois. 'De zéro' vous permet de définir chaque composant manuellement — pour les utilisateurs avancés."
+          }
+        },
+        "device_picker": {
+          "title": "Sélectionner l'appareil HA",
+          "description": "Sélectionnez l'appareil Home Assistant à partir duquel créer l'appareil dS virtuel. Vous ajouterez ensuite ses entités supportées une par une.",
+          "data": {
+            "device_id": "Appareil Home Assistant"
+          }
+        },
+        "device_entity_build": {
+          "title": "Ajouter des entités au vdSD",
+          "description": "Déjà ajouté :\n{added}\n\nEntités supportées restantes sur cet appareil :\n{remaining}",
+          "data": {
+            "action": "Action"
+          }
+        },
+        "device_entity_add": {
+          "title": "Sélectionner l'entité à ajouter",
+          "description": "Choisissez une entité parmi les entités supportées restantes sur cet appareil HA.",
+          "data": {
+            "entity_id": "Entité"
+          }
+        },
+        "device_entity_user_input": {
+          "title": "Options d'entité ({current} sur {total})",
+          "description": "Entité : {entity_name} ({domain}). Ces paramètres indiquent à digitalSTROM comment interpréter cette entité. Les valeurs par défaut conviennent dans la plupart des cas.",
+          "data": {
+            "sensor_function": "Ce que cette entrée détecte",
+            "group": "Groupe de boutons (couleur dS)",
+            "sensor_type": "Type de capteur",
+            "min": "Valeur minimale",
+            "max": "Valeur maximale",
+            "resolution": "Résolution (LSB)",
+            "output_usage": "Utilisation de la sortie (intérieur / extérieur)",
+            "function": "Fonction de sortie",
+            "has_tilt": "L'appareil supporte l'inclinaison / le contrôle de l'angle des lames"
+          }
+        },
+        "device_plan_summary": {
+          "title": "Résumé du plan de l'appareil",
+          "description": "Les vdSDs suivants seront créés :\n{summary}\n\nEntités sans correspondance dS (création manuelle requise si nécessaire) :\n{unsupported}",
+          "data": {
+            "action": "Action"
+          }
+        },
+        "device_model_features": {
+          "title": "Fonctionnalités du configurateur — {vdsd_name} ({current} sur {total})",
+          "description": "Ces paramètres contrôlent les options affichées dans le configurateur digitalSTROM pour cet appareil. Les sélections dérivées automatiquement sont pré-remplies selon la configuration de votre appareil — à ajuster uniquement si nécessaire."
+        },
+        "entity_picker": {
+          "title": "Sélectionner une entité",
+          "description": "Choisissez l'entité Home Assistant que vous souhaitez exposer à digitalSTROM. Seules les entités avec un type supporté sont affichées.",
+          "data": {
+            "entity_id": "Entité"
+          }
+        },
+        "entity_user_input": {
+          "title": "Configuration supplémentaire",
+          "description": "Ces paramètres indiquent à digitalSTROM comment interpréter cette entité. Les valeurs par défaut conviennent dans la plupart des cas — consultez les descriptions en cas de doute.",
+          "data": {
+            "sensor_function": "Ce que cette entrée détecte",
+            "group": "Groupe de boutons (couleur dS)",
+            "sensor_type": "Type de capteur",
+            "min": "Valeur minimale",
+            "max": "Valeur maximale",
+            "resolution": "Résolution (LSB)",
+            "output_usage": "Utilisation de la sortie (intérieur / extérieur)",
+            "function": "Fonction de sortie",
+            "has_tilt": "L'appareil supporte l'inclinaison / le contrôle de l'angle des lames"
+          }
+        },
+        "entity_channel_mapping": {
+          "title": "Lier les canaux de sortie à HA",
+          "description": "Pour chaque canal de sortie ({channels}) : l'entité 'lecture' est ce que digitalSTROM interroge pour obtenir la valeur actuelle ; l'action 'écriture' est appelée lorsque digitalSTROM envoie une commande. L'entité que vous avez sélectionnée est pré-remplie comme source de lecture."
+        },
+        "device_info": {
+          "title": "Ajouter un appareil physique",
+          "description": "Pour créer votre appareil, envisagez de le diviser en plusieurs vdSDs logiques :\n- Les pièces sont-elles physiquement séparables ? → utiliser des vdSDs individuels.\n- Le sous-appareil contient-il plusieurs capteurs ? → conserver comme un seul vdSD.\n- Le sous-appareil contient-il différents types de capacités (Bouton, Entrée binaire, Capteurs, Sortie) ? → conserver comme un seul vdSD.\n- Les unités fonctionnelles appartiennent-elles à différentes classes dS (couleurs) ? → vdSDs séparés.\n- Les unités fonctionnelles peuvent-elles se retrouver dans différentes zones ? → vdSDs séparés.\n- L'appareil contient-il plusieurs sorties différentes (pas des canaux !) ? → un vdSD par sortie requis.\n- Y a-t-il plusieurs boutons/entrées binaires qui doivent être configurables via le configurateur DSS ? → vdSDs séparés (max. un (multi)bouton et une entrée binaire par vdSD).",
+          "data": {
+            "vendorName": "Nom du fabricant / fournisseur",
+            "displayId": "Nom du modèle de l'appareil"
+          },
+          "data_description": {
+            "vendorName": "Fabricant ou fournisseur de l'appareil matériel physique. Exemple : 'Occhio'.",
+            "displayId": "Nom du modèle ou du type tel qu'il est imprimé sur l'appareil ou utilisé pour l'identification. Exemple : 'Lunanova'."
+          }
+        },
+        "vdsd_creation": {
+          "title": "Créer un composant vdSD",
+          "data": {
+            "displayId": "Nom du composant",
+            "primaryGroup": "Classe de l'appareil (groupe de couleurs)",
+            "modelVersion": "Nom de la variante de modèle",
+            "identify_action": "Action HA pour identifier l'appareil (optionnel)",
+            "firmwareUpdate_action": "Action HA pour déclencher une mise à jour du firmware (optionnel)"
+          },
+          "data_description": {
+            "displayId": "Nom ou étiquette pour ce composant d'appareil virtuel tel qu'il apparaîtra dans le configurateur digitalSTROM. Exemple : 'Lunanova PowerUnit'.",
+            "primaryGroup": "Groupe de couleur dS principal pour ce composant : Jaune=lumières, Gris=stores, Bleu=climatisation.",
+            "modelVersion": "Chaîne de variante de modèle utilisée pour distinguer différentes configurations matérielles.",
+            "identify_action": "Action Home Assistant à appeler lorsque le dSS demande l'identification visuelle de cet appareil.",
+            "firmwareUpdate_action": "Action Home Assistant à appeler lorsque le dSS demande une mise à jour du firmware pour cet appareil."
+          }
+        },
+        "optional_settings": {
+          "title": "Paramètres vdSD optionnels",
+          "data": {
+            "hardwareVersion": "Version matérielle",
+            "hardwareGuid": "GUID matériel",
+            "vendorGuid": "GUID fournisseur",
+            "oemGuid": "GUID OEM"
+          }
+        },
+        "vdsd_overview": {
+          "title": "Vue d'ensemble vdSD — {vdsd_name}",
+          "description": "Configurez ce composant d'appareil virtuel. Ajoutez des boutons, des entrées binaires, des capteurs et une sortie selon vos besoins. Lorsque vous avez terminé, cliquez sur 'Suivant →' pour choisir les fonctionnalités du configurateur.",
+          "data": {
+            "action": "Action"
+          }
+        },
+        "button": {
+          "title": "Configurer le bouton",
+          "data": {
+            "name": "Nom de ce bouton",
+            "buttonType": "Type de bouton physique",
+            "group": "Groupe de boutons (couleur dS)",
+            "function": "Portée de la fonction du bouton",
+            "mode": "Mode de comportement du bouton",
+            "channel": "Canal de sortie contrôlé par ce bouton",
+            "supportsLocalKeyMode": "Le bouton peut agir comme bouton local",
+            "setsLocalPriority": "Le bouton définit la priorité locale (ignore les appels de scène jusqu'à la réinitialisation)",
+            "callsPresent": "L'appui sur le bouton définit l'état de présence sur 'présent'",
+            "callbackType": "Comment les appuis sur le bouton sont transmis à dS",
+            "callback_entity": "Entité fournissant les événements d'appui sur le bouton"
+          },
+          "data_description": {
+            "name": "Étiquette lisible par l'homme pour ce bouton, correspondant au connecteur matériel physique ou à l'étiquette du panneau.",
+            "buttonType": "Type de bouton physique : poussoir simple, bascule bidirectionnelle, navigation à 4 directions, etc.",
+            "group": "Groupe de couleur dS que ce bouton contrôle, par ex. Jaune=lumières, Gris=stores.",
+            "function": "Portée de l'action du bouton : Pièce, Zone 1–4, Appartement, etc.",
+            "mode": "Mode d'appairage et de comportement du bouton. Utiliser Standard pour la plupart des boutons. Les modes AKM sont pour les entrées à contact sec câblées à un module de contact digitalSTROM.",
+            "channel": "Quel canal de sortie ce bouton contrôle : 0=canal par défaut.",
+            "supportsLocalKeyMode": "Si activé, ce bouton peut fonctionner localement sur l'appareil sans connexion dSS.",
+            "setsLocalPriority": "Si activé, appuyer sur ce bouton définit la priorité locale sur la sortie, l'amenant à ignorer les appels de scène jusqu'à ce que la priorité soit effacée.",
+            "callsPresent": "Si activé, appuyer sur ce bouton fait passer l'état de présence du système d'absent à présent.",
+            "callbackType": "Comment les événements d'appui sur le bouton atteignent digitalSTROM : 'Types de clic' transmet le type de clic brut depuis l'état de l'entité ; 'Auto-détection' reconnaît automatiquement les entités de capteur binaire, d'événement ou de bouton."
+          }
+        },
+        "binary_input": {
+          "title": "Configurer l'entrée binaire",
+          "data": {
+            "name": "Nom de l'entrée binaire",
+            "group": "Groupe dS auquel appartient l'entrée binaire",
+            "sensorFunction": "Ce que cette entrée détecte",
+            "hardwiredFunction": "La fonction détectée est-elle câblée ou configurable à l'exécution ?",
+            "updateInterval": "Temps (en secondes) de mise à jour de la valeur par le matériel",
+            "inputType": "La valeur est-elle interrogée par dSS ou envoyée lors d'un changement ?",
+            "inputUsage": "Contexte d'utilisation de l'entrée binaire",
+            "valueType": "L'entrée binaire fournit-elle des valeurs booléennes ou entières ?",
+            "callback_entity": "Entité fournissant la valeur d'état de l'entrée binaire"
+          },
+          "data_description": {
+            "name": "Étiquette lisible par l'homme pour cette entrée binaire, correspondant au connecteur matériel physique ou à l'étiquette du panneau.",
+            "group": "Groupe de couleur dS auquel appartient cette entrée binaire.",
+            "sensorFunction": "Ce que cette entrée binaire détecte : par ex. présence, mouvement, fumée, contact de fenêtre, poignée de fenêtre.",
+            "hardwiredFunction": "Si différent de zéro, la fonction du capteur est fixée par le matériel et ne peut pas être modifiée à l'exécution. La valeur 0 signifie librement configurable.",
+            "updateInterval": "Fréquence à laquelle le matériel suit et rapporte la valeur physique, en secondes.",
+            "inputType": "Comment le dSS reçoit la valeur : interrogée sur demande, ou le matériel envoie des mises à jour lorsque la valeur change.",
+            "inputUsage": "Contexte d'utilisation de cette entrée : climatisation de pièce, climatisation extérieure ou réglage de climatisation."
+          }
+        },
+        "sensor": {
+          "title": "Configurer le capteur",
+          "data": {
+            "name": "Nom du capteur",
+            "group": "Groupe auquel appartient le capteur",
+            "sensorType": "Que mesure le capteur ?",
+            "sensorUsage": "Contexte d'utilisation du capteur",
+            "min": "Valeur minimale supportée par le capteur",
+            "max": "Valeur maximale supportée par le capteur",
+            "resolution": "Résolution du capteur — plus petite déviation affichable (LSB)",
+            "updateInterval": "Temps (en secondes) de suivi de la valeur du capteur par le matériel",
+            "aliveSignInterval": "Temps maximum (en secondes) entre les mises à jour avant que le capteur soit considéré hors service",
+            "minPushInterval": "Temps minimum (en secondes) à attendre entre les envois de valeurs de capteur modifiées (défaut : 2 s)",
+            "changesOnlyInterval": "Temps minimum (en secondes) entre les envois de valeurs inchangées (0 = envoyer toutes les mises à jour)",
+            "callback_entity": "Entité fournissant la valeur du capteur"
+          },
+          "data_description": {
+            "name": "Étiquette lisible par l'homme pour ce capteur, correspondant au connecteur matériel physique ou à l'étiquette du panneau.",
+            "group": "Groupe de couleur dS auquel appartient ce capteur.",
+            "sensorType": "Grandeur physique que ce capteur mesure : température, humidité, éclairement, CO₂, vitesse du vent, puissance active, etc.",
+            "sensorUsage": "Contexte d'utilisation : pièce, extérieur, interaction utilisateur ou mesure au niveau de l'appareil.",
+            "min": "Valeur physique minimale que le matériel du capteur peut délivrer.",
+            "max": "Valeur physique maximale que le matériel du capteur peut délivrer.",
+            "resolution": "Plus petite variation de valeur que le matériel du capteur peut détecter — la taille d'un LSB du capteur matériel.",
+            "updateInterval": "Temps approximatif entre les mises à jour des valeurs matérielles en secondes.",
+            "aliveSignInterval": "Temps maximum en secondes entre les mises à jour du capteur avant qu'il soit considéré hors service.",
+            "minPushInterval": "Temps minimum en secondes entre les rapports d'envoi consécutifs au dSS (limitation). La valeur par défaut est 2 secondes.",
+            "changesOnlyInterval": "Temps minimum en secondes entre les envois de la même valeur (inchangée). La valeur par défaut 0 signifie que chaque mise à jour déclenche un envoi."
+          }
+        },
+        "output": {
+          "title": "Configurer la sortie",
+          "data": {
+            "name": "Nom de cette sortie",
+            "groups": "Groupes de couleurs supportés par la sortie",
+            "defaultGroup": "Groupe de couleur par défaut de la sortie",
+            "function": "Fonction de sortie",
+            "outputUsage": "Contexte d'utilisation",
+            "variableRamp": "La sortie supporte des vitesses de rampe/transition configurables",
+            "mode": "Mode de fonctionnement de la sortie",
+            "action": "Étape suivante"
+          },
+          "data_description": {
+            "name": "Étiquette lisible par l'homme pour cette sortie, correspondant au connecteur matériel physique ou à l'étiquette du panneau.",
+            "groups": "Ensemble des groupes de couleur dS dans lesquels cette sortie peut fonctionner, par ex. Jaune=lumières, Gris=stores. Une sortie peut appartenir à plusieurs groupes.",
+            "defaultGroup": "Groupe de couleur dS principal pour cette sortie, utilisé lorsqu'aucun groupe explicite n'est spécifié.",
+            "function": "Capacité de sortie : marche/arrêt uniquement, variateur, positionnel (stores/vannes), variateur avec température de couleur, couleur complète (RGB+CT) ou bipolaire (vanne de chauffage/refroidissement).",
+            "outputUsage": "Contexte d'utilisation de cette sortie : pièce, extérieur ou affichage utilisateur.",
+            "variableRamp": "Si activé, cette sortie supporte des vitesses de transition configurables (les paramètres de temps de variation deviennent significatifs).",
+            "mode": "Mode de fonctionnement : désactivé, binaire (marche/arrêt) ou progressif (plage continue)."
+          }
+        },
+        "output_optional": {
+          "title": "Paramètres de sortie optionnels",
+          "data": {
+            "onThreshold": "Niveau de sortie minimum qui active la sortie (défaut : 50%)",
+            "minBrightness": "Niveau de sortie minimum supporté par le matériel (par ex. seuil d'allumage pour les ampoules)",
+            "maxPower": "Puissance maximale que la sortie peut délivrer (W)",
+            "activeCoolingMode": "La sortie fournit des capacités de refroidissement actif (par ex. climatisation, ventilo-convecteur)"
+          },
+          "data_description": {
+            "onThreshold": "Le niveau de luminosité (0–100%) auquel la sortie s'ALLUME. Valeur par défaut : 50%.",
+            "minBrightness": "Niveau de luminosité minimum (0–100%) supporté par le matériel.",
+            "maxPower": "Puissance de sortie maximale en watts. Laisser vide si inconnu.",
+            "activeCoolingMode": "Si activé, cette sortie peut refroidir activement (par ex. climatiseur)."
+          }
+        },
+        "channel": {
+          "title": "Configurer le canal de sortie",
+          "data": {
+            "channelType": "Type de canal",
+            "name": "Nom de ce canal",
+            "min": "Valeur minimale pour le canal",
+            "max": "Valeur maximale pour le canal",
+            "resolution": "Résolution du canal — plus petite déviation affichable (LSB)",
+            "action": "Étape suivante"
+          },
+          "data_description": {
+            "channelType": "Type de ce canal de contrôle tel que défini par digitalSTROM : luminosité, teinte, saturation, température de couleur, position, angle, etc.",
+            "name": "Étiquette lisible par l'homme pour ce canal de sortie.",
+            "min": "Valeur physique minimale que ce canal peut accepter ou délivrer.",
+            "max": "Valeur physique maximale que ce canal peut accepter ou délivrer.",
+            "resolution": "Plus petit pas que ce canal peut résoudre — la granularité de contrôle la plus fine disponible."
+          }
+        },
+        "channel_mapping": {
+          "title": "Lier les canaux de sortie à HA",
+          "description": "Sélectionnez les entités qui reflètent les valeurs des canaux de la sortie."
+        },
+        "name_inputs": {
+          "title": "Nommer les entrées et canaux ({current}/{total})",
+          "description": "Saisissez un nom pour : **{label}**",
+          "data": {
+            "name": "Nom"
+          }
+        },
+        "name_confirm": {
+          "title": "Confirmer les noms des appareils",
+          "description": "Vérifiez et confirmez les noms de cet appareil virtuel. Ces noms apparaissent dans Home Assistant et dans le configurateur digitalSTROM.",
+          "data": {
+            "device_name": "Nom de l'appareil (affiché dans le configurateur dSS)",
+            "entity_name": "Nom de l'entité (affiché dans Home Assistant)"
+          }
+        },
+        "vdsd_name": {
+          "title": "Nommer cet appareil",
+          "description": "Cet appareil virtuel a plusieurs éléments. Saisissez un nom qui apparaîtra à la fois dans Home Assistant et dans le configurateur digitalSTROM.",
+          "data": {
+            "name": "Nom de l'appareil"
+          },
+          "data_description": {
+            "name": "Nom affiché sur la page de l'appareil Home Assistant et dans le configurateur digitalSTROM."
+          }
+        },
+        "model_features": {
+          "title": "Fonctionnalités du configurateur",
+          "description": "Ces paramètres contrôlent les options affichées dans le configurateur digitalSTROM pour cet appareil. Les sélections dérivées automatiquement sont pré-remplies selon la configuration de votre appareil — à ajuster uniquement si nécessaire."
+        },
+        "entity_completion": {
+          "title": "Finaliser l'appareil — {device_name}",
+          "description": "Composants configurés : {vdsds}\n\nChoisissez comment procéder.",
+          "menu_options": {
+            "entity_completion_create": "Créer l'appareil",
+            "entity_completion_add": "Ajouter un autre composant depuis une entité HA"
+          }
+        },
+        "device_summary": {
+          "title": "Résumé de l'appareil — {device_name}",
+          "description": "Composants d'appareils virtuels : {vdsds}\n\nChoisissez comment procéder.",
+          "menu_options": {
+            "device_summary_create": "Créer l'appareil",
+            "device_summary_add_vdsd": "Ajouter d'abord un autre composant vdSD"
+          }
+        }
+      },
+      "error": {
+        "entity_not_found": "Entité introuvable.",
+        "entity_not_supported": "Cette combinaison type d'entité / classe d'appareil n'est pas supportée."
+      }
+    }
+  },
+  "model_features": {
+    "auto": {
+      "dontcare":                     "Éditeur de scènes : ajoute une case 'conserver la valeur actuelle' — l'appareil ignore les changements de scène",
+      "blink":                        "Éditeur de scènes : ajoute une option d'effet clignotant par scène",
+      "transt":                       "Éditeur de scènes : ajoute un sélecteur de vitesse de transition (standard / lent) par scène",
+      "outvalue8":                    "Éditeur de scènes : ajoute un curseur de luminosité de sortie (0–100%) par scène",
+      "outputchannels":               "Éditeur de scènes : ajoute des curseurs individuels pour chaque canal de sortie (couleur, température, etc.)",
+      "shadeposition":                "Éditeur de scènes : ajoute un curseur de position et des boutons haut/bas pour les stores",
+      "shadebladeang":                "Éditeur de scènes : ajoute un curseur d'angle des lames pour le contrôle des lamelles de jalousie",
+      "dimtimeconfig":                "Configuration appareil : ajoute des paramètres de temps de rampe (vitesse de variation de la sortie)",
+      "outconfigswitch":              "Configuration appareil : ajoute un paramètre de seuil auquel la sortie se commute",
+      "impulseconfig":                "Configuration appareil : ajoute un onglet de mode de sortie impulsionnel",
+      "pwmvalue":                     "Configuration appareil : affiche la valeur de sortie comme rapport cyclique PWM",
+      "ventconfig":                   "Configuration appareil : ajoute des étapes de vitesse du ventilateur de ventilation et des paramètres d'angle des volets",
+      "shadeprops":                   "Configuration appareil : ajoute le timing de déplacement du store (temps d'ouverture/fermeture complète)",
+      "motiontimefins":               "Configuration appareil : ajoute le timing de mouvement des lames dans les propriétés du store",
+      "locationconfig":               "Configuration appareil : ajoute un menu déroulant d'orientation/direction (par ex. façade sud)",
+      "operationlock":                "Configuration appareil : permet aux alarmes météo de contourner le verrou d'opération sur cet appareil",
+      "windprotectionconfigblind":    "Configuration appareil : ajoute la classe de protection contre le vent pour jalousie / store",
+      "windprotectionconfigawning":   "Configuration appareil : ajoute la classe de protection contre le vent pour auvent / volet roulant",
+      "heatingprops":                 "Configuration appareil : ajoute le type de vanne, la période PWM et les paramètres de zone de chauffage",
+      "heatinggroup":                 "Configuration appareil : ajoute un menu déroulant d'attribution de groupe de chauffage",
+      "valvetype":                    "Configuration appareil : ajoute un sélecteur de type de vanne ou d'appareil terminal connecté",
+      "extendedvalvetypes":           "Configuration appareil : ajoute des options de type de vanne étendues au-delà du jeu standard",
+      "fcu":                          "Configuration appareil : ajoute les paramètres du ventilo-convecteur (vitesse du ventilateur, modes chauffage/refroidissement/ventilation)",
+      "temperatureoffset":            "Configuration appareil : ajoute un champ de décalage de correction de température",
+      "consumption":                  "Configuration appareil : ajoute la surveillance de la consommation d'énergie et le menu des événements",
+      "akmsensor":                    "Configuration appareil : ajoute un sélecteur de ce que l'entrée à contact sec détecte (présence, mouvement, fenêtre ouverte, etc.)",
+      "pushbutton":                   "Configuration appareil : ajoute un sélecteur de type de bouton (simple, bascule, 4 directions, etc.)",
+      "pushbadvanced":                "Configuration appareil : ajoute la configuration du type de clic par scène et le commutateur de priorité locale",
+      "pushbdisabled":                "Configuration appareil : ajoute un dialogue pour désactiver les éléments de bouton inutilisés",
+      "jokerconfig":                  "Configuration appareil : ajoute l'attribution de groupe de couleur pour les appareils de classe flexible/joker",
+      "pushbarea":                    "Configuration bouton : ajoute 'zone' comme type de fonction de bouton sélectionnable",
+      "pushbdevice":                  "Configuration bouton : ajoute 'appareil' comme type de fonction de bouton sélectionnable",
+      "pushbsensor":                  "Configuration bouton : ajoute 'type capteur' comme type de fonction de bouton sélectionnable",
+      "highlevel":                    "Configuration bouton : ajoute 'déclencheur app / scène' comme type de fonction de bouton sélectionnable",
+      "identification":               "Ajoute une entrée 'Identifier' — déclenche un signal visuel sur l'appareil physique depuis le configurateur"
+    },
+    "optional": {
+      "blinkconfig":                      "Configuration appareil : ajoute des paramètres de motif et de comportement clignotant (non testé)",
+      "customtransitiontime":             "Éditeur de scènes : ajoute un champ de temps de transition personnalisé par scène (non testé)",
+      "consumptiontimer":                 "Configuration appareil : ajoute un panneau de minuterie de consommation et de suivi du temps de fonctionnement (non testé)",
+      "outmodegeneric":                   "Configuration appareil : ajoute un sélecteur de mode de sortie avec des valeurs génériques 0–6 (non testé)",
+      "outmodeauto":                      "Configuration appareil : ajoute l'option 'Auto' au sélecteur de mode de sortie (non testé)",
+      "jokertempcontrol":                 "Active le comportement de sortie contrôlé par température pour les appareils de classe flexible/joker (non testé)",
+      "umvrelay":                         "Configuration appareil : ajoute un sélecteur de fonction de relais pour le matériel de module universel (non testé)",
+      "ftwtempcontrolventilationselect":  "Configuration appareil : ajoute un sélecteur combiné de température et de mode de ventilation (non testé)",
+      "setumr200config":                  "Configuration appareil : ajoute la configuration matérielle pour le module UMR200 (non testé)",
+      "apartmentapplication":             "Active l'intégration d'application au niveau de l'appartement pour cet appareil (non testé)",
+      "customactivityconfig":             "Ajoute des options de configuration d'activité et d'application personnalisées (non testé)"
+    }
+  },
+  "labels": {
+    "color_group": {
+      "1": "Jaune — Lumières / Variateurs",
+      "2": "Gris — Stores / Volets",
+      "3": "Bleu — Climatisation (Chauffage, Refroidissement, Ventilation)",
+      "4": "Cyan — Audio",
+      "5": "Magenta — Vidéo",
+      "6": "Rouge — Sécurité",
+      "7": "Vert — Contrôle d'accès",
+      "8": "Noir — Joker / Configurable",
+      "9": "Blanc — Appareil unique / Électroménager"
+    },
+    "button_group": {
+      "1": "Jaune / Lumière",
+      "2": "Gris / Ombre",
+      "3": "Bleu / Chauffage",
+      "4": "Cyan / Audio",
+      "5": "Magenta / Vidéo",
+      "6": "Rouge / Sécurité",
+      "7": "Vert / Accès",
+      "8": "Noir / Joker",
+      "9": "Bleu / Refroidissement",
+      "10": "Bleu / Ventilation",
+      "11": "Bleu / Fenêtre",
+      "12": "Bleu / Recirculation",
+      "48": "Régulation de température ambiante"
+    },
+    "binary_input_group": {
+      "1": "Jaune / Lumière",
+      "2": "Gris / Ombre",
+      "3": "Bleu / Chauffage",
+      "4": "Cyan / Audio",
+      "5": "Magenta / Vidéo",
+      "6": "Rouge / Sécurité",
+      "7": "Vert / Accès",
+      "8": "Noir / Joker",
+      "10": "Bleu / Ventilation",
+      "12": "Bleu / Recirculation"
+    },
+    "sensor_group": {
+      "0": "Aucun groupe / Joker",
+      "1": "Jaune / Lumière",
+      "2": "Gris / Ombre",
+      "3": "Bleu / Climatisation",
+      "4": "Cyan / Audio",
+      "5": "Magenta / Vidéo",
+      "6": "Rouge / Sécurité",
+      "7": "Vert / Accès"
+    },
+    "color_class": {
+      "1": "Lumières (Jaune)",
+      "2": "Stores / Volets (Gris)",
+      "3": "Chauffage (Bleu)",
+      "4": "Audio (Cyan)",
+      "5": "Vidéo (Magenta)",
+      "6": "Sécurité (Rouge)",
+      "7": "Accès (Vert)",
+      "8": "Joker / Configurable (Noir)",
+      "9": "Refroidissement (Bleu)",
+      "10": "Ventilation (Bleu)",
+      "11": "Fenêtre (Bleu)",
+      "12": "Recirculation / Ventilo-convecteur (Bleu)",
+      "48": "Régulation de température (Bleu)"
+    },
+    "button_type": {
+      "0": "Indéfini (éléments illimités)",
+      "1": "Poussoir simple (1 élément)",
+      "2": "Poussoir bidirectionnel (2 éléments)",
+      "3": "Navigation à 4 directions (4 éléments)",
+      "4": "4 directions avec centre (5 éléments)",
+      "5": "8 directions avec centre (9 éléments)",
+      "6": "Interrupteur marche/arrêt (1 élément)"
+    },
+    "button_function": {
+      "0": "Appareil",
+      "1": "Zone 1",
+      "2": "Zone 2",
+      "3": "Zone 3",
+      "4": "Zone 4",
+      "5": "Pièce",
+      "6": "Étendu 1",
+      "7": "Étendu 2",
+      "8": "Étendu 3",
+      "9": "Étendu 4",
+      "10": "Zone étendue 1",
+      "11": "Zone étendue 2",
+      "12": "Zone étendue 3",
+      "13": "Zone étendue 4",
+      "14": "Appartement",
+      "15": "Application"
+    },
+    "button_mode": {
+      "0": "Standard (poussoir 1 voie)",
+      "1": "Turbo (1 voie)",
+      "2": "Commuté / Bascule",
+      "5": "2 voies Bas, paire 1",
+      "6": "2 voies Bas, paire 2",
+      "7": "2 voies Bas, paire 3",
+      "8": "2 voies Bas, paire 4",
+      "9": "2 voies Haut, paire 1",
+      "10": "2 voies Haut, paire 2",
+      "11": "2 voies Haut, paire 3",
+      "12": "2 voies Haut, paire 4",
+      "13": "2 voies",
+      "14": "1 voie (explicite)",
+      "16": "AKM Standard (module de contact)",
+      "17": "AKM Inversé (module de contact)",
+      "18": "AKM Activé (front montant)",
+      "19": "AKM Activé (front descendant)",
+      "20": "AKM Désactivé (front montant)",
+      "21": "AKM Désactivé (front descendant)",
+      "22": "AKM Front montant",
+      "23": "AKM Front descendant",
+      "65": "Poussoir de chauffage (1 voie)",
+      "255": "Désactivé"
+    },
+    "binary_input_type": {
+      "0": "Générique",
+      "1": "Présence",
+      "2": "Luminosité",
+      "3": "Présence dans l'obscurité",
+      "4": "Crépuscule",
+      "5": "Mouvement",
+      "6": "Mouvement dans l'obscurité",
+      "7": "Fumée",
+      "8": "Vent",
+      "9": "Pluie",
+      "10": "Rayonnement solaire",
+      "11": "Thermostat",
+      "12": "Batterie faible",
+      "13": "Fenêtre ouverte",
+      "14": "Porte ouverte",
+      "15": "Fenêtre inclinée",
+      "16": "Porte de garage ouverte",
+      "17": "Protection solaire",
+      "18": "Gel",
+      "19": "Système de chauffage activé",
+      "20": "Changement de chauffage",
+      "21": "Initialisation",
+      "22": "Dysfonctionnement",
+      "23": "Maintenance"
+    },
+    "binary_input_usage": {
+      "0": "Générique",
+      "1": "Climatisation de pièce",
+      "2": "Climatisation extérieure",
+      "3": "Réglage climatisation"
+    },
+    "binary_input_value_type": {
+      "boolean": "Booléen (vrai / faux)",
+      "integer": "Entier (valeur étendue)"
+    },
+    "sensor_type": {
+      "0": "Aucun",
+      "1": "Température",
+      "2": "Humidité",
+      "3": "Éclairement",
+      "4": "Tension d'alimentation",
+      "5": "Concentration de CO",
+      "6": "Activité radon",
+      "7": "Type de gaz",
+      "8": "Particules PM10",
+      "9": "Particules PM2,5",
+      "10": "Particules PM1",
+      "11": "Panneau de commande de pièce",
+      "12": "Vitesse du ventilateur",
+      "13": "Vitesse du vent",
+      "14": "Puissance active",
+      "15": "Courant électrique",
+      "16": "Compteur d'énergie",
+      "17": "Puissance apparente",
+      "18": "Pression atmosphérique",
+      "19": "Direction du vent",
+      "20": "Niveau de pression sonore",
+      "21": "Précipitations",
+      "22": "Concentration de CO₂",
+      "23": "Vitesse des rafales de vent",
+      "24": "Direction des rafales de vent",
+      "25": "Puissance active générée",
+      "26": "Énergie générée",
+      "27": "Quantité d'eau",
+      "28": "Débit d'eau",
+      "29": "Longueur",
+      "30": "Masse",
+      "31": "Durée",
+      "32": "Pourcentage",
+      "33": "Vitesse en pourcentage",
+      "34": "Fréquence"
+    },
+    "sensor_usage": {
+      "1": "Pièce",
+      "2": "Extérieur",
+      "3": "Interaction utilisateur",
+      "4": "Niveau appareil",
+      "5": "Dernière exécution appareil",
+      "6": "Moyenne appareil"
+    },
+    "output_function": {
+      "0": "Marche / Arrêt",
+      "1": "Variateur",
+      "2": "Positionnel (store, vanne)",
+      "3": "Variateur avec température de couleur",
+      "4": "Variateur couleur complète (RGB / HSV)",
+      "5": "Bipolaire",
+      "6": "Contrôlé en interne",
+      "127": "Personnalisé (pas de canaux standard)"
+    },
+    "output_mode": {
+      "0": "Désactivé",
+      "1": "Binaire (marche/arrêt uniquement)",
+      "2": "Progressif (plage continue)",
+      "127": "Par défaut (l'appareil décide)"
+    },
+    "output_usage": {
+      "0": "Indéfini",
+      "1": "Pièce",
+      "2": "Extérieur",
+      "3": "Utilisateur"
+    },
+    "input_type": {
+      "0": "Manuel (pas de détection automatique)",
+      "1": "Détecte les changements (envoi lors du changement)",
+      "2": "Interrogé (interrogation régulière par dSS)"
+    },
+    "cover_placement": {
+      "indoor": "Intérieur (côté pièce)",
+      "outdoor": "Extérieur (exposé aux intempéries)"
+    },
+    "channel_type": {
+      "0": "Par défaut (aucun / fourre-tout)",
+      "1": "Luminosité",
+      "2": "Teinte",
+      "3": "Saturation",
+      "4": "Température de couleur (mired, 100–1000)",
+      "5": "CIE X",
+      "6": "CIE Y",
+      "7": "Position du store — Extérieur (0–100%)",
+      "8": "Position du store — Intérieur (0–100%)",
+      "9": "Angle d'ouverture du store — Extérieur",
+      "10": "Angle d'ouverture du store — Intérieur",
+      "11": "Transparence",
+      "12": "Intensité du flux d'air",
+      "13": "Direction du flux d'air",
+      "14": "Position du volet d'air",
+      "15": "Position des lamelles d'air",
+      "16": "Puissance de chauffage",
+      "17": "Capacité de refroidissement",
+      "18": "Volume audio",
+      "19": "État d'alimentation",
+      "20": "Lamelles d'air auto",
+      "21": "Flux d'air auto",
+      "22": "Température de l'eau",
+      "23": "Débit d'eau",
+      "24": "Niveau de puissance",
+      "25": "Station vidéo",
+      "26": "Source d'entrée vidéo",
+      "192": "Mode de fonctionnement FCU"
+    },
+    "creation_mode": {
+      "from_entity": "Créer un appareil basé sur les entités HA (recommandé)",
+      "from_ha_device": "Créer un appareil basé sur l'appareil HA",
+      "from_scratch": "Créer un appareil de zéro (BÊTA)"
+    },
+    "state_files_action": {
+      "keep": "Utiliser l'état existant (restaurer la configuration d'appareil sauvegardée)",
+      "delete": "Supprimer et repartir de zéro"
+    },
+    "callback_type": {
+      "clickTypes": "Types de clic (état de l'entité = numéro de type de clic)",
+      "actionIds": "IDs de scène / action (état de l'entité = numéro de scène)",
+      "detect_clicks": "Auto-détection (capteur binaire / événement / entité bouton)"
+    },
+    "vdsd_action": {
+      "optional_settings": "Paramètres optionnels",
+      "add_button": "Ajouter un bouton",
+      "add_binary_input": "Ajouter une entrée binaire",
+      "add_sensor": "Ajouter un capteur",
+      "add_output": "Ajouter une sortie",
+      "next": "Suivant →"
+    },
+    "entity_build_action": {
+      "add": "Ajouter une entité →",
+      "done": "Terminé — créer le vdSD"
+    },
+    "plan_summary_action": {
+      "proceed": "Continuer",
+      "cancel": "Annuler"
+    },
+    "output_action": {
+      "next": "Continuer",
+      "output_optional": "Paramètres de sortie optionnels…"
+    },
+    "channel_action": {
+      "next": "Terminé",
+      "add_another": "Ajouter un autre canal"
+    },
+    "binary_input_binding_type": {
+      "entity_state": "Utiliser l'état marche/arrêt de l'entité",
+      "entity_attribute": "Utiliser la valeur de l'attribut avec transformation"
+    }
+  }
+}

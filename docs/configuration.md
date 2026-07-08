@@ -105,6 +105,26 @@ device_info → vdsd_creation → vdsd_overview
 
 ---
 
+## Model Features
+
+Model features tell the dSS configurator which UI controls to show for a device. They are selected during the `model_features` / `device_model_features` step.
+
+**Auto features** are automatically pre-selected based on the device configuration (primary group, output function, button type, etc.) via `derive_model_features_for_config()` in `api.py`. Users can add or remove them.
+
+**Optional features** are not pre-selected and are marked "(not tested)" — they exist because pydsvdcapi supports them but their dSS-side behaviour has not been verified in this integration.
+
+### Label source of truth
+
+All model feature labels are defined in [`strings.json`](../custom_components/dsvdc4ha/strings.json) under the top-level `"model_features"` key (sections `"auto"` and `"optional"`). `config_flow.py` loads them from there at import time — do **not** define them in Python.
+
+Labels describe what each feature **does in the dSS configurator** (which panel or control it adds), not what the feature key means technically.
+
+### Adding a translation
+
+To translate model feature labels into another language, add the `"model_features"` section with the same key structure to `translations/<lang>.json`. The Python side always uses English from `strings.json`; HA's frontend will pick up translated labels from the translation file for users with that language set.
+
+---
+
 ## Selector Helper
 
 All enum selectors use a `_select(options, *, multiple=False)` helper that automatically picks:

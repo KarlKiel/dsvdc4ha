@@ -1,0 +1,724 @@
+{
+  "config": {
+    "step": {
+      "hub": {
+        "title": "dSVDC Hub instellen",
+        "description": "Voer de poort in waarop de virtualDC-host zal luisteren. Uw digitalSTROM-server (dSS) moet deze poort op de Home Assistant-host kunnen bereiken.",
+        "data": {
+          "port": "vDC-hostpoort"
+        }
+      },
+      "wait_for_dss": {
+        "title": "Wachten op dSS-verbinding",
+        "description": "De virtualDC-host is nu aangekondigd op het netwerk. Wachten op een verbinding van een digitalSTROM-server (time-out: 2 minuten)…"
+      },
+      "state_files": {
+        "title": "Bestaande toestandsbestanden gevonden",
+        "description": "De volgende toestandsbestanden van een eerdere installatie zijn gevonden:\n{files}\n\nDeze bestanden slaan de laatste bekende toestand van uw virtuele apparaten op (uitvoerwaarden, scènes, enz.) zodat de digitalSTROM-server kan verdergaan waar hij was gebleven. U kunt ze herstellen of opnieuw beginnen.",
+        "data": {
+          "action": "Wat wilt u doen?"
+        }
+      }
+    },
+    "error": {
+      "port_in_use": "Poort is al in gebruik.",
+      "cannot_connect": "Kan geen verbinding maken met de digitalSTROM-server.",
+      "unknown": "Onverwachte fout."
+    },
+    "abort": {
+      "already_configured": "Integratie is al geconfigureerd.",
+      "no_dss_found": "Binnen 2 minuten is er geen digitalSTROM-server verbonden. De virtualDC-host is gestopt en de poort is vrijgegeven. Controleer of de dSS op hetzelfde netwerk is en probeer het opnieuw.",
+      "cannot_connect": "Kon de virtualDC-host niet starten op de geselecteerde poort. De poort is mogelijk niet meer beschikbaar."
+    }
+  },
+  "config_subentries": {
+    "device": {
+      "initiate_flow": {
+        "user": "Apparaat toevoegen"
+      },
+      "entry": "{title}",
+      "step": {
+        "config_entry_name": {
+          "title": "Naam van het fysieke apparaat",
+          "description": "Voer een naam in voor het fysieke apparaat. Deze naam wordt alleen in Home Assistant gebruikt om uw apparaat te identificeren en wordt niet doorgegeven aan digitalSTROM.",
+          "data": {
+            "entry_name": "Apparaatnaam"
+          },
+          "data_description": {
+            "entry_name": "Label voor dit fysieke apparaat zoals het in Home Assistant zal verschijnen. Voorbeeld: 'Slimme woonkamerlamp'."
+          }
+        },
+        "creation_mode": {
+          "title": "Hoe het virtuele apparaat aanmaken?",
+          "description": "Een virtueel digitalSTROM-apparaat (vdSD) verbindt uw Home Assistant-apparaat met het digitalSTROM-ecosysteem. Kies hoe u het wilt definiëren.",
+          "data": {
+            "mode": "Aanmaakmethode"
+          },
+          "data_description": {
+            "mode": "'Van HA-entiteiten' koppelt één HA-entiteit tegelijk — het beste voor nauwkeurige controle. 'Van HA-apparaat' importeert alle ondersteunde entiteiten van een bestaand HA-apparaat in één keer. 'Van nul' laat u elk onderdeel handmatig definiëren — voor gevorderde gebruikers."
+          }
+        },
+        "device_picker": {
+          "title": "HA-apparaat selecteren",
+          "description": "Selecteer het Home Assistant-apparaat waarvan het virtuele dS-apparaat wordt gebouwd. U voegt dan de ondersteunde entiteiten één voor één toe.",
+          "data": {
+            "device_id": "Home Assistant-apparaat"
+          }
+        },
+        "device_entity_build": {
+          "title": "Entiteiten aan vdSD toevoegen",
+          "description": "Al toegevoegd:\n{added}\n\nResterende ondersteunde entiteiten op dit apparaat:\n{remaining}",
+          "data": {
+            "action": "Actie"
+          }
+        },
+        "device_entity_add": {
+          "title": "Entiteit selecteren om toe te voegen",
+          "description": "Kies één entiteit uit de resterende ondersteunde entiteiten op dit HA-apparaat.",
+          "data": {
+            "entity_id": "Entiteit"
+          }
+        },
+        "device_entity_user_input": {
+          "title": "Entiteitsopties ({current} van {total})",
+          "description": "Entiteit: {entity_name} ({domain}). Deze instellingen vertellen digitalSTROM hoe deze entiteit te interpreteren. De standaardwaarden werken in de meeste gevallen.",
+          "data": {
+            "sensor_function": "Wat deze ingang detecteert",
+            "group": "Knopgroep (dS-kleur)",
+            "sensor_type": "Sensortype",
+            "min": "Minimumwaarde",
+            "max": "Maximumwaarde",
+            "resolution": "Resolutie (LSB)",
+            "output_usage": "Uitvoergebruik (binnen / buiten)",
+            "function": "Uitvoerfunctie",
+            "has_tilt": "Apparaat ondersteunt kanteling / lamelhoekbesturing"
+          }
+        },
+        "device_plan_summary": {
+          "title": "Samenvatting apparaatplan",
+          "description": "De volgende vdSD's worden aangemaakt:\n{summary}\n\nEntiteiten zonder dS-koppeling (handmatige aanmaak vereist indien nodig):\n{unsupported}",
+          "data": {
+            "action": "Actie"
+          }
+        },
+        "device_model_features": {
+          "title": "Configuratorfuncties — {vdsd_name} ({current} van {total})",
+          "description": "Deze instellingen bepalen welke opties in de digitalSTROM-configurator voor dit apparaat verschijnen. Automatisch afgeleide selecties zijn vooraf ingevuld op basis van uw apparaatconfiguratie — pas alleen aan indien nodig."
+        },
+        "entity_picker": {
+          "title": "Entiteit selecteren",
+          "description": "Kies de Home Assistant-entiteit die u aan digitalSTROM wilt blootstellen. Alleen entiteiten met een ondersteund type worden getoond.",
+          "data": {
+            "entity_id": "Entiteit"
+          }
+        },
+        "entity_user_input": {
+          "title": "Aanvullende configuratie",
+          "description": "Deze instellingen vertellen digitalSTROM hoe deze entiteit te interpreteren. De standaardwaarden werken in de meeste gevallen — controleer de beschrijvingen bij twijfel.",
+          "data": {
+            "sensor_function": "Wat deze ingang detecteert",
+            "group": "Knopgroep (dS-kleur)",
+            "sensor_type": "Sensortype",
+            "min": "Minimumwaarde",
+            "max": "Maximumwaarde",
+            "resolution": "Resolutie (LSB)",
+            "output_usage": "Uitvoergebruik (binnen / buiten)",
+            "function": "Uitvoerfunctie",
+            "has_tilt": "Apparaat ondersteunt kanteling / lamelhoekbesturing"
+          }
+        },
+        "entity_channel_mapping": {
+          "title": "Uitvoerkanalen aan HA koppelen",
+          "description": "Voor elk uitvoerkanaal ({channels}): de 'lees'-entiteit is wat digitalSTROM bevraagt voor de huidige waarde; de 'schrijf'-actie wordt aangeroepen wanneer digitalSTROM een opdracht stuurt. De door u geselecteerde entiteit is vooraf ingevuld als leesbron."
+        },
+        "device_info": {
+          "title": "Fysiek apparaat toevoegen",
+          "description": "Overweeg bij het aanmaken van uw apparaat het op te splitsen in meerdere logische vdSD's:\n- Zijn onderdelen fysiek scheidbaar? → gebruik afzonderlijke vdSD's.\n- Bevat het (sub-)apparaat meerdere sensoren? → houd als één vdSD.\n- Bevat het (sub-)apparaat verschillende soorten mogelijkheden (Knop, Binaire ingang, Sensoren, Uitvoer)? → houd als één vdSD.\n- Behoren functionele eenheden tot verschillende dS-klassen (kleuren)? → aparte vdSD's.\n- Kunnen functionele eenheden in verschillende zones terechtkomen? → aparte vdSD's.\n- Bevat het apparaat meerdere verschillende uitvoers (geen kanalen!)? → één vdSD per uitvoer vereist.\n- Zijn er meerdere knoppen/binaire ingangen die configureerbaar moeten zijn via de DSS-configurator? → aparte vdSD's (max. één (multi)knop en één binaire ingang per vdSD).",
+          "data": {
+            "vendorName": "Fabrikant / leverancier",
+            "displayId": "Apparaatmodelnaam"
+          },
+          "data_description": {
+            "vendorName": "Fabrikant of leverancier van het fysieke hardware-apparaat. Voorbeeld: 'Occhio'.",
+            "displayId": "Model- of typenaam zoals op het apparaat afgedrukt of gebruikt voor identificatie. Voorbeeld: 'Lunanova'."
+          }
+        },
+        "vdsd_creation": {
+          "title": "vdSD-component aanmaken",
+          "data": {
+            "displayId": "Componentnaam",
+            "primaryGroup": "Apparaatklasse (kleurgroep)",
+            "modelVersion": "Modelvariantnaam",
+            "identify_action": "HA-actie om het apparaat te identificeren (optioneel)",
+            "firmwareUpdate_action": "HA-actie om firmware-update te starten (optioneel)"
+          },
+          "data_description": {
+            "displayId": "Naam of label voor dit virtuele apparaatcomponent zoals het in de digitalSTROM-configurator verschijnt. Voorbeeld: 'Lunanova PowerUnit'.",
+            "primaryGroup": "Hoofd dS-kleurgroep voor dit component: Geel=lichten, Grijs=jaloezieën, Blauw=klimaat.",
+            "modelVersion": "Modelvariant-string gebruikt om verschillende hardwareconfiguraties te onderscheiden.",
+            "identify_action": "Home Assistant-actie die wordt aangeroepen wanneer de dSS visuele identificatie van dit apparaat aanvraagt.",
+            "firmwareUpdate_action": "Home Assistant-actie die wordt aangeroepen wanneer de dSS een firmware-update voor dit apparaat aanvraagt."
+          }
+        },
+        "optional_settings": {
+          "title": "Optionele vdSD-instellingen",
+          "data": {
+            "hardwareVersion": "Hardwareversie",
+            "hardwareGuid": "Hardware-GUID",
+            "vendorGuid": "Leverancier-GUID",
+            "oemGuid": "OEM-GUID"
+          }
+        },
+        "vdsd_overview": {
+          "title": "vdSD-overzicht — {vdsd_name}",
+          "description": "Configureer dit virtuele apparaatcomponent. Voeg knoppen, binaire ingangen, sensoren en een uitvoer toe naar behoefte. Klik op 'Volgende →' om configuratorfuncties te kiezen.",
+          "data": {
+            "action": "Actie"
+          }
+        },
+        "button": {
+          "title": "Knop configureren",
+          "data": {
+            "name": "Naam van deze knop",
+            "buttonType": "Fysiek knoptype",
+            "group": "Knopgroep (dS-kleur)",
+            "function": "Functiebereik van de knop",
+            "mode": "Knopgedragsmodus",
+            "channel": "Uitvoerkanaal dat door deze knop wordt bestuurd",
+            "supportsLocalKeyMode": "Knop kan als lokale knop fungeren",
+            "setsLocalPriority": "Knop stelt lokale prioriteit in (negeert scène-aanroepen totdat gewist)",
+            "callsPresent": "Knop drukken stelt aanwezigheidsstatus in op 'aanwezig'",
+            "callbackType": "Hoe knopdrukken worden doorgestuurd naar dS",
+            "callback_entity": "Entiteit die knopdrukgebeurtenissen levert"
+          },
+          "data_description": {
+            "name": "Mensleesbaar label voor deze knop, passend bij de fysieke hardwareaansluiting of paneellabel.",
+            "buttonType": "Fysiek knoptype: enkele drukknop, tweeweg-wip, 4-weg navigatie, enz.",
+            "group": "dS-kleurgroep die deze knop bestuurt, bijv. Geel=lichten, Grijs=jaloezieën.",
+            "function": "Bereik van de knopactie: Kamer, Gebied 1–4, Appartement, enz.",
+            "mode": "Knopparing en gedragsmodus. Gebruik Standaard voor de meeste knoppen. AKM-modi zijn voor droogcontactingangen aangesloten op een digitalSTROM-contactmodule.",
+            "channel": "Welk uitvoerkanaal deze knop bestuurt: 0=standaardkanaal.",
+            "supportsLocalKeyMode": "Indien ingeschakeld kan deze knop lokaal op het apparaat werken zonder dSS-verbinding.",
+            "setsLocalPriority": "Indien ingeschakeld stelt het drukken op deze knop lokale prioriteit in op de uitvoer, waardoor scène-aanroepen worden genegeerd totdat de prioriteit wordt gewist.",
+            "callsPresent": "Indien ingeschakeld schakelt het drukken op deze knop de systeemaanwezigheidsstatus van afwezig naar aanwezig.",
+            "callbackType": "Hoe knopdrukgebeurtenissen digitalSTROM bereiken: 'Kliktypen' geeft het ruwe kliktype door vanuit de entiteitsstatus; 'Automatisch detecteren' herkent binaire sensor-, gebeurtenis- of knopentiteiten automatisch."
+          }
+        },
+        "binary_input": {
+          "title": "Binaire ingang configureren",
+          "data": {
+            "name": "Naam van de binaire ingang",
+            "group": "dS-groep waartoe de binaire ingang behoort",
+            "sensorFunction": "Wat deze ingang detecteert",
+            "hardwiredFunction": "Is de gedetecteerde functie vast bedraad of configureerbaar tijdens runtime?",
+            "updateInterval": "Tijd (in seconden) dat de hardware de waarde bijwerkt",
+            "inputType": "Wordt de waarde bevraagd door dSS of bij wijziging verstuurd?",
+            "inputUsage": "Gebruikscontext van de binaire ingang",
+            "valueType": "Levert de binaire ingang booleaanse of gehele waarden?",
+            "callback_entity": "Entiteit die de statuswaarde van de binaire ingang levert"
+          },
+          "data_description": {
+            "name": "Mensleesbaar label voor deze binaire ingang, passend bij de fysieke hardwareaansluiting of paneellabel.",
+            "group": "dS-kleurgroep waartoe deze binaire ingang behoort.",
+            "sensorFunction": "Wat deze binaire ingang detecteert: bijv. aanwezigheid, beweging, rook, raamcontact, raamgreep.",
+            "hardwiredFunction": "Indien niet nul, is de sensorfunctie vastgelegd door de hardware en kan niet worden gewijzigd tijdens runtime. Waarde 0 betekent vrij configureerbaar.",
+            "updateInterval": "Hoe vaak de hardware de fysieke waarde bijhoudt en rapporteert, in seconden.",
+            "inputType": "Hoe de dSS de waarde ontvangt: op aanvraag bevraagd, of de hardware stuurt updates bij waardewijzigingen.",
+            "inputUsage": "Gebruikscontext van deze ingang: ruimteklimaat, buitenklimaat of klimaatinstelling."
+          }
+        },
+        "sensor": {
+          "title": "Sensor configureren",
+          "data": {
+            "name": "Naam van de sensor",
+            "group": "Groep waartoe de sensor behoort",
+            "sensorType": "Wat meet de sensor?",
+            "sensorUsage": "Gebruikscontext van de sensor",
+            "min": "Minimumwaarde die de sensor ondersteunt",
+            "max": "Maximumwaarde die de sensor ondersteunt",
+            "resolution": "Sensorresolutie — kleinste weergegeven afwijking (LSB)",
+            "updateInterval": "Tijd (in seconden) dat de hardware de sensorwaarde bijhoudt",
+            "aliveSignInterval": "Maximale tijd (in seconden) tussen updates voordat sensor als defect wordt beschouwd",
+            "minPushInterval": "Minimale tijd (in seconden) tussen verzendingen van gewijzigde sensorwaarden (standaard: 2 s)",
+            "changesOnlyInterval": "Minimale tijd (in seconden) tussen verzendingen van ongewijzigde waarden (0 = alle updates verzenden)",
+            "callback_entity": "Entiteit die de sensorwaarde levert"
+          },
+          "data_description": {
+            "name": "Mensleesbaar label voor deze sensor, passend bij de fysieke hardwareaansluiting of paneellabel.",
+            "group": "dS-kleurgroep waartoe deze sensor behoort.",
+            "sensorType": "Fysische grootheid die deze sensor meet: temperatuur, vochtigheid, verluchting, CO₂, windsnelheid, actief vermogen, enz.",
+            "sensorUsage": "Gebruikscontext: kamer, buiten, gebruikersinteractie of meting op apparaatniveau.",
+            "min": "Minimale fysieke waarde die de sensorhardware kan leveren.",
+            "max": "Maximale fysieke waarde die de sensorhardware kan leveren.",
+            "resolution": "Kleinste waardeverandering die de sensorhardware kan detecteren — de grootte van één LSB van de hardwaresensor.",
+            "updateInterval": "Geschatte tijd tussen hardware-waardeupdates in seconden.",
+            "aliveSignInterval": "Maximale tijd in seconden tussen sensorupdates voordat de sensor als defect wordt beschouwd.",
+            "minPushInterval": "Minimale tijd in seconden tussen opeenvolgende push-rapporten aan dSS (beperking). Standaard is 2 seconden.",
+            "changesOnlyInterval": "Minimale tijd in seconden tussen verzendingen van dezelfde (ongewijzigde) waarde. Standaard 0 betekent dat elke update een push triggert."
+          }
+        },
+        "output": {
+          "title": "Uitvoer configureren",
+          "data": {
+            "name": "Naam voor deze uitvoer",
+            "groups": "Kleurgroepen die de uitvoer ondersteunt",
+            "defaultGroup": "Standaard kleurgroep van de uitvoer",
+            "function": "Uitvoerfunctie",
+            "outputUsage": "Gebruikscontext",
+            "variableRamp": "Uitvoer ondersteunt configureerbare rampe/overgangssnelheden",
+            "mode": "Bedrijfsmodus van de uitvoer",
+            "action": "Volgende stap"
+          },
+          "data_description": {
+            "name": "Mensleesbaar label voor deze uitvoer, passend bij de fysieke hardwareaansluiting of paneellabel.",
+            "groups": "Set dS-kleurgroepen waarin deze uitvoer kan werken, bijv. Geel=lichten, Grijs=jaloezieën. Een uitvoer kan tot meerdere groepen behoren.",
+            "defaultGroup": "Primaire dS-kleurgroep voor deze uitvoer, gebruikt wanneer geen expliciete groep is opgegeven.",
+            "function": "Uitvoercapaciteit: aan/uit, dimmer, positioneel (jaloezieën/kleppen), dimmer met kleurtemperatuur, volkleur (RGB+CT) of bipolair (verwarmings-/koelklep).",
+            "outputUsage": "Gebruikscontext van deze uitvoer: kamer, buiten of gebruikersweergave.",
+            "variableRamp": "Indien ingeschakeld ondersteunt deze uitvoer configureerbare overgangssnelheden (dimtijdinstellingen worden zinvol).",
+            "mode": "Bedrijfsmodus: uitgeschakeld, binair (aan/uit) of geleidelijk (continu bereik)."
+          }
+        },
+        "output_optional": {
+          "title": "Optionele uitvoerinstellingen",
+          "data": {
+            "onThreshold": "Minimaal uitvoerniveau dat de uitvoer inschakelt (standaard: 50%)",
+            "minBrightness": "Minimaal uitvoerniveau dat de hardware ondersteunt (bijv. ontsteekdrempel voor lampen)",
+            "maxPower": "Maximaal vermogen dat de uitvoer kan leveren (W)",
+            "activeCoolingMode": "Uitvoer biedt actieve koelcapaciteit (bijv. airconditioner, ventilo-convector)"
+          },
+          "data_description": {
+            "onThreshold": "Het helderheidsniveau (0–100%) waarbij de uitvoer INSCHAKELT. Standaard 50%.",
+            "minBrightness": "Minimaal helderheidsniveau (0–100%) dat de hardware ondersteunt.",
+            "maxPower": "Maximaal uitvoervermogen in watt. Leeg laten indien onbekend.",
+            "activeCoolingMode": "Indien ingeschakeld kan deze uitvoer actief koelen (bijv. airconditioner)."
+          }
+        },
+        "channel": {
+          "title": "Uitvoerkanaal configureren",
+          "data": {
+            "channelType": "Kanaaltype",
+            "name": "Naam van dit kanaal",
+            "min": "Minimumwaarde voor het kanaal",
+            "max": "Maximumwaarde voor het kanaal",
+            "resolution": "Kanaalresolutie — kleinste weergegeven afwijking (LSB)",
+            "action": "Volgende stap"
+          },
+          "data_description": {
+            "channelType": "Type van dit besturingskanaal zoals gedefinieerd door digitalSTROM: helderheid, tint, verzadiging, kleurtemperatuur, positie, hoek, enz.",
+            "name": "Mensleesbaar label voor dit uitvoerkanaal.",
+            "min": "Minimale fysieke waarde die dit kanaal kan accepteren of leveren.",
+            "max": "Maximale fysieke waarde die dit kanaal kan accepteren of leveren.",
+            "resolution": "Kleinste stap die dit kanaal kan oplossen — de fijnste beschikbare besturingsgranulariteit."
+          }
+        },
+        "channel_mapping": {
+          "title": "Uitvoerkanalen aan HA koppelen",
+          "description": "Selecteer de entiteiten die de kanaalwaarden van de uitvoer weerspiegelen."
+        },
+        "name_inputs": {
+          "title": "Ingangen en kanalen benoemen ({current}/{total})",
+          "description": "Voer een naam in voor: **{label}**",
+          "data": {
+            "name": "Naam"
+          }
+        },
+        "name_confirm": {
+          "title": "Apparaatnamen bevestigen",
+          "description": "Bekijk en bevestig de namen voor dit virtuele apparaat. Deze namen verschijnen in Home Assistant en in de digitalSTROM-configurator.",
+          "data": {
+            "device_name": "Apparaatnaam (weergegeven in dSS-configurator)",
+            "entity_name": "Entiteitsnaam (weergegeven in Home Assistant)"
+          }
+        },
+        "vdsd_name": {
+          "title": "Dit apparaat benoemen",
+          "description": "Dit virtuele apparaat heeft meerdere elementen. Voer een naam in die zowel in Home Assistant als in de digitalSTROM-configurator zal verschijnen.",
+          "data": {
+            "name": "Apparaatnaam"
+          },
+          "data_description": {
+            "name": "Naam weergegeven op de Home Assistant-apparaatpagina en in de digitalSTROM-configurator."
+          }
+        },
+        "model_features": {
+          "title": "Configuratorfuncties",
+          "description": "Deze instellingen bepalen welke opties in de digitalSTROM-configurator voor dit apparaat verschijnen. Automatisch afgeleide selecties zijn vooraf ingevuld op basis van uw apparaatconfiguratie — pas alleen aan indien nodig."
+        },
+        "entity_completion": {
+          "title": "Apparaat voltooien — {device_name}",
+          "description": "Geconfigureerde componenten: {vdsds}\n\nKies hoe u wilt verdergaan.",
+          "menu_options": {
+            "entity_completion_create": "Apparaat aanmaken",
+            "entity_completion_add": "Nog een component toevoegen vanuit een HA-entiteit"
+          }
+        },
+        "device_summary": {
+          "title": "Apparaatoverzicht — {device_name}",
+          "description": "Virtuele apparaatcomponenten: {vdsds}\n\nKies hoe u wilt verdergaan.",
+          "menu_options": {
+            "device_summary_create": "Apparaat aanmaken",
+            "device_summary_add_vdsd": "Eerst nog een vdSD-component toevoegen"
+          }
+        }
+      },
+      "error": {
+        "entity_not_found": "Entiteit niet gevonden.",
+        "entity_not_supported": "Deze combinatie van entiteitstype / apparaatklasse wordt niet ondersteund."
+      }
+    }
+  },
+  "model_features": {
+    "auto": {
+      "dontcare":                     "Scène-editor: voegt een selectievakje 'huidige waarde behouden' toe — apparaat negeert scènewijzigingen",
+      "blink":                        "Scène-editor: voegt een knippereffectoptie per scène toe",
+      "transt":                       "Scène-editor: voegt een overgangssnelheidskeuzelijst toe (standaard / langzaam) per scène",
+      "outvalue8":                    "Scène-editor: voegt een schuifregelaar voor uitvoerhelderheid (0–100%) per scène toe",
+      "outputchannels":               "Scène-editor: voegt afzonderlijke schuifregelaars toe voor elk uitvoerkanaal (kleur, temperatuur, enz.)",
+      "shadeposition":                "Scène-editor: voegt een positieschuifregelaar en omhoog/omlaag-knoppen toe voor jaloezieën",
+      "shadebladeang":                "Scène-editor: voegt een lamelhoekschuifregelaar toe voor jaloeziëlamelbesturing",
+      "dimtimeconfig":                "Apparaatconfiguratie: voegt ramptijdinstellingen toe (hoe snel de uitvoer op en neer dimt)",
+      "outconfigswitch":              "Apparaatconfiguratie: voegt een drempelinstelling toe waarbij de uitvoer in/uitschakelt",
+      "impulseconfig":                "Apparaatconfiguratie: voegt een tabblad voor impulsuitvoermodus toe",
+      "pwmvalue":                     "Apparaatconfiguratie: toont uitvoerwaarde als PWM-taakverhouding",
+      "ventconfig":                   "Apparaatconfiguratie: voegt ventilativentilatorsnelheidsstappen en kleppenhoekinstellingen toe",
+      "shadeprops":                   "Apparaatconfiguratie: voegt tijdinstellingen voor jaloeziëreisn toe (tijd om volledig te openen / sluiten)",
+      "motiontimefins":               "Apparaatconfiguratie: voegt lamelbewegingstiming toe in jaloeziëeigenschappen",
+      "locationconfig":               "Apparaatconfiguratie: voegt een oriëntatie/richtingskeuzelijst toe (bijv. zuidgevel)",
+      "operationlock":                "Apparaatconfiguratie: staat weeralarmen toe om de bedrijfsslot op dit apparaat te overschrijven",
+      "windprotectionconfigblind":    "Apparaatconfiguratie: voegt windprotectieklasse toe voor jaloezie / rolluik",
+      "windprotectionconfigawning":   "Apparaatconfiguratie: voegt windprotectieklasse toe voor zonwering / rolluikscherm",
+      "heatingprops":                 "Apparaatconfiguratie: voegt kleptype, PWM-periode en verwarmingszone-instellingen toe",
+      "heatinggroup":                 "Apparaatconfiguratie: voegt een keuzelijst voor verwarmingsgroeptoewijzing toe",
+      "valvetype":                    "Apparaatconfiguratie: voegt een keuzelijst voor aangesloten klep of eindapparaat toe",
+      "extendedvalvetypes":           "Apparaatconfiguratie: voegt uitgebreide kleptype-opties toe buiten de standaardset",
+      "fcu":                          "Apparaatconfiguratie: voegt ventilo-convector-instellingen toe (ventilatorsnelheid, verwarming/koeling/ventilatiemodi)",
+      "temperatureoffset":            "Apparaatconfiguratie: voegt een veld voor temperatuurcorrectie-offset toe",
+      "consumption":                  "Apparaatconfiguratie: voegt energieverbruiksbewaking en gebeurtenissenmenu toe",
+      "akmsensor":                    "Apparaatconfiguratie: voegt een keuzelijst toe voor wat de droogcontactingang detecteert (aanwezigheid, beweging, raam open, enz.)",
+      "pushbutton":                   "Apparaatconfiguratie: voegt een keuzelijst voor knoptyp-toewijzing toe (enkel, wip, 4-weg, enz.)",
+      "pushbadvanced":                "Apparaatconfiguratie: voegt kliktype-configuratie per scène en lokale prioriteitsschakelaar toe",
+      "pushbdisabled":                "Apparaatconfiguratie: voegt een dialoogvenster toe om ongebruikte knopelementenuit te schakelen",
+      "jokerconfig":                  "Apparaatconfiguratie: voegt kleurgroeptoewijzing toe voor flexibele/joker-klasse-apparaten",
+      "pushbarea":                    "Knopconfiguratie: voegt 'gebied' toe als selecteerbaar knopfunctietype",
+      "pushbdevice":                  "Knopconfiguratie: voegt 'apparaat' toe als selecteerbaar knopfunctietype",
+      "pushbsensor":                  "Knopconfiguratie: voegt 'sensorstijl' toe als selecteerbaar knopfunctietype",
+      "highlevel":                    "Knopconfiguratie: voegt 'app / scènetrigger' toe als selecteerbaar knopfunctietype",
+      "identification":               "Voegt een 'Identificeren'-item toe — triggert een visueel signaal op het fysieke apparaat vanuit de configurator"
+    },
+    "optional": {
+      "blinkconfig":                      "Apparaatconfiguratie: voegt knipperpatroon- en gedragsinstellingen toe (niet getest)",
+      "customtransitiontime":             "Scène-editor: voegt een aangepast overgangstijdveld per scène toe (niet getest)",
+      "consumptiontimer":                 "Apparaatconfiguratie: voegt een verbruikstimer- en bedrijfstijd-volgpaneel toe (niet getest)",
+      "outmodegeneric":                   "Apparaatconfiguratie: voegt een uitvoermoduskeuzelijst toe met generieke waarden 0–6 (niet getest)",
+      "outmodeauto":                      "Apparaatconfiguratie: voegt de optie 'Auto' toe aan de uitvoermoduskeuzelijst (niet getest)",
+      "jokertempcontrol":                 "Schakelt temperatuurgeregeld uitvoergedrag in voor flexibele/joker-klasse-apparaten (niet getest)",
+      "umvrelay":                         "Apparaatconfiguratie: voegt een relaisfunctiekeuzelijst toe voor universele modulehardware (niet getest)",
+      "ftwtempcontrolventilationselect":  "Apparaatconfiguratie: voegt een gecombineerde temperatuur- en ventilatiemodus-keuzelijst toe (niet getest)",
+      "setumr200config":                  "Apparaatconfiguratie: voegt hardwareconfiguratie toe voor UMR200-module (niet getest)",
+      "apartmentapplication":             "Schakelt appartement-niveau applicatie-integratie in voor dit apparaat (niet getest)",
+      "customactivityconfig":             "Voegt aangepaste activiteits- en app-configuratieopties toe (niet getest)"
+    }
+  },
+  "labels": {
+    "color_group": {
+      "1": "Geel — Lichten / Dimmers",
+      "2": "Grijs — Jaloezieën / Rolluiken",
+      "3": "Blauw — Klimaat (Verwarming, Koeling, Ventilatie)",
+      "4": "Cyaan — Audio",
+      "5": "Magenta — Video",
+      "6": "Rood — Beveiliging",
+      "7": "Groen — Toegangscontrole",
+      "8": "Zwart — Joker / Configureerbaar",
+      "9": "Wit — Enkel apparaat / Huishoudapparaat"
+    },
+    "button_group": {
+      "1": "Geel / Licht",
+      "2": "Grijs / Schaduw",
+      "3": "Blauw / Verwarming",
+      "4": "Cyaan / Audio",
+      "5": "Magenta / Video",
+      "6": "Rood / Beveiliging",
+      "7": "Groen / Toegang",
+      "8": "Zwart / Joker",
+      "9": "Blauw / Koeling",
+      "10": "Blauw / Ventilatie",
+      "11": "Blauw / Raam",
+      "12": "Blauw / Recirculatie",
+      "48": "Ruimtetemperatuurregeling"
+    },
+    "binary_input_group": {
+      "1": "Geel / Licht",
+      "2": "Grijs / Schaduw",
+      "3": "Blauw / Verwarming",
+      "4": "Cyaan / Audio",
+      "5": "Magenta / Video",
+      "6": "Rood / Beveiliging",
+      "7": "Groen / Toegang",
+      "8": "Zwart / Joker",
+      "10": "Blauw / Ventilatie",
+      "12": "Blauw / Recirculatie"
+    },
+    "sensor_group": {
+      "0": "Geen groep / Joker",
+      "1": "Geel / Licht",
+      "2": "Grijs / Schaduw",
+      "3": "Blauw / Klimaat",
+      "4": "Cyaan / Audio",
+      "5": "Magenta / Video",
+      "6": "Rood / Beveiliging",
+      "7": "Groen / Toegang"
+    },
+    "color_class": {
+      "1": "Lichten (Geel)",
+      "2": "Jaloezieën / Rolluiken (Grijs)",
+      "3": "Verwarming (Blauw)",
+      "4": "Audio (Cyaan)",
+      "5": "Video (Magenta)",
+      "6": "Beveiliging (Rood)",
+      "7": "Toegang (Groen)",
+      "8": "Joker / Configureerbaar (Zwart)",
+      "9": "Koeling (Blauw)",
+      "10": "Ventilatie (Blauw)",
+      "11": "Raam (Blauw)",
+      "12": "Recirculatie / Ventilo-convector (Blauw)",
+      "48": "Temperatuurregeling (Blauw)"
+    },
+    "button_type": {
+      "0": "Ongedefinieerd (onbeperkte elementen)",
+      "1": "Enkele drukknop (1 element)",
+      "2": "Tweeweg-drukknop (2 elementen)",
+      "3": "Vierweg-navigatie (4 elementen)",
+      "4": "Vierweg met midden (5 elementen)",
+      "5": "Achtweg met midden (9 elementen)",
+      "6": "Aan/Uit-schakelaar (1 element)"
+    },
+    "button_function": {
+      "0": "Apparaat",
+      "1": "Gebied 1",
+      "2": "Gebied 2",
+      "3": "Gebied 3",
+      "4": "Gebied 4",
+      "5": "Kamer",
+      "6": "Uitgebreid 1",
+      "7": "Uitgebreid 2",
+      "8": "Uitgebreid 3",
+      "9": "Uitgebreid 4",
+      "10": "Uitgebreid Gebied 1",
+      "11": "Uitgebreid Gebied 2",
+      "12": "Uitgebreid Gebied 3",
+      "13": "Uitgebreid Gebied 4",
+      "14": "Appartement",
+      "15": "App"
+    },
+    "button_mode": {
+      "0": "Standaard (1-weg drukknop)",
+      "1": "Turbo (1-weg)",
+      "2": "Geschakeld / Wissel",
+      "5": "2-weg Omlaag, paar 1",
+      "6": "2-weg Omlaag, paar 2",
+      "7": "2-weg Omlaag, paar 3",
+      "8": "2-weg Omlaag, paar 4",
+      "9": "2-weg Omhoog, paar 1",
+      "10": "2-weg Omhoog, paar 2",
+      "11": "2-weg Omhoog, paar 3",
+      "12": "2-weg Omhoog, paar 4",
+      "13": "2-weg",
+      "14": "1-weg (expliciet)",
+      "16": "AKM Standaard (contactmodule)",
+      "17": "AKM Omgekeerd (contactmodule)",
+      "18": "AKM Aan (stijgende flank)",
+      "19": "AKM Aan (dalende flank)",
+      "20": "AKM Uit (stijgende flank)",
+      "21": "AKM Uit (dalende flank)",
+      "22": "AKM Stijgende flank",
+      "23": "AKM Dalende flank",
+      "65": "Verwarmingsdrukknop (1-weg)",
+      "255": "Gedeactiveerd"
+    },
+    "binary_input_type": {
+      "0": "Generiek",
+      "1": "Aanwezigheid",
+      "2": "Helderheid",
+      "3": "Aanwezigheid in het donker",
+      "4": "Schemering",
+      "5": "Beweging",
+      "6": "Beweging in het donker",
+      "7": "Rook",
+      "8": "Wind",
+      "9": "Regen",
+      "10": "Zonnestraling",
+      "11": "Thermostaat",
+      "12": "Batterij bijna leeg",
+      "13": "Raam open",
+      "14": "Deur open",
+      "15": "Raam gekanteld",
+      "16": "Garagedeur open",
+      "17": "Zonwering",
+      "18": "Vorst",
+      "19": "Verwarmingssysteem ingeschakeld",
+      "20": "Verwarmingsomschakeling",
+      "21": "Initialisatie",
+      "22": "Storing",
+      "23": "Onderhoud"
+    },
+    "binary_input_usage": {
+      "0": "Generiek",
+      "1": "Ruimteklimaat",
+      "2": "Buitenklimaat",
+      "3": "Klimaatinstelling"
+    },
+    "binary_input_value_type": {
+      "boolean": "Booleaans (waar / onwaar)",
+      "integer": "Geheel getal (uitgebreide waarde)"
+    },
+    "sensor_type": {
+      "0": "Geen",
+      "1": "Temperatuur",
+      "2": "Vochtigheid",
+      "3": "Verlichting",
+      "4": "Voedingsspanning",
+      "5": "CO-concentratie",
+      "6": "Radonactiviteit",
+      "7": "Gastype",
+      "8": "Deeltjes PM10",
+      "9": "Deeltjes PM2,5",
+      "10": "Deeltjes PM1",
+      "11": "Ruimtebedieningspaneel",
+      "12": "Ventilatorsnelheid",
+      "13": "Windsnelheid",
+      "14": "Actief vermogen",
+      "15": "Elektrische stroom",
+      "16": "Energiemeter",
+      "17": "Schijnbaar vermogen",
+      "18": "Luchtdruk",
+      "19": "Windrichting",
+      "20": "Geluidsdrukniveau",
+      "21": "Neerslag",
+      "22": "CO₂-concentratie",
+      "23": "Windvlaagsnelheid",
+      "24": "Windvlaagrichting",
+      "25": "Gegenereerd actief vermogen",
+      "26": "Gegenereerde energie",
+      "27": "Waterhoeveelheid",
+      "28": "Waterstroomsnelheid",
+      "29": "Lengte",
+      "30": "Massa",
+      "31": "Duur",
+      "32": "Procent",
+      "33": "Procentsnelheid",
+      "34": "Frequentie"
+    },
+    "sensor_usage": {
+      "1": "Kamer",
+      "2": "Buiten",
+      "3": "Gebruikersinteractie",
+      "4": "Apparaatniveau",
+      "5": "Laatste apparaatrun",
+      "6": "Apparaatgemiddelde"
+    },
+    "output_function": {
+      "0": "Aan / Uit",
+      "1": "Dimmer",
+      "2": "Positioneel (jaloezie, klep)",
+      "3": "Dimmer met kleurtemperatuur",
+      "4": "Volkleur-dimmer (RGB / HSV)",
+      "5": "Bipolair",
+      "6": "Intern geregeld",
+      "127": "Aangepast (geen standaardkanalen)"
+    },
+    "output_mode": {
+      "0": "Uitgeschakeld",
+      "1": "Binair (alleen aan/uit)",
+      "2": "Geleidelijk (continu bereik)",
+      "127": "Standaard (apparaat beslist)"
+    },
+    "output_usage": {
+      "0": "Ongedefinieerd",
+      "1": "Kamer",
+      "2": "Buiten",
+      "3": "Gebruiker"
+    },
+    "input_type": {
+      "0": "Handmatig (geen automatische detectie)",
+      "1": "Detecteert wijzigingen (verzenden bij wijziging)",
+      "2": "Bevraagd (regelmatige bevraging door dSS)"
+    },
+    "cover_placement": {
+      "indoor": "Binnen (kamerzijde)",
+      "outdoor": "Buiten (weerblootgesteld)"
+    },
+    "channel_type": {
+      "0": "Standaard (geen / vangnet)",
+      "1": "Helderheid",
+      "2": "Tint",
+      "3": "Verzadiging",
+      "4": "Kleurtemperatuur (mired, 100–1000)",
+      "5": "CIE X",
+      "6": "CIE Y",
+      "7": "Jaloeziepositie — Buiten (0–100%)",
+      "8": "Jaloeziepositie — Binnen (0–100%)",
+      "9": "Jaloezieopeningshoek — Buiten",
+      "10": "Jaloezieopeningshoek — Binnen",
+      "11": "Transparantie",
+      "12": "Luchtstroomintensiteit",
+      "13": "Luchtstroomrichting",
+      "14": "Luchtkleppositie",
+      "15": "Luchtlamellenpositie",
+      "16": "Verwarmingsvermogen",
+      "17": "Koelcapaciteit",
+      "18": "Audiovolume",
+      "19": "Voedingsstatus",
+      "20": "Luchtlamellen auto",
+      "21": "Luchtstroom auto",
+      "22": "Watertemperatuur",
+      "23": "Waterstroomsnelheid",
+      "24": "Vermogensniveau",
+      "25": "Videostation",
+      "26": "Video-ingangsbron",
+      "192": "FCU-bedrijfsmodus"
+    },
+    "creation_mode": {
+      "from_entity": "Apparaat aanmaken op basis van HA-entiteiten (aanbevolen)",
+      "from_ha_device": "Apparaat aanmaken op basis van HA-apparaat",
+      "from_scratch": "Apparaat van nul aanmaken (BETA)"
+    },
+    "state_files_action": {
+      "keep": "Bestaande toestand gebruiken (opgeslagen apparaatconfiguratie herstellen)",
+      "delete": "Verwijderen en opnieuw beginnen"
+    },
+    "callback_type": {
+      "clickTypes": "Kliktypen (entiteitsstatus = kliktype-nummer)",
+      "actionIds": "Scène- / actie-ID's (entiteitsstatus = scènenummer)",
+      "detect_clicks": "Automatisch detecteren (binaire sensor / gebeurtenis / knopentiteit)"
+    },
+    "vdsd_action": {
+      "optional_settings": "Optionele instellingen",
+      "add_button": "Knop toevoegen",
+      "add_binary_input": "Binaire ingang toevoegen",
+      "add_sensor": "Sensor toevoegen",
+      "add_output": "Uitvoer toevoegen",
+      "next": "Volgende →"
+    },
+    "entity_build_action": {
+      "add": "Entiteit toevoegen →",
+      "done": "Klaar — vdSD aanmaken"
+    },
+    "plan_summary_action": {
+      "proceed": "Doorgaan",
+      "cancel": "Annuleren"
+    },
+    "output_action": {
+      "next": "Doorgaan",
+      "output_optional": "Optionele uitvoerinstellingen…"
+    },
+    "channel_action": {
+      "next": "Klaar",
+      "add_another": "Nog een kanaal toevoegen"
+    },
+    "binary_input_binding_type": {
+      "entity_state": "Aan/Uit-status van entiteit gebruiken",
+      "entity_attribute": "Attribuutwaarde gebruiken met transformatie"
+    }
+  }
+}
