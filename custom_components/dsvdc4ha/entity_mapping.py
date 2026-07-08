@@ -1320,6 +1320,220 @@ ENTITY_MAPPING: list[dict[str, Any]] = [
 ]
 
 # ---------------------------------------------------------------------------
+# Bus-event button mapping entries (domain = "bus_event")
+# ---------------------------------------------------------------------------
+
+BUS_EVENT_MAPPING: list[dict[str, Any]] = [
+    {
+        "domain": "bus_event",
+        "integration": "knx",
+        "model": "KNX Button",
+        "model_uid": "ha-bus-event-knx",
+        "vendor_name": "KNX",
+        "primary_group": ColorGroup.BLACK,
+        "prefer_event_entity": False,
+        "bus_event": {
+            "event_type": "knx_event",
+            "discriminator_fields": [
+                {"key": "destination", "label": "KNX Group Address", "example": "1/2/3"},
+            ],
+            "click_field": "value",
+            "bus_event_mode": "timed",
+            "default_click_map": {1: "press", 0: "release"},
+        },
+        "button": {
+            "button_type": ButtonType.SINGLE_PUSHBUTTON,
+            "group": ButtonGroup.JOKER,
+            "group_choices": _BTN_GROUP_CHOICES,
+            "function": ButtonFunctionJoker.APP,
+            "mode": ButtonMode.STANDARD,
+            "supports_local_key_mode": False,
+            "calls_present": False,
+        },
+    },
+    {
+        "domain": "bus_event",
+        "integration": "zha",
+        "model": "ZHA Button",
+        "model_uid": "ha-bus-event-zha",
+        "vendor_name": "ZHA",
+        "primary_group": ColorGroup.BLACK,
+        "prefer_event_entity": True,
+        "bus_event": {
+            "event_type": "zha_event",
+            "discriminator_fields": [
+                {"key": "device_ieee", "label": "Device IEEE Address",
+                 "example": "00:17:88:01:04:xx:xx:xx"},
+                {"key": "endpoint_id", "label": "Endpoint ID",
+                 "example": "1", "optional": True},
+            ],
+            "click_field": "command",
+            "bus_event_mode": "direct",
+            "default_click_map": {
+                "toggle": 0, "press": 0, "short_release": 0, "single": 0,
+                "double": 1, "double_press": 1,
+                "triple_press": 2,
+                "quadruple_press": 3,
+                "long_press": 4, "move": 4, "move_with_on_off": 4, "hold": 4,
+                "hold_repeat": 5, "repeat": 5,
+                "long_release": 6, "stop": 6, "stop_with_on_off": 6,
+                "single_click": 7,
+                "double_click": 8,
+                "triple_click": 9,
+            },
+        },
+        "button": {
+            "button_type": ButtonType.SINGLE_PUSHBUTTON,
+            "group": ButtonGroup.JOKER,
+            "group_choices": _BTN_GROUP_CHOICES,
+            "function": ButtonFunctionJoker.APP,
+            "mode": ButtonMode.STANDARD,
+            "supports_local_key_mode": False,
+            "calls_present": False,
+        },
+    },
+    {
+        "domain": "bus_event",
+        "integration": "deconz",
+        "model": "deCONZ Button",
+        "model_uid": "ha-bus-event-deconz",
+        "vendor_name": "deCONZ",
+        "primary_group": ColorGroup.BLACK,
+        "prefer_event_entity": True,
+        "bus_event": {
+            "event_type": "deconz_event",
+            "discriminator_fields": [
+                {"key": "unique_id", "label": "Sensor unique_id",
+                 "example": "00:0d:6f:00:0f:xx:xx:xx-01-1000"},
+            ],
+            "click_field": "event",
+            "bus_event_mode": "direct",
+            "default_click_map": {
+                1002: 0,   # short release → TIP_1X
+                1004: 1,   # double press  → TIP_2X
+                1001: 4,   # hold          → HOLD_START
+                1003: 6,   # long release  → HOLD_END
+            },
+            "event_code_button_stride": 1000,
+        },
+        "button": {
+            "button_type": ButtonType.SINGLE_PUSHBUTTON,
+            "group": ButtonGroup.JOKER,
+            "group_choices": _BTN_GROUP_CHOICES,
+            "function": ButtonFunctionJoker.APP,
+            "mode": ButtonMode.STANDARD,
+            "supports_local_key_mode": False,
+            "calls_present": False,
+        },
+    },
+    {
+        "domain": "bus_event",
+        "integration": "lutron_caseta",
+        "model": "Lutron Caseta Button",
+        "model_uid": "ha-bus-event-lutron-caseta",
+        "vendor_name": "Lutron",
+        "primary_group": ColorGroup.BLACK,
+        "prefer_event_entity": True,
+        "bus_event": {
+            "event_type": "lutron_caseta_button_event",
+            "discriminator_fields": [
+                {"key": "serial", "label": "Device Serial Number", "example": "12345678"},
+                {"key": "button_number", "label": "Button Number (0-based)", "example": "0"},
+            ],
+            "click_field": "action",
+            "bus_event_mode": "timed",
+            "default_click_map": {"press": "press", "release": "release"},
+        },
+        "button": {
+            "button_type": ButtonType.SINGLE_PUSHBUTTON,
+            "group": ButtonGroup.JOKER,
+            "group_choices": _BTN_GROUP_CHOICES,
+            "function": ButtonFunctionJoker.APP,
+            "mode": ButtonMode.STANDARD,
+            "supports_local_key_mode": False,
+            "calls_present": False,
+        },
+    },
+    {
+        "domain": "bus_event",
+        "integration": "dingz",
+        "model": "dingz Button",
+        "model_uid": "ha-bus-event-dingz",
+        "vendor_name": "dingz",
+        "primary_group": ColorGroup.BLACK,
+        "prefer_event_entity": False,
+        "bus_event": {
+            "event_type": "dingz_event",
+            "discriminator_fields": [
+                {"key": "unique_id", "label": "dingz Host / unique_id",
+                 "example": "aabbccddeeff"},
+                {"key": "index", "label": "Button Index (1–4)", "example": "1"},
+            ],
+            "click_field": "action",
+            "bus_event_mode": "direct",
+            "default_click_map": {
+                "single": 0,
+                "double": 1,
+                "triple": 2,
+                "long":   4,
+            },
+        },
+        "button": {
+            "button_type": ButtonType.SINGLE_PUSHBUTTON,
+            "group": ButtonGroup.JOKER,
+            "group_choices": _BTN_GROUP_CHOICES,
+            "function": ButtonFunctionJoker.APP,
+            "mode": ButtonMode.STANDARD,
+            "supports_local_key_mode": False,
+            "calls_present": False,
+        },
+    },
+    {
+        "domain": "bus_event",
+        "integration": "homematic",
+        "model": "Homematic Button",
+        "model_uid": "ha-bus-event-homematic",
+        "vendor_name": "Homematic",
+        "primary_group": ColorGroup.BLACK,
+        "prefer_event_entity": False,
+        "bus_event": {
+            "event_type": "homematic_keypress",
+            "discriminator_fields": [
+                {"key": "name", "label": "Device + Channel",
+                 "example": "KEQ1234567:1"},
+            ],
+            "click_field": "param",
+            "bus_event_mode": "direct",
+            "default_click_map": {
+                "PRESS_SHORT":        7,
+                "PRESS_LONG":         4,
+                "PRESS_CONT":         5,
+                "PRESS_LONG_RELEASE": 6,
+            },
+        },
+        "button": {
+            "button_type": ButtonType.SINGLE_PUSHBUTTON,
+            "group": ButtonGroup.JOKER,
+            "group_choices": _BTN_GROUP_CHOICES,
+            "function": ButtonFunctionJoker.APP,
+            "mode": ButtonMode.STANDARD,
+            "supports_local_key_mode": False,
+            "calls_present": False,
+        },
+    },
+]
+
+_BUS_EVENT_INDEX: dict[str, dict[str, Any]] = {
+    e["integration"]: e for e in BUS_EVENT_MAPPING
+}
+
+
+def get_bus_event_mapping(integration: str) -> dict[str, Any] | None:
+    """Return bus-event mapping entry for an integration name, or None if unknown."""
+    return _BUS_EVENT_INDEX.get(integration)
+
+
+# ---------------------------------------------------------------------------
 # Lookup helpers
 # ---------------------------------------------------------------------------
 

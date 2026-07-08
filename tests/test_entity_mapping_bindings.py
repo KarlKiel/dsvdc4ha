@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 from custom_components.dsvdc4ha.entity_mapping import (
     ENTITY_MAPPING, needs_user_input, get_entity_mapping,
+    BUS_EVENT_MAPPING, get_bus_event_mapping,
 )
 
 
@@ -335,4 +336,50 @@ def test_all_enum_fields_are_valid_enum_members():
             assert b["function"]    in _btn_func_vals, f"{key}: button.function invalid (expect ButtonFunctionJoker since group=JOKER)"
             assert b.get("mode", ButtonMode.STANDARD) in _btn_mode_vals, f"{key}: button.mode invalid"
 
+
+def test_bus_event_entries_have_required_keys():
+    """All 6 entries have domain, integration, bus_event, button keys."""
+    required = {"domain", "integration", "bus_event", "button",
+                "model", "model_uid", "vendor_name", "primary_group"}
+    for entry in BUS_EVENT_MAPPING:
+        missing = required - set(entry.keys())
+        assert not missing, f"Entry {entry.get('integration')} missing: {missing}"
+    assert len(BUS_EVENT_MAPPING) == 6
+    integrations = {e["integration"] for e in BUS_EVENT_MAPPING}
+    assert integrations == {"knx", "zha", "deconz", "lutron_caseta", "dingz", "homematic"}
+
+
+def test_bus_event_click_maps_have_valid_values():
+    """All direct-mode click_map values are valid dS ct ints (0–9) or 'press'/'release'."""
+    valid_sentinels = {"press", "release"}
+    valid_cts = set(range(10))
+    for entry in BUS_EVENT_MAPPING:
+        if entry["bus_event"]["bus_event_mode"] == "direct":
+            for raw, ct in entry["bus_event"]["default_click_map"].items():
+                assert ct in valid_cts or ct in valid_sentinels, (
+                    f"{entry['integration']}: invalid ct value {ct!r} for key {raw!r}"
+                )
+
+
+def test_get_bus_event_mapping_returns_entry():
+    """get_bus_event_mapping() returns the entry for a known integration."""
+    entry = get_bus_event_mapping("knx")
+    assert entry is not None
+    assert entry["integration"] == "knx"
+    assert entry["bus_event"]["event_type"] == "knx_event"
+
+
+def test_get_bus_event_mapping_returns_none_for_unknown():
+    """get_bus_event_mapping() returns None for unknown integration."""
+    assert get_bus_event_mapping("nonexistent") is None
+
+
+def test_bus_event_prefer_event_entity_flags():
+    """ZHA, deCONZ, and Lutron have prefer_event_entity=True; others False."""
+    prefer_true = {"zha", "deconz", "lutron_caseta"}
+    for entry in BUS_EVENT_MAPPING:
+        if entry["integration"] in prefer_true:
+            assert entry.get("prefer_event_entity") is True, entry["integration"]
+        else:
+            assert not entry.get("prefer_event_entity"), entry["integration"]
 
