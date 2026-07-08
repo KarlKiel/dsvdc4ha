@@ -53,6 +53,192 @@ CT_CLICK_3X  = 9
 _TIP_FOR_COUNT   = (CT_TIP_1X,   CT_TIP_2X,   CT_TIP_3X,   CT_TIP_4X)   # index = count-1
 _CLICK_FOR_COUNT = (CT_CLICK_1X, CT_CLICK_2X, CT_CLICK_3X)               # index = count-1
 
+
+class BusEventTimingEngine:
+    """Signal-driven dS timing state machine (Table 8, ds-basics.pdf §10.1.1).
+
+    Feed press/release signals; the engine fires the appropriate dS click-type
+    via *on_click*.  If signal_release() is never called (press-only source),
+    each signal_press() is treated as an instantaneous tip after a 50 ms guard.
+    """
+
+    _PRESS_ONLY_GUARD = 0.050  # seconds — assume press-only if no release within this
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        on_click: Callable[[int], Awaitable[None]],
+    ) -> None:
+        self._hass = hass
+        self._on_click = on_click
+        self._press_start: float | None = None
+        self._hold_task: asyncio.Task | None = None
+        self._press_only_task: asyncio.Task | None = None
+        self._in_hold: bool = False
+        self._press_count: int = 0
+        self._press_kind: str | None = None
+        self._gap_task: asyncio.Task | None = None
+        # Pending press-only tip count: incremented by the guard when a press
+        # arrives with no release within PRESS_ONLY_GUARD ms.  The commit task
+        # flushes accumulated pending tips into _accumulate after TIP_GAP_MAX.
+        self._pending_tips: int = 0
+        self._commit_task: asyncio.Task | None = None
+
+    def signal_press(self) -> None:
+        """Feed a press (H-start) signal into the state machine."""
+        self._press_start = time.monotonic()
+        self._cancel_gap_task()
+        self._cancel_commit_task()
+        self._hold_task = self._hass.async_create_task(self._hold_sequence())
+        self._press_only_task = self._hass.async_create_task(
+            self._press_only_guard_timer()
+        )
+
+    def signal_release(self) -> None:
+        """Feed a release (H-end) signal into the state machine."""
+        if self._press_only_task and not self._press_only_task.done():
+            self._press_only_task.cancel()
+        self._press_only_task = None
+
+        if self._hold_task and not self._hold_task.done():
+            self._hold_task.cancel()
+            self._hold_task = None
+
+        if self._in_hold:
+            self._in_hold = False
+            self._hold_task = None
+            self._hass.async_create_task(self._on_click(CT_HOLD_END))
+            return
+
+        if self._press_start is None:
+            return
+
+        h = time.monotonic() - self._press_start
+        self._press_start = None
+
+        # If the press-only guard had flagged this press as a pending tip,
+        # cancel that — we now have a real release and can classify by duration.
+        if self._pending_tips > 0:
+            self._pending_tips -= 1
+            self._cancel_commit_task()
+            # Re-start commit task only if there are still remaining pending tips.
+            if self._pending_tips > 0:
+                self._commit_task = self._hass.async_create_task(
+                    self._commit_pending_tips()
+                )
+
+        if h >= _HOLD_MIN:
+            # Hold_task was cancelled by the press-only guard, but the press was
+            # actually long enough to be a hold.  Synthesise the hold events based
+            # on actual duration (HOLD_START + N×HOLD_REPEAT + HOLD_END).
+            self._hass.async_create_task(self._synthesise_hold(h))
+        elif h < _CLICK_MAX:
+            self._accumulate("click")
+        else:
+            # _CLICK_MAX ≤ h < _HOLD_MIN → tip
+            self._accumulate("tip")
+
+    def cancel(self) -> None:
+        """Cancel all pending tasks — call when unregistering the listener."""
+        self._cancel_gap_task()
+        self._cancel_commit_task()
+        self._pending_tips = 0
+        for task_attr in ("_hold_task", "_press_only_task"):
+            task = getattr(self, task_attr)
+            if task and not task.done():
+                task.cancel()
+            setattr(self, task_attr, None)
+
+    async def _press_only_guard_timer(self) -> None:
+        await asyncio.sleep(self._PRESS_ONLY_GUARD)
+        self._press_only_task = None
+        # Cancel the hold sequence — if a genuine hold occurs, signal_release()
+        # will detect h ≥ HOLD_MIN and synthesise the hold events itself.
+        if self._hold_task and not self._hold_task.done():
+            self._hold_task.cancel()
+        self._hold_task = None
+        self._pending_tips += 1
+        self._cancel_commit_task()
+        self._commit_task = self._hass.async_create_task(self._commit_pending_tips())
+
+    async def _synthesise_hold(self, duration: float) -> None:
+        """Emit HOLD_START + N×HOLD_REPEAT + HOLD_END for a press-only-guard hold."""
+        repeat_count = max(0, int((duration - _HOLD_MIN) / _HOLD_REPEAT_INTERVAL))
+        await self._on_click(CT_HOLD_START)
+        for _ in range(repeat_count):
+            await self._on_click(CT_HOLD_REPEAT)
+        await self._on_click(CT_HOLD_END)
+
+    async def _commit_pending_tips(self) -> None:
+        """Wait TIP_GAP_MAX, then flush all pending press-only tips."""
+        await asyncio.sleep(_TIP_GAP_MAX)
+        count = self._pending_tips
+        self._pending_tips = 0
+        self._commit_task = None
+        if count > 0:
+            # Emit directly — don't go through _accumulate to avoid interacting
+            # with existing click/tip accumulation state.
+            ct = _TIP_FOR_COUNT[min(count, 4) - 1]
+            _LOGGER.debug(
+                "BusEventTimingEngine: press-only × %d → click_type %d", count, ct
+            )
+            self._hass.async_create_task(self._on_click(ct))
+
+    def _cancel_commit_task(self) -> None:
+        if self._commit_task and not self._commit_task.done():
+            self._commit_task.cancel()
+        self._commit_task = None
+
+    async def _hold_sequence(self) -> None:
+        await asyncio.sleep(_HOLD_MIN)
+        if self._press_only_task and not self._press_only_task.done():
+            self._press_only_task.cancel()
+        self._press_only_task = None
+        # If the press-only guard queued a pending tip, cancel it — this is a hold.
+        self._cancel_commit_task()
+        self._pending_tips = 0
+        self._cancel_gap_task()
+        self._press_count = 0
+        self._press_kind = None
+        self._in_hold = True
+        await self._on_click(CT_HOLD_START)
+        while True:
+            await asyncio.sleep(_HOLD_REPEAT_INTERVAL)
+            await self._on_click(CT_HOLD_REPEAT)
+
+    def _accumulate(self, kind: str) -> None:
+        if self._press_kind and self._press_kind != kind:
+            self._emit_accumulated()
+        self._press_kind = kind
+        self._press_count = min(self._press_count + 1, 4)
+        gap = _CLICK_GAP_MAX if kind == "click" else _TIP_GAP_MAX
+        self._cancel_gap_task()
+        self._gap_task = self._hass.async_create_task(self._gap_timeout(gap))
+
+    async def _gap_timeout(self, gap: float) -> None:
+        await asyncio.sleep(gap)
+        self._emit_accumulated()
+
+    def _emit_accumulated(self) -> None:
+        count = self._press_count
+        kind = self._press_kind
+        self._press_count = 0
+        self._press_kind = None
+        if kind == "tip" and 1 <= count <= 4:
+            ct = _TIP_FOR_COUNT[count - 1]
+        elif kind == "click" and 1 <= count <= 3:
+            ct = _CLICK_FOR_COUNT[count - 1]
+        else:
+            return
+        _LOGGER.debug("BusEventTimingEngine: %s × %d → click_type %d", kind, count, ct)
+        self._hass.async_create_task(self._on_click(ct))
+
+    def _cancel_gap_task(self) -> None:
+        if self._gap_task and not self._gap_task.done():
+            self._gap_task.cancel()
+        self._gap_task = None
+
+
 # ── Default event_type → click_type mapping for HA event entities ────────────
 # Covers ZHA, Z2M, Hue, and other common naming conventions.
 DEFAULT_EVENT_TYPE_MAP: dict[str, int] = {
@@ -129,8 +315,9 @@ class ButtonEventTranslator:
     def setup(self) -> Callable[[], None]:
         """Register HA listeners and return a combined unsub/cleanup callable."""
         if self._source_domain == "binary_sensor":
-            unsub = self._setup_binary_sensor()
-        elif self._source_domain == "event":
+            return self._setup_binary_sensor()   # returns full cleanup
+
+        if self._source_domain == "event":
             unsub = self._setup_event_entity()
         else:
             unsub = self._setup_button_entity()
@@ -147,10 +334,11 @@ class ButtonEventTranslator:
     # ── Binary-sensor source ─────────────────────────────────────────────────
 
     def _setup_binary_sensor(self) -> Callable[[], None]:
-        # Seed from current state so we don't miss a press at startup.
+        engine = BusEventTimingEngine(self._hass, self._on_click)
+
         current = self._hass.states.get(self._entity_id)
         if current and current.state == "on":
-            self._bs_on()
+            engine.signal_press()
 
         @callback
         def _on_state(event: Event) -> None:
@@ -158,68 +346,17 @@ class ButtonEventTranslator:
             if new is None:
                 return
             if new.state == "on":
-                self._bs_on()
+                engine.signal_press()
             elif new.state == "off":
-                self._bs_off()
+                engine.signal_release()
 
-        return async_track_state_change_event(self._hass, self._entity_id, _on_state)
+        state_unsub = async_track_state_change_event(self._hass, self._entity_id, _on_state)
 
-    def _bs_on(self) -> None:
-        """Binary sensor went active (button pressed)."""
-        self._press_start = time.monotonic()
-        self._cancel_gap_task()
-        # Start HOLD_START timer — cancelled on release if < 500 ms.
-        # Also discards any accumulated tips/clicks that started this
-        # sequence (Short-Long / Short-Short-Long patterns are reserved
-        # for dS device internals, so we suppress any pending emission).
-        self._hold_task = self._hass.async_create_task(self._hold_sequence())
+        def _cleanup() -> None:
+            state_unsub()
+            engine.cancel()
 
-    def _bs_off(self) -> None:
-        """Binary sensor went inactive (button released)."""
-        # Cancel the pending HOLD_START timer if it hasn't fired yet.
-        if self._hold_task and not self._hold_task.done():
-            self._hold_task.cancel()
-            self._hold_task = None
-
-        if self._in_hold:
-            # HOLD_START already fired → emit HOLD_END now.
-            self._in_hold = False
-            self._hold_task = None
-            self._hass.async_create_task(self._on_click(CT_HOLD_END))
-            return
-
-        if self._press_start is None:
-            return
-
-        h = time.monotonic() - self._press_start
-        self._press_start = None
-
-        if h < _CLICK_MAX:
-            self._accumulate("click")
-        elif h < _HOLD_MIN:
-            # _CLICK_MAX ≤ h < _HOLD_MIN  →  tip
-            self._accumulate("tip")
-        # h ≥ _HOLD_MIN but hold_task was cancelled: this edge case
-        # means the hold task fired at exactly the right moment.
-        # _in_hold will already be True in that path (handled above).
-
-    async def _hold_sequence(self) -> None:
-        """Fire HOLD_START after 500 ms, then HOLD_REPEAT every 1 s.
-
-        Runs concurrently with the button being held.  Cancelled by _bs_off()
-        if the button is released before 500 ms elapses.
-        """
-        await asyncio.sleep(_HOLD_MIN)
-        # Discard any accumulated short presses before this hold started
-        # (Short-Long pattern is reserved for dS internal use).
-        self._cancel_gap_task()
-        self._press_count = 0
-        self._press_kind = None
-        self._in_hold = True
-        await self._on_click(CT_HOLD_START)
-        while True:
-            await asyncio.sleep(_HOLD_REPEAT_INTERVAL)
-            await self._on_click(CT_HOLD_REPEAT)
+        return _cleanup
 
     # ── Event-entity source ──────────────────────────────────────────────────
 

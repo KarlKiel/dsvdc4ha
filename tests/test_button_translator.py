@@ -10,6 +10,7 @@ import pytest
 
 from custom_components.dsvdc4ha.button_translator import (
     ButtonEventTranslator,
+    BusEventTimingEngine,   # will not exist yet — import triggers FAIL
     CT_TIP_1X,
     CT_TIP_2X,
     CT_TIP_3X,
@@ -57,6 +58,148 @@ def _make_hass(initial_state=None):
     hass.async_create_task.side_effect = _create_task
     hass._tasks = tasks
     return hass
+
+
+# ── BusEventTimingEngine helpers ─────────────────────────────────────────────
+
+def _make_engine(hass=None) -> tuple["BusEventTimingEngine", list[int], object]:
+    """Return (engine, clicks_received, hass) tuple."""
+    if hass is None:
+        hass = _make_hass()
+    clicks: list[int] = []
+
+    async def _on_click(ct: int) -> None:
+        clicks.append(ct)
+
+    return BusEventTimingEngine(hass, _on_click), clicks, hass
+
+
+# ── Timing engine tests ───────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_timing_engine_single_tip():
+    """press + release at 200 ms → TIP_1X (0)."""
+    engine, clicks, hass = _make_engine()
+    engine.signal_press()
+    await asyncio.sleep(0.200)
+    engine.signal_release()
+    await asyncio.sleep(_TIP_GAP_MAX + 0.1)
+    assert clicks == [CT_TIP_1X]
+
+
+@pytest.mark.asyncio
+async def test_timing_engine_double_tip():
+    """Two press+release within 800 ms gap → TIP_2X (1)."""
+    engine, clicks, hass = _make_engine()
+    engine.signal_press()
+    await asyncio.sleep(0.200)
+    engine.signal_release()
+    await asyncio.sleep(0.200)
+    engine.signal_press()
+    await asyncio.sleep(0.200)
+    engine.signal_release()
+    await asyncio.sleep(_TIP_GAP_MAX + 0.1)
+    assert clicks == [CT_TIP_2X]
+
+
+@pytest.mark.asyncio
+async def test_timing_engine_triple_tip():
+    """Three press+release → TIP_3X (2)."""
+    engine, clicks, hass = _make_engine()
+    for _ in range(3):
+        engine.signal_press()
+        await asyncio.sleep(0.200)
+        engine.signal_release()
+        await asyncio.sleep(0.100)
+    await asyncio.sleep(_TIP_GAP_MAX + 0.1)
+    assert clicks == [CT_TIP_3X]
+
+
+@pytest.mark.asyncio
+async def test_timing_engine_quadruple_tip():
+    """Four press+release → TIP_4X (3)."""
+    engine, clicks, hass = _make_engine()
+    for _ in range(4):
+        engine.signal_press()
+        await asyncio.sleep(0.150)
+        engine.signal_release()
+        await asyncio.sleep(0.100)
+    await asyncio.sleep(_TIP_GAP_MAX + 0.1)
+    assert clicks == [CT_TIP_4X]
+
+
+@pytest.mark.asyncio
+async def test_timing_engine_single_click():
+    """Press + release at 80 ms → CLICK_1X (7)."""
+    engine, clicks, hass = _make_engine()
+    engine.signal_press()
+    await asyncio.sleep(0.080)
+    engine.signal_release()
+    await asyncio.sleep(_CLICK_GAP_MAX + 0.1)
+    assert clicks == [CT_CLICK_1X]
+
+
+@pytest.mark.asyncio
+async def test_timing_engine_double_click():
+    """Two quick clicks → CLICK_2X (8)."""
+    engine, clicks, hass = _make_engine()
+    engine.signal_press()
+    await asyncio.sleep(0.080)
+    engine.signal_release()
+    await asyncio.sleep(0.100)
+    engine.signal_press()
+    await asyncio.sleep(0.080)
+    engine.signal_release()
+    await asyncio.sleep(_CLICK_GAP_MAX + 0.1)
+    assert clicks == [CT_CLICK_2X]
+
+
+@pytest.mark.asyncio
+async def test_timing_engine_hold():
+    """Hold ≥ 500 ms → HOLD_START, then HOLD_REPEAT, then release → HOLD_END."""
+    engine, clicks, hass = _make_engine()
+    engine.signal_press()
+    await asyncio.sleep(_HOLD_MIN + 0.1)      # HOLD_START fires
+    await asyncio.sleep(1.1)                   # HOLD_REPEAT fires
+    engine.signal_release()                    # HOLD_END
+    await asyncio.sleep(0.1)
+    assert CT_HOLD_START in clicks
+    assert CT_HOLD_REPEAT in clicks
+    assert CT_HOLD_END in clicks
+    assert clicks.index(CT_HOLD_START) < clicks.index(CT_HOLD_REPEAT)
+    assert clicks.index(CT_HOLD_REPEAT) < clicks.index(CT_HOLD_END)
+
+
+@pytest.mark.asyncio
+async def test_timing_engine_press_only_single():
+    """signal_press only (no release within 50 ms) → treated as tip."""
+    engine, clicks, hass = _make_engine()
+    engine.signal_press()
+    # no signal_release()
+    await asyncio.sleep(_TIP_GAP_MAX + 0.2)
+    assert clicks == [CT_TIP_1X]
+
+
+@pytest.mark.asyncio
+async def test_timing_engine_press_only_double():
+    """Two press-only signals within 800 ms → TIP_2X."""
+    engine, clicks, hass = _make_engine()
+    engine.signal_press()
+    await asyncio.sleep(0.300)   # first tip fires at ~50 ms guard
+    engine.signal_press()
+    await asyncio.sleep(_TIP_GAP_MAX + 0.1)
+    assert clicks == [CT_TIP_2X]
+
+
+@pytest.mark.asyncio
+async def test_timing_engine_cancel_clears_tasks():
+    """cancel() does not raise and pending tasks are cancelled."""
+    engine, clicks, hass = _make_engine()
+    engine.signal_press()
+    engine.cancel()
+    await asyncio.sleep(_HOLD_MIN + 0.1)
+    # No clicks should have fired after cancel
+    assert clicks == []
 
 
 # ---------------------------------------------------------------------------
@@ -347,10 +490,10 @@ class TestBinarySensorSource:
             tr = ButtonEventTranslator(self.hass, "binary_sensor.btn", self._on_click)
             cleanup = tr.setup()
 
-            # press_start was set — simulate release immediately
+            # press_start was set on the engine — at least one task was created
             await asyncio.sleep(0)
-            # _hold_task should be pending (was scheduled on setup)
-            assert tr._hold_task is not None
+            # tasks were scheduled via hass.async_create_task
+            assert len(self.hass._tasks) > 0
             cleanup()
 
     @pytest.mark.asyncio
@@ -518,15 +661,16 @@ class TestCleanup:
 
             cb(_make_state_event("on"))
             cb(_make_state_event("off"))
-            # gap task is now pending
-            assert tr._gap_task is not None
-            assert not tr._gap_task.done()
+            # gap task is now pending inside the engine
+            pending_before = [t for t in hass._tasks if not t.done()]
+            assert len(pending_before) > 0
 
             cleanup()
             # unsub was called
             unsub.assert_called_once()
-            # gap task was cancelled
-            assert tr._gap_task is None or tr._gap_task.cancelled()
+            # after cleanup no clicks should fire
+            await asyncio.sleep(_CLICK_GAP_MAX + 0.05)
+            assert clicks == []
 
     @pytest.mark.asyncio
     async def test_cleanup_cancels_hold_task(self):
@@ -547,11 +691,15 @@ class TestCleanup:
             cb = mock_track.call_args[0][2]
 
             cb(_make_state_event("on"))
-            assert tr._hold_task is not None
+            # hold task is now pending inside the engine
+            pending_before = [t for t in hass._tasks if not t.done()]
+            assert len(pending_before) > 0
 
             cleanup()
             unsub.assert_called_once()
-            assert tr._hold_task is None
+            # after cleanup and hold timeout, no clicks should fire
+            await asyncio.sleep(_HOLD_MIN + 0.1)
+            assert clicks == []
 
 
 # ---------------------------------------------------------------------------
