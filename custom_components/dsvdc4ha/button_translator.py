@@ -89,6 +89,11 @@ class BusEventTimingEngine:
         self._press_start = time.monotonic()
         self._cancel_gap_task()
         self._cancel_commit_task()
+        # Cancel tasks from a previous press cycle before replacing them
+        if self._hold_task and not self._hold_task.done():
+            self._hold_task.cancel()
+        if self._press_only_task and not self._press_only_task.done():
+            self._press_only_task.cancel()
         self._hold_task = self._hass.async_create_task(self._hold_sequence())
         self._press_only_task = self._hass.async_create_task(
             self._press_only_guard_timer()
