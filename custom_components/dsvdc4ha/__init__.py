@@ -650,7 +650,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # HA→dS listeners, then seed current HA state so pydsvdcapi's
     # _wait_for_initial_values() is satisfied before announce() is awaited.
     await _backfill_missing_icons(hass, entry)
-    from .listeners import setup_input_listeners, setup_output_listeners, seed_initial_values
+    from .listeners import setup_input_listeners, setup_output_listeners, seed_initial_values, setup_bus_event_listeners
     dev_reg = dr.async_get(hass)
     internal_url = (hass.config.internal_url or "http://homeassistant.local:8123").rstrip("/")
     for subentry in entry.subentries.values():
@@ -674,6 +674,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             coordinator.api.patch_vdsd_config_urls(url_map)
         unsubs = setup_input_listeners(hass, coordinator.api, subentry.subentry_id, vdsds)
         unsubs += setup_output_listeners(hass, coordinator.api, subentry.subentry_id, vdsds)
+        unsubs += setup_bus_event_listeners(hass, coordinator.api, subentry.subentry_id, vdsds)
         hass.data[DOMAIN][subentry.subentry_id] = {"unsubs": unsubs}
         await seed_initial_values(hass, coordinator.api, subentry.subentry_id, vdsds)
         await coordinator.api.announce_device(subentry.subentry_id)
@@ -752,7 +753,7 @@ async def _async_subentry_update_listener(
             unsub()
 
     if added:
-        from .listeners import setup_input_listeners, setup_output_listeners, seed_initial_values
+        from .listeners import setup_input_listeners, setup_output_listeners, seed_initial_values, setup_bus_event_listeners
         from . import sensor as _sensor_mod
         from . import binary_sensor as _binary_sensor_mod
         from . import button as _button_mod
@@ -776,6 +777,7 @@ async def _async_subentry_update_listener(
                 vdsds = merged_vdsds
             unsubs = setup_input_listeners(hass, coordinator.api, subentry_id, vdsds)
             unsubs += setup_output_listeners(hass, coordinator.api, subentry_id, vdsds)
+            unsubs += setup_bus_event_listeners(hass, coordinator.api, subentry_id, vdsds)
             domain_data[subentry_id] = {"unsubs": unsubs}
             await seed_initial_values(hass, coordinator.api, subentry_id, vdsds)
             await coordinator.api.announce_device(subentry_id)

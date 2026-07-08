@@ -10,6 +10,7 @@ from homeassistant.helpers.event import async_track_state_change_event
 from pydsvdcapi.enums import BinaryInputType
 
 from .binding_transforms import apply_transform, TRANSFORMS
+from .button_translator import BusEventTimingEngine
 from .const import DOMAIN
 from .unit_conversion import convert_sensor_value
 
@@ -549,5 +550,113 @@ def setup_output_listeners(
             ) -> None:
                 await hass.services.async_call(**_action, blocking=False)
             api.set_channel_applied_callback(output, _on_channel_applied_static)
+
+    return unsubs
+
+
+def setup_bus_event_listeners(
+    hass: HomeAssistant,
+    api: "DsvdcApi",
+    entry_id: str,
+    vdsds_data: list[dict],
+) -> list:
+    """Register hass.bus listeners for buttons with callbackType == 'bus_event'."""
+    unsubs = []
+    device = api.get_device(entry_id)
+    if not device:
+        return unsubs
+
+    for idx, vdsd_data in enumerate(vdsds_data):
+        vdsd = device.get_vdsd(idx)
+        if not vdsd:
+            continue
+
+        for btn_data in vdsd_data.get("buttons", []):
+            if btn_data.get("callbackType") != "bus_event":
+                continue
+
+            btn = vdsd.get_button_input(btn_data["dsIndex"])
+            if not btn:
+                continue
+
+            event_type: str = btn_data["bus_event_type"]
+            event_filter: dict = btn_data.get("bus_event_filter", {})
+            click_field: str = btn_data["bus_event_click_field"]
+            mode: str = btn_data.get("bus_event_mode", "direct")
+            click_map: dict = btn_data.get("bus_event_click_map", {})
+
+            if mode == "timed":
+                async def _click_cb(ct: int, _btn=btn) -> None:
+                    await api.report_button_click(_btn, ct)
+
+                engine = BusEventTimingEngine(hass, _click_cb)
+
+                @callback
+                def _timed_handler(
+                    event,
+                    _flt=event_filter,
+                    _field=click_field,
+                    _map=click_map,
+                    _engine=engine,
+                ) -> None:
+                    data = event.data
+                    for k, v in _flt.items():
+                        if str(data.get(k)) != str(v):
+                            return
+                    raw = data.get(_field)
+                    sentinel = _map.get(raw)
+                    if sentinel is None:
+                        try:
+                            sentinel = _map.get(int(raw))
+                        except (TypeError, ValueError):
+                            pass
+                    if sentinel is None:
+                        _LOGGER.debug(
+                            "bus_event: unmapped value %r in click_map for %s",
+                            raw, event_type,
+                        )
+                        return
+                    if sentinel == "press":
+                        _engine.signal_press()
+                    elif sentinel == "release":
+                        _engine.signal_release()
+
+                bus_unsub = hass.bus.async_listen(event_type, _timed_handler)
+
+                def _timed_unsub(_unsub=bus_unsub, _engine=engine) -> None:
+                    _unsub()
+                    _engine.cancel()
+
+                unsubs.append(_timed_unsub)
+
+            else:
+                @callback
+                def _direct_handler(
+                    event,
+                    _btn=btn,
+                    _flt=event_filter,
+                    _field=click_field,
+                    _map=click_map,
+                ) -> None:
+                    data = event.data
+                    for k, v in _flt.items():
+                        if str(data.get(k)) != str(v):
+                            return
+                    raw = data.get(_field)
+                    ct = _map.get(raw)
+                    if ct is None:
+                        try:
+                            ct = _map.get(int(raw))
+                        except (TypeError, ValueError):
+                            pass
+                    if ct is None:
+                        _LOGGER.debug(
+                            "bus_event: unmapped value %r in click_map for %s",
+                            raw, event_type,
+                        )
+                        return
+                    hass.async_create_task(api.report_button_click(_btn, ct))
+
+                unsubs.append(hass.bus.async_listen(event_type, _direct_handler))
 
     return unsubs

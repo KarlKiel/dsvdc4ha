@@ -1,5 +1,6 @@
 """Tests for listeners — push_expr evaluation."""
 from __future__ import annotations
+import asyncio
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from custom_components.dsvdc4ha.listeners import (
@@ -8,6 +9,7 @@ from custom_components.dsvdc4ha.listeners import (
     setup_input_listeners,
     setup_output_listeners,
 )
+from custom_components.dsvdc4ha.listeners import setup_bus_event_listeners
 
 
 def _capture_cb(captured: list):
@@ -1048,3 +1050,218 @@ async def test_seed_calls_report_entity_available_for_unavailable_output_channel
     ]}}])
 
     api.report_entity_available.assert_awaited_once_with("entry1", 0, "switch.light", False)
+
+
+def _make_bus_event_hass():
+    """Mock hass with capturable bus.async_listen and async_create_task."""
+    hass = MagicMock()
+    captured_handlers: dict[str, list] = {}
+
+    def _async_listen(event_type, handler):
+        captured_handlers.setdefault(event_type, []).append(handler)
+        return lambda: None  # unsub
+
+    hass.bus.async_listen.side_effect = _async_listen
+    hass._captured_handlers = captured_handlers
+
+    tasks = []
+
+    def _create_task(coro):
+        task = asyncio.ensure_future(coro)
+        tasks.append(task)
+        return task
+
+    hass.async_create_task.side_effect = _create_task
+    return hass
+
+
+def _make_bus_api(btn=None):
+    api = MagicMock()
+    api.report_button_click = AsyncMock()
+    device = MagicMock()
+    vdsd = MagicMock()
+    if btn is None:
+        btn = MagicMock()
+    vdsd.get_button_input.return_value = btn
+    device.get_vdsd.return_value = vdsd
+    api.get_device.return_value = device
+    return api, btn
+
+
+def _make_event(data: dict):
+    ev = MagicMock()
+    ev.data = data
+    return ev
+
+
+@pytest.mark.asyncio
+async def test_bus_event_direct_match():
+    """Direct-mode event with matching filter → correct click type reported."""
+    hass = _make_bus_event_hass()
+    api, btn = _make_bus_api()
+
+    vdsds_data = [{
+        "buttons": [{
+            "dsIndex": 0,
+            "callbackType": "bus_event",
+            "callback_entity": None,
+            "bus_event_type": "dingz_event",
+            "bus_event_filter": {"unique_id": "aabbcc"},
+            "bus_event_click_field": "action",
+            "bus_event_mode": "direct",
+            "bus_event_click_map": {"single": 0, "double": 1},
+        }],
+    }]
+
+    unsubs = setup_bus_event_listeners(hass, api, "entry1", vdsds_data)
+    assert len(unsubs) == 1
+
+    handler = hass._captured_handlers["dingz_event"][0]
+    handler(_make_event({"unique_id": "aabbcc", "action": "single"}))
+    await asyncio.sleep(0.01)
+
+    api.report_button_click.assert_awaited_once_with(btn, 0)
+
+
+@pytest.mark.asyncio
+async def test_bus_event_direct_filter_mismatch():
+    """Event with non-matching filter field → dropped, no click reported."""
+    hass = _make_bus_event_hass()
+    api, btn = _make_bus_api()
+
+    vdsds_data = [{
+        "buttons": [{
+            "dsIndex": 0,
+            "callbackType": "bus_event",
+            "callback_entity": None,
+            "bus_event_type": "dingz_event",
+            "bus_event_filter": {"unique_id": "aabbcc"},
+            "bus_event_click_field": "action",
+            "bus_event_mode": "direct",
+            "bus_event_click_map": {"single": 0},
+        }],
+    }]
+
+    setup_bus_event_listeners(hass, api, "entry1", vdsds_data)
+    handler = hass._captured_handlers["dingz_event"][0]
+    handler(_make_event({"unique_id": "DIFFERENT", "action": "single"}))
+    await asyncio.sleep(0.01)
+    api.report_button_click.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_bus_event_direct_unknown_value():
+    """click_value not in click_map → dropped (no error raised)."""
+    hass = _make_bus_event_hass()
+    api, btn = _make_bus_api()
+
+    vdsds_data = [{
+        "buttons": [{
+            "dsIndex": 0,
+            "callbackType": "bus_event",
+            "callback_entity": None,
+            "bus_event_type": "dingz_event",
+            "bus_event_filter": {},
+            "bus_event_click_field": "action",
+            "bus_event_mode": "direct",
+            "bus_event_click_map": {"single": 0},
+        }],
+    }]
+
+    setup_bus_event_listeners(hass, api, "entry1", vdsds_data)
+    handler = hass._captured_handlers["dingz_event"][0]
+    handler(_make_event({"action": "unknown_action"}))
+    await asyncio.sleep(0.01)
+    api.report_button_click.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_bus_event_timed_press_release():
+    """Timed-mode: press event + release event → engine receives both signals."""
+    from unittest.mock import patch
+    hass = _make_bus_event_hass()
+    api, btn = _make_bus_api()
+
+    vdsds_data = [{
+        "buttons": [{
+            "dsIndex": 0,
+            "callbackType": "bus_event",
+            "callback_entity": None,
+            "bus_event_type": "knx_event",
+            "bus_event_filter": {"destination": "1/2/3"},
+            "bus_event_click_field": "value",
+            "bus_event_mode": "timed",
+            "bus_event_click_map": {1: "press", 0: "release"},
+        }],
+    }]
+
+    press_calls = []
+    release_calls = []
+
+    with patch(
+        "custom_components.dsvdc4ha.listeners.BusEventTimingEngine"
+    ) as MockEngine:
+        mock_engine = MagicMock()
+        mock_engine.signal_press.side_effect = lambda: press_calls.append(1)
+        mock_engine.signal_release.side_effect = lambda: release_calls.append(1)
+        MockEngine.return_value = mock_engine
+
+        setup_bus_event_listeners(hass, api, "entry1", vdsds_data)
+        handler = hass._captured_handlers["knx_event"][0]
+
+        handler(_make_event({"destination": "1/2/3", "value": 1}))
+        handler(_make_event({"destination": "1/2/3", "value": 0}))
+
+    assert press_calls == [1]
+    assert release_calls == [1]
+
+
+@pytest.mark.asyncio
+async def test_bus_event_unsub_cancels_engine():
+    """Calling unsub for a timed bus event listener also calls engine.cancel()."""
+    from unittest.mock import patch
+    hass = _make_bus_event_hass()
+    api, btn = _make_bus_api()
+
+    vdsds_data = [{
+        "buttons": [{
+            "dsIndex": 0,
+            "callbackType": "bus_event",
+            "callback_entity": None,
+            "bus_event_type": "knx_event",
+            "bus_event_filter": {},
+            "bus_event_click_field": "value",
+            "bus_event_mode": "timed",
+            "bus_event_click_map": {1: "press", 0: "release"},
+        }],
+    }]
+
+    with patch(
+        "custom_components.dsvdc4ha.listeners.BusEventTimingEngine"
+    ) as MockEngine:
+        mock_engine = MagicMock()
+        MockEngine.return_value = mock_engine
+
+        unsubs = setup_bus_event_listeners(hass, api, "entry1", vdsds_data)
+        assert len(unsubs) == 1
+        unsubs[0]()   # call the unsub
+
+    mock_engine.cancel.assert_called_once()
+
+
+def test_bus_event_non_bus_event_buttons_skipped():
+    """Buttons with callbackType != 'bus_event' are not registered."""
+    hass = _make_bus_event_hass()
+    api, btn = _make_bus_api()
+
+    vdsds_data = [{
+        "buttons": [{
+            "dsIndex": 0,
+            "callbackType": "clickTypes",
+            "callback_entity": "button.hall",
+        }],
+    }]
+
+    unsubs = setup_bus_event_listeners(hass, api, "entry1", vdsds_data)
+    assert unsubs == []
+    hass.bus.async_listen.assert_not_called()
