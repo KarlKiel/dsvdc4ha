@@ -125,7 +125,7 @@ class WritableSettingNumberEntity(DsvdcBaseEntity, NumberEntity):
                 # Only "zoneID" is routed here; maps to vdsd.zone_id
                 if self._setting_key == "zoneID":
                     vdsd.zone_id = int(round(value))
-                    await vdsd.push_property({"zoneID": vdsd.zone_id})
+                    await coordinator.api.push_vdsd_changes(self._subentry_id)
         except Exception:
             _LOGGER.exception(
                 "Failed to write setting %s on %s[%s]",

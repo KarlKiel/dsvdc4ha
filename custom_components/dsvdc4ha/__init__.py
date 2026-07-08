@@ -280,6 +280,47 @@ def _create_property_entities(
         name = (desc_name or "").strip()
         return f"{name or f'{fallback} {idx + 1}'}: "
 
+    def _make_vdsd_settings_cb(name_ent, zone_ent, prog_ent, active_ent, _hass, _sid, _vdsd_idx):
+        """Build the DSS→HA on_settings_changed callback for one vdSD."""
+        async def cb(changed_vdsd: Any, changed: dict) -> None:
+            if "name" in changed and name_ent is not None:
+                new_name = str(changed["name"])
+                name_ent._attr_native_value = new_name
+                name_ent.async_write_ha_state()
+                if _hass is not None:
+                    _dev_reg = dr.async_get(_hass)
+                    identifier = (DOMAIN, f"{_sid}_{_vdsd_idx}")
+                    ha_device = _dev_reg.async_get_device(identifiers={identifier})
+                    if ha_device is not None:
+                        _dev_reg.async_update_device(ha_device.id, name=new_name)
+                    for _entry in _hass.config_entries.async_entries(DOMAIN):
+                        _subentry = _entry.subentries.get(_sid)
+                        if _subentry is None:
+                            continue
+                        vdsds = list(_subentry.data.get("vdsds", []))
+                        if _vdsd_idx < len(vdsds):
+                            vdsds[_vdsd_idx] = {
+                                **vdsds[_vdsd_idx],
+                                "name": new_name,
+                                "displayId": new_name,
+                            }
+                            _hass.config_entries.async_update_subentry(
+                                _entry, _subentry,
+                                data={**_subentry.data, "vdsds": vdsds},
+                            )
+                        break
+            if "zoneID" in changed and zone_ent is not None and changed["zoneID"] is not None:
+                zone_ent._attr_native_value = float(int(changed["zoneID"]))
+                zone_ent.async_write_ha_state()
+            if "progMode" in changed and prog_ent is not None:
+                val = changed["progMode"]
+                prog_ent._attr_is_on = bool(val) if val is not None else False
+                prog_ent.async_write_ha_state()
+            if "active" in changed and active_ent is not None:
+                active_ent._attr_is_on = bool(changed["active"])
+                active_ent.async_write_ha_state()
+        return cb
+
     for vdsd_idx, vdsd_data in enumerate(subentry.data.get("vdsds", [])):
         device = api.get_device(subentry.subentry_id)
         if not device:
@@ -335,49 +376,35 @@ def _create_property_entities(
 
         # Wire up DSS→HA callback for vdSD-level property changes (pydsvdcapi 0.9.1+)
         if any([_vdsd_name_ent, _vdsd_zone_ent, _vdsd_prog_ent, _vdsd_active_ent]):
-            def _make_vdsd_cb(name_ent, zone_ent, prog_ent, active_ent, _hass, _sid, _vdsd_idx):
-                async def cb(changed_vdsd: Any, changed: dict) -> None:
-                    if "name" in changed and name_ent is not None:
-                        new_name = str(changed["name"])
-                        name_ent._attr_native_value = new_name
-                        name_ent.async_write_ha_state()
-                        if _hass is not None:
-                            _dev_reg = dr.async_get(_hass)
-                            identifier = (DOMAIN, f"{_sid}_{_vdsd_idx}")
-                            ha_device = _dev_reg.async_get_device(identifiers={identifier})
-                            if ha_device is not None:
-                                _dev_reg.async_update_device(ha_device.id, name=new_name)
-                            for _entry in _hass.config_entries.async_entries(DOMAIN):
-                                _subentry = _entry.subentries.get(_sid)
-                                if _subentry is None:
-                                    continue
-                                vdsds = list(_subentry.data.get("vdsds", []))
-                                if _vdsd_idx < len(vdsds):
-                                    vdsds[_vdsd_idx] = {
-                                        **vdsds[_vdsd_idx],
-                                        "name": new_name,
-                                        "displayId": new_name,
-                                    }
-                                    _hass.config_entries.async_update_subentry(
-                                        _entry, _subentry,
-                                        data={**_subentry.data, "vdsds": vdsds},
-                                    )
-                                break
-                    if "zoneID" in changed and zone_ent is not None and changed["zoneID"] is not None:
-                        zone_ent._attr_native_value = float(int(changed["zoneID"]))
-                        zone_ent.async_write_ha_state()
-                    if "progMode" in changed and prog_ent is not None:
-                        val = changed["progMode"]
-                        prog_ent._attr_is_on = bool(val) if val is not None else False
-                        prog_ent.async_write_ha_state()
-                    if "active" in changed and active_ent is not None:
-                        active_ent._attr_is_on = bool(changed["active"])
-                        active_ent.async_write_ha_state()
-                return cb
-            vdsd.on_settings_changed = _make_vdsd_cb(
+            vdsd.on_settings_changed = _make_vdsd_settings_cb(
                 _vdsd_name_ent, _vdsd_zone_ent, _vdsd_prog_ent, _vdsd_active_ent,
                 hass, sid, vdsd_idx,
             )
+            # Store a rewire closure so _do_reconnect can re-attach this callback
+            # after a reconnect creates new vdsd objects (same entities, new vdsd).
+            if hass is not None:
+                def _make_rewire(_sid, _vdsd_idx, ne, ze, pe, ae, _hass):
+                    def _rewire() -> None:
+                        _coordinator = _hass.data.get(DOMAIN, {}).get("hub")
+                        if _coordinator is None or _coordinator.api is None:
+                            return
+                        _dev = _coordinator.api.get_device(_sid)
+                        if _dev is None:
+                            return
+                        _v = _dev.get_vdsd(_vdsd_idx)
+                        if _v is None:
+                            return
+                        _v.on_settings_changed = _make_vdsd_settings_cb(
+                            ne, ze, pe, ae, _hass, _sid, _vdsd_idx,
+                        )
+                    return _rewire
+                hass.data.setdefault(DOMAIN, {}).setdefault("_vdsd_rewire", {})[
+                    f"{sid}_{vdsd_idx}"
+                ] = _make_rewire(
+                    sid, vdsd_idx,
+                    _vdsd_name_ent, _vdsd_zone_ent, _vdsd_prog_ent, _vdsd_active_ent,
+                    hass,
+                )
 
         # ── helper: create one writable setting entity ───────────────────────
         def _make_writable(input_type: str, idx: int | None, key: str, val: Any, prefix: str, label_prefix: str) -> Any:

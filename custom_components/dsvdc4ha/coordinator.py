@@ -163,6 +163,9 @@ class HubCoordinator:
                         await self.api.announce_device(subentry.subentry_id)
                 from . import _backfill_missing_icons
                 await _backfill_missing_icons(self.hass, self._entry)
+            # Re-attach DSS→HA on_settings_changed callbacks to the new vdsd objects.
+            for rewire_fn in self.hass.data.get(DOMAIN, {}).get("_vdsd_rewire", {}).values():
+                rewire_fn()
             _LOGGER.info("dsvdc4ha hub reconnected successfully")
         except Exception:
             _LOGGER.exception("Reconnect failed — will retry")

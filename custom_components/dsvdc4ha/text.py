@@ -99,7 +99,7 @@ class TextSettingEntity(DsvdcBaseEntity, TextEntity):
             return
         try:
             vdsd.name = value
-            await vdsd.push_property({"name": value})
+            await coordinator.api.push_vdsd_changes(self._subentry_id)
         except Exception:
             _LOGGER.exception("Failed to set vdSD name on %s", self._subentry_id)
             return
