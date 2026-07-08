@@ -345,6 +345,67 @@
           "title": "Configurator Features",
           "description": "These settings control which options appear in the digitalSTROM configurator for this device. Auto-derived selections are pre-filled based on your device configuration — adjust only if needed."
         },
+        "entity_type_picker": {
+          "title": "Select Type",
+          "description": "Choose a Home Assistant entity to expose, or configure a native bus-event button from a supported integration.",
+          "data": {
+            "type": "Type"
+          }
+        },
+        "bus_event_discriminator": {
+          "title": "Bus Event — {integration}",
+          "description": "Enter the identifying fields for this device. These values are matched against every incoming event to route clicks to the correct dS button.\n{prefer_guidance}",
+          "data": {
+            "destination": "KNX Group Address",
+            "device_ieee": "Device IEEE Address",
+            "endpoint_id": "Endpoint ID (optional)",
+            "unique_id": "Device unique_id",
+            "serial": "Device Serial Number",
+            "button_number": "Button Number (0-based)",
+            "index": "Button Index (1–4)",
+            "name": "Device + Channel"
+          }
+        },
+        "bus_event_count": {
+          "title": "Number of Buttons",
+          "description": "How many physical buttons does this device have?",
+          "data": {
+            "count": "Button count"
+          }
+        },
+        "bus_event_topology": {
+          "title": "Button Topology",
+          "description": "Are these buttons independent, or part of a logical button group (e.g. UP/DOWN, UP/DOWN/CENTER)?",
+          "data": {
+            "topology": "Topology"
+          }
+        },
+        "bus_event_independent_discrim": {
+          "title": "Button {current} of {total} — Discriminator",
+          "description": "Enter the identifying field(s) for button {current}.",
+          "data": {
+            "destination": "KNX Group Address",
+            "device_ieee": "Device IEEE Address",
+            "endpoint_id": "Endpoint ID (optional)",
+            "unique_id": "Device unique_id",
+            "serial": "Device Serial Number",
+            "button_number": "Button Number (0-based)",
+            "index": "Button Index (1–4)",
+            "name": "Device + Channel"
+          }
+        },
+        "bus_event_group_assign": {
+          "title": "Button Group Assignment",
+          "description": "Assign each physical button to a dS function role.",
+          "data": {}
+        },
+        "bus_event_name_next": {
+          "title": "Name Button {current} of {total}",
+          "description": "Enter a name for this button's virtual dS device.",
+          "data": {
+            "name": "Device name"
+          }
+        },
         "entity_completion": {
           "title": "Complete Device — {device_name}",
           "description": "Configured components: {vdsds}\n\nChoose how to proceed.",
@@ -679,9 +740,13 @@
       "192": "FCU Operation Mode"
     },
     "creation_mode": {
-      "from_entity": "Create device based on HA entities (recommended)",
+      "from_entity": "Create device from HA entity or bus event (recommended)",
       "from_ha_device": "Create device based on HA device",
       "from_scratch": "Create device from scratch (BETA)"
+    },
+    "bus_event_topology": {
+      "independent": "Independent — each button becomes a separate dS device",
+      "group": "Part of a logical button group — all buttons form one dS device"
     },
     "state_files_action": {
       "keep": "Use existing state (restore saved device configuration)",

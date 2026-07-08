@@ -237,12 +237,12 @@ async def test_creation_mode_from_scratch_routes_to_device_info():
 
 
 @pytest.mark.asyncio
-async def test_creation_mode_from_entity_routes_to_entity_picker():
-    """creation_mode: from_entity → entity_picker."""
+async def test_creation_mode_from_entity_routes_to_entity_type_picker():
+    """creation_mode: from_entity → entity_type_picker."""
     flow = _make_subentry_flow()
     result = await flow.async_step_creation_mode(user_input={"mode": "from_entity"})
     assert result["type"] == FlowResultType.FORM
-    assert result["step_id"] == "entity_picker"
+    assert result["step_id"] == "entity_type_picker"
 
 
 @pytest.mark.asyncio
@@ -1641,3 +1641,175 @@ async def test_build_entity_vdsd_omits_absent_timing_values():
     assert "openTime" not in output
     assert "closeTime" not in output
     assert "stopDelayTime" not in output
+
+
+# ── Bus-event config flow tests ───────────────────────────────────────────────
+
+def _make_bus_subentry_flow(hass_mock=None):
+    """Return a VdsdSubentryFlowHandler with minimal mocked hass."""
+    from custom_components.dsvdc4ha.config_flow import VdsdSubentryFlowHandler
+    flow = VdsdSubentryFlowHandler.__new__(VdsdSubentryFlowHandler)
+    if hass_mock is None:
+        hass_mock = MagicMock()
+        hass_mock.config.language = "en"
+    flow.hass = hass_mock
+    # Run __init__ to set up state variables
+    flow.__init__()
+    return flow
+
+
+@pytest.mark.asyncio
+async def test_entity_type_picker_shows_ha_and_bus_options():
+    """entity_type_picker step shows HA entity option and 6 bus-event integrations."""
+    flow = _make_bus_subentry_flow()
+    result = await flow.async_step_entity_type_picker()
+    # Step should render a form with 'type' field
+    assert result["type"] == "form"
+    assert result["step_id"] == "entity_type_picker"
+    schema_keys = [str(k) for k in result["data_schema"].schema.keys()]
+    assert "type" in schema_keys
+
+
+@pytest.mark.asyncio
+async def test_entity_type_picker_ha_entity_routes_to_entity_picker():
+    """Selecting 'ha_entity' routes to entity_picker step."""
+    flow = _make_bus_subentry_flow()
+    with patch.object(flow, "async_step_entity_picker", new=AsyncMock(return_value={"type": "form", "step_id": "entity_picker"})) as mock:
+        result = await flow.async_step_entity_type_picker({"type": "ha_entity"})
+    mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_entity_type_picker_knx_routes_to_discriminator():
+    """Selecting 'bus_event_knx' routes to bus_event_discriminator."""
+    flow = _make_bus_subentry_flow()
+    with patch.object(flow, "async_step_bus_event_discriminator", new=AsyncMock(return_value={"type": "form", "step_id": "bus_event_discriminator"})) as mock:
+        result = await flow.async_step_entity_type_picker({"type": "bus_event_knx"})
+    mock.assert_awaited_once()
+    assert flow._bus_event_integration == "knx"
+
+
+@pytest.mark.asyncio
+async def test_bus_event_discriminator_knx_shows_group_address_field():
+    """KNX discriminator step renders a form with 'destination' field."""
+    flow = _make_bus_subentry_flow()
+    flow._bus_event_integration = "knx"
+    result = await flow.async_step_bus_event_discriminator()
+    assert result["type"] == "form"
+    assert result["step_id"] == "bus_event_discriminator"
+    keys = [str(k) for k in result["data_schema"].schema.keys()]
+    assert "destination" in keys
+
+
+@pytest.mark.asyncio
+async def test_bus_event_discriminator_zha_prefer_event_entity_placeholder():
+    """ZHA discriminator step includes prefer_event_entity in placeholders."""
+    flow = _make_bus_subentry_flow()
+    flow._bus_event_integration = "zha"
+    result = await flow.async_step_bus_event_discriminator()
+    assert result["type"] == "form"
+    # prefer_event_entity integrations pass description_placeholders
+    assert "description_placeholders" in result
+    placeholders = result["description_placeholders"]
+    assert "integration" in placeholders
+
+
+@pytest.mark.asyncio
+async def test_bus_event_count_1_skips_topology():
+    """When count=1, topology step is skipped and we proceed to independent flow."""
+    flow = _make_bus_subentry_flow()
+    flow._bus_event_integration = "knx"
+    flow._bus_event_shared_filter = {"destination": "1/2/3"}
+    with patch.object(flow, "async_step_bus_event_independent_discrim", new=AsyncMock(return_value={"type": "form"})) as mock:
+        await flow.async_step_bus_event_count({"count": 1})
+    mock.assert_awaited_once()
+    assert flow._bus_event_button_count == 1
+    assert flow._bus_event_topology == "independent"
+
+
+@pytest.mark.asyncio
+async def test_bus_event_count_2_shows_topology():
+    """When count=2, topology step is shown."""
+    flow = _make_bus_subentry_flow()
+    flow._bus_event_integration = "knx"
+    flow._bus_event_shared_filter = {"destination": "1/2/3"}
+    with patch.object(flow, "async_step_bus_event_topology", new=AsyncMock(return_value={"type": "form"})) as mock:
+        await flow.async_step_bus_event_count({"count": 2})
+    mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_bus_event_topology_independent_routes_to_discrim():
+    """Independent topology routes to bus_event_independent_discrim."""
+    flow = _make_bus_subentry_flow()
+    flow._bus_event_integration = "dingz"
+    flow._bus_event_shared_filter = {"unique_id": "aabb", "index": "1"}
+    flow._bus_event_button_count = 3
+    with patch.object(flow, "async_step_bus_event_independent_discrim", new=AsyncMock(return_value={"type": "form"})) as mock:
+        await flow.async_step_bus_event_topology({"topology": "independent"})
+    mock.assert_awaited_once()
+    assert flow._bus_event_topology == "independent"
+
+
+@pytest.mark.asyncio
+async def test_bus_event_independent_discrim_collects_n_buttons():
+    """Independent path: after N discriminator forms, N vdSDs are appended."""
+    flow = _make_bus_subentry_flow()
+    flow._bus_event_integration = "knx"
+    flow._bus_event_shared_filter = {}
+    flow._bus_event_button_count = 2
+    flow._bus_event_topology = "independent"
+    flow._bus_event_per_button_overrides = [{}, {}]
+    flow._bus_event_current_button_idx = 0
+    flow._bus_event_pending_vdsds = []
+    flow._vdsds = []
+    flow._device_name = "Test"
+    flow._vendor_name = "KNX"
+    flow._display_id = "KNX Button"
+
+    # First button
+    result1 = await flow.async_step_bus_event_independent_discrim(
+        {"destination": "1/2/3"}
+    )
+    # Should advance to second button
+    assert flow._bus_event_current_button_idx == 1
+
+    # Second button
+    with patch.object(
+        flow, "async_step_bus_event_name_next",
+        new=AsyncMock(return_value={"type": "form", "step_id": "bus_event_name_next"})
+    ) as mock_name:
+        result2 = await flow.async_step_bus_event_independent_discrim(
+            {"destination": "4/5/6"}
+        )
+    # After 2 buttons, should proceed to naming
+    mock_name.assert_awaited_once()
+    # Two pending vdSDs should be prepared
+    assert len(flow._bus_event_pending_vdsds) == 2
+
+
+@pytest.mark.asyncio
+async def test_bus_event_group_topology_creates_single_vdsd():
+    """Group topology: one vdSD with N buttons is set as current."""
+    flow = _make_bus_subentry_flow()
+    flow._bus_event_integration = "lutron_caseta"
+    flow._bus_event_shared_filter = {"serial": "12345678"}
+    flow._bus_event_button_count = 2
+    flow._bus_event_topology = "group"
+    flow._vdsds = []
+    flow._device_name = "Pico"
+    flow._vendor_name = "Lutron"
+    flow._display_id = "Pico Remote"
+
+    with patch.object(
+        flow, "async_step_model_features",
+        new=AsyncMock(return_value={"type": "form", "step_id": "model_features"})
+    ) as mock_mf:
+        await flow.async_step_bus_event_group_assign({
+            "btn_0_button_number": "0",
+            "btn_1_button_number": "1",
+        })
+
+    mock_mf.assert_awaited_once()
+    assert len(flow._current_buttons) == 2
+    assert all(b["callbackType"] == "bus_event" for b in flow._current_buttons)

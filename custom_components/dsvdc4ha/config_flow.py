@@ -910,6 +910,14 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         self._device_remaining_entities: list = []   # supported entities not yet added
         self._device_added_summary: list[str] = []   # display labels for already-added
         self._device_entity_add_return: bool = False  # True when entity_user_input was entered from device_entity_add
+        # Bus-event flow state
+        self._bus_event_integration: str | None = None
+        self._bus_event_shared_filter: dict[str, str] = {}
+        self._bus_event_button_count: int = 1
+        self._bus_event_topology: str = "independent"
+        self._bus_event_per_button_overrides: list[dict[str, str]] = []
+        self._bus_event_current_button_idx: int = 0
+        self._bus_event_pending_vdsds: list[dict] = []
 
     async def _resolve_entity_icon(self, entity_id: str) -> tuple[str, str | None]:
         """Return (icon_name, base64_16x16_png_or_None) for an entity.
@@ -989,7 +997,7 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             mode = user_input.get("mode", "from_scratch")
             self._creation_mode = mode
             if mode == "from_entity":
-                return await self.async_step_entity_picker()
+                return await self.async_step_entity_type_picker()
             if mode == "from_ha_device":
                 return await self.async_step_device_picker()
             return await self.async_step_device_info()
@@ -999,6 +1007,367 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             ),
         })
         return self.async_show_form(step_id="creation_mode", data_schema=schema)
+
+    # ── Bus-event creation path ────────────────────────────────────────────────
+
+    async def async_step_entity_type_picker(self, user_input: dict | None = None):
+        """Choose between a real HA entity or a native bus-event integration."""
+        from .entity_mapping import BUS_EVENT_MAPPING
+
+        if user_input is not None:
+            type_key = user_input["type"]
+            if type_key == "ha_entity":
+                return await self.async_step_entity_picker()
+            self._bus_event_integration = type_key.removeprefix("bus_event_")
+            return await self.async_step_bus_event_discriminator()
+
+        options = [{"value": "ha_entity", "label": "Home Assistant Entity"}]
+        for entry in BUS_EVENT_MAPPING:
+            label = entry["model"]
+            if entry.get("prefer_event_entity"):
+                label += " (event entity preferred)"
+            options.append({
+                "value": f"bus_event_{entry['integration']}",
+                "label": label,
+            })
+
+        schema = vol.Schema({
+            vol.Required("type", default="ha_entity"): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=options, mode=selector.SelectSelectorMode.LIST
+                )
+            ),
+        })
+        return self.async_show_form(step_id="entity_type_picker", data_schema=schema)
+
+    async def async_step_bus_event_discriminator(self, user_input: dict | None = None):
+        """Collect integration-specific discriminator fields (shared across all buttons)."""
+        from .entity_mapping import get_bus_event_mapping
+
+        mapping = get_bus_event_mapping(self._bus_event_integration or "")
+        if mapping is None:
+            return await self.async_step_creation_mode()
+
+        bus_event = mapping["bus_event"]
+        fields = bus_event["discriminator_fields"]
+
+        if user_input is not None:
+            self._bus_event_shared_filter = {
+                field["key"]: v
+                for field in fields
+                if (v := user_input.get(field["key"], ""))
+                and (not field.get("optional") or v)
+            }
+            return await self.async_step_bus_event_count()
+
+        schema_dict: dict = {}
+        for field in fields:
+            key = field["key"]
+            if field.get("optional"):
+                schema_dict[vol.Optional(key, default="")] = selector.TextSelector()
+            else:
+                schema_dict[vol.Required(key)] = selector.TextSelector()
+
+        prefer = mapping.get("prefer_event_entity", False)
+        prefer_guidance = (
+            f"ℹ️  {mapping['model']} now supports HA event entities for physical buttons. "
+            "Using an event entity (via the 'Home Assistant Entity' option) is simpler and "
+            "more reliable. Use this native bus event path only if your firmware predates "
+            "event entity support."
+        ) if prefer else ""
+
+        return self.async_show_form(
+            step_id="bus_event_discriminator",
+            data_schema=vol.Schema(schema_dict),
+            description_placeholders={
+                "integration": mapping["model"],
+                "prefer_guidance": prefer_guidance,
+            },
+        )
+
+    async def async_step_bus_event_count(self, user_input: dict | None = None):
+        """Ask how many physical buttons the device has."""
+        if user_input is not None:
+            self._bus_event_button_count = int(user_input["count"])
+            if self._bus_event_button_count == 1:
+                self._bus_event_topology = "independent"
+                return await self._start_bus_event_independent()
+            return await self.async_step_bus_event_topology()
+
+        schema = vol.Schema({
+            vol.Required("count", default=1): selector.NumberSelector(
+                selector.NumberSelectorConfig(
+                    min=1, max=8,
+                    mode=selector.NumberSelectorMode.BOX,
+                    step=1,
+                )
+            ),
+        })
+        return self.async_show_form(step_id="bus_event_count", data_schema=schema)
+
+    async def async_step_bus_event_topology(self, user_input: dict | None = None):
+        """Ask whether buttons are independent or part of a logical group."""
+        if user_input is not None:
+            self._bus_event_topology = user_input["topology"]
+            if self._bus_event_topology == "independent":
+                return await self._start_bus_event_independent()
+            return await self.async_step_bus_event_group_assign()
+
+        schema = vol.Schema({
+            vol.Required("topology", default="independent"): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=_build_section_opts(self.hass, "bus_event_topology"),
+                    mode=selector.SelectSelectorMode.LIST,
+                )
+            ),
+        })
+        return self.async_show_form(step_id="bus_event_topology", data_schema=schema)
+
+    async def _start_bus_event_independent(self):
+        """Initialize state for the independent button path and start discriminator loop."""
+        self._bus_event_per_button_overrides = [
+            {} for _ in range(self._bus_event_button_count)
+        ]
+        self._bus_event_current_button_idx = 0
+        self._bus_event_pending_vdsds = []
+        return await self.async_step_bus_event_independent_discrim()
+
+    async def async_step_bus_event_independent_discrim(
+        self, user_input: dict | None = None
+    ):
+        """Per-button discriminator form — shown once for each independent button."""
+        from .entity_mapping import get_bus_event_mapping
+
+        mapping = get_bus_event_mapping(self._bus_event_integration or "")
+        if mapping is None:
+            return await self.async_step_creation_mode()
+
+        bus_event = mapping["bus_event"]
+        fields = bus_event["discriminator_fields"]
+        btn_idx = self._bus_event_current_button_idx
+
+        if user_input is not None:
+            per_btn: dict[str, str] = {}
+            for field in fields:
+                v = user_input.get(field["key"], "")
+                if v or not field.get("optional"):
+                    per_btn[field["key"]] = v
+            self._bus_event_per_button_overrides[btn_idx] = per_btn
+            self._bus_event_current_button_idx += 1
+
+            if self._bus_event_current_button_idx >= self._bus_event_button_count:
+                return await self._finalize_bus_event_independent(mapping)
+
+            return await self.async_step_bus_event_independent_discrim()
+
+        schema_dict: dict = {}
+        for field in fields:
+            key = field["key"]
+            default = self._bus_event_shared_filter.get(key, "")
+            if field.get("optional"):
+                schema_dict[vol.Optional(key, default=default)] = selector.TextSelector()
+            else:
+                schema_dict[vol.Required(key, default=default)] = selector.TextSelector()
+
+        return self.async_show_form(
+            step_id="bus_event_independent_discrim",
+            data_schema=vol.Schema(schema_dict),
+            description_placeholders={
+                "current": str(btn_idx + 1),
+                "total": str(self._bus_event_button_count),
+            },
+        )
+
+    async def _finalize_bus_event_independent(self, mapping: dict):
+        """Build N vdSDs (one per button), store as pending, start naming loop."""
+        self._bus_event_pending_vdsds = []
+        for i, per_btn_filter in enumerate(self._bus_event_per_button_overrides):
+            btn_dict = self._build_bus_event_button_dict(mapping, per_btn_filter, btn_idx=i)
+            vdsd = self._build_bus_event_vdsd(
+                mapping,
+                buttons=[btn_dict],
+                name=mapping["model"],
+            )
+            self._bus_event_pending_vdsds.append(vdsd)
+        self._bus_event_current_button_idx = 0
+        return await self.async_step_bus_event_name_next()
+
+    async def async_step_bus_event_name_next(self, user_input: dict | None = None):
+        """Name the next pending independent bus-event vdSD and save it."""
+        pending = self._bus_event_pending_vdsds
+        idx = self._bus_event_current_button_idx
+
+        if user_input is not None:
+            pending[idx]["name"] = user_input["name"].strip()
+            self._vdsds.append(dict(pending[idx]))
+            self._bus_event_current_button_idx += 1
+            if self._bus_event_current_button_idx < len(pending):
+                return await self.async_step_bus_event_name_next()
+            return await self.async_step_entity_completion()
+
+        schema = vol.Schema({
+            vol.Required("name", default=pending[idx].get("name", "Button")): selector.TextSelector(),
+        })
+        return self.async_show_form(
+            step_id="bus_event_name_next",
+            data_schema=schema,
+            description_placeholders={
+                "current": str(idx + 1),
+                "total": str(len(pending)),
+            },
+        )
+
+    async def async_step_bus_event_group_assign(self, user_input: dict | None = None):
+        """Assign per-button discriminator fields for group topology, create 1 vdSD."""
+        from .entity_mapping import get_bus_event_mapping
+
+        mapping = get_bus_event_mapping(self._bus_event_integration or "")
+        if mapping is None:
+            return await self.async_step_creation_mode()
+
+        bus_event = mapping["bus_event"]
+        fields = bus_event["discriminator_fields"]
+        n = self._bus_event_button_count
+
+        if user_input is not None:
+            buttons = []
+            for i in range(n):
+                per_btn: dict[str, str] = {}
+                for field in fields:
+                    key = field["key"]
+                    form_key = f"btn_{i}_{key}"
+                    v = user_input.get(form_key, self._bus_event_shared_filter.get(key, ""))
+                    if v or not field.get("optional"):
+                        per_btn[key] = v
+                btn_dict = self._build_bus_event_button_dict(
+                    mapping, per_btn, btn_idx=i
+                )
+                btn_dict["dsIndex"] = i
+                buttons.append(btn_dict)
+
+            vdsd = self._build_bus_event_vdsd(mapping, buttons=buttons, name=mapping["model"])
+
+            self._creation_mode = "from_entity"
+            self._current_vdsd = vdsd
+            self._current_buttons = buttons
+            self._current_binary_inputs = []
+            self._current_sensors = []
+            self._current_output = None
+            self._current_channels = []
+            if not self._device_name:
+                self._device_name = vdsd["name"]
+            if not self._vendor_name:
+                self._vendor_name = mapping["vendor_name"]
+            if not self._display_id:
+                self._display_id = mapping["model"]
+            return await self.async_step_model_features()
+
+        schema_dict: dict = {}
+        for i in range(n):
+            for field in fields:
+                key = field["key"]
+                form_key = f"btn_{i}_{key}"
+                default = self._bus_event_shared_filter.get(key, "")
+                if field.get("optional"):
+                    schema_dict[vol.Optional(form_key, default=default)] = selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            placeholder=f"Button {i+1}: {field.get('label', key)} (optional)"
+                        )
+                    )
+                else:
+                    schema_dict[vol.Required(form_key, default=default)] = selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            placeholder=f"Button {i+1}: {field.get('label', key)}"
+                        )
+                    )
+
+        return self.async_show_form(
+            step_id="bus_event_group_assign",
+            data_schema=vol.Schema(schema_dict),
+        )
+
+    def _build_bus_event_button_dict(
+        self,
+        mapping: dict,
+        filter_dict: dict[str, str],
+        btn_idx: int = 0,
+    ) -> dict:
+        """Build a button storage dict for a bus-event button."""
+        bus_event = mapping["bus_event"]
+        btn_cfg = mapping["button"]
+
+        default_map = dict(bus_event["default_click_map"])
+        stride = bus_event.get("event_code_button_stride")
+        if stride and btn_idx > 0:
+            suffixes = {2: 0, 4: 1, 1: 4, 3: 6}
+            default_map = {
+                (btn_idx + 1) * stride + suffix: ct
+                for suffix, ct in suffixes.items()
+            }
+
+        def _int_val(v):
+            return v.value if hasattr(v, "value") else int(v)
+
+        return {
+            "dsIndex": 0,
+            "name": mapping["model"],
+            "buttonType": _int_val(btn_cfg["button_type"]),
+            "buttonElementID": 0,
+            "group": _int_val(btn_cfg["group"]),
+            "function": _int_val(btn_cfg["function"]),
+            "mode": _int_val(btn_cfg["mode"]),
+            "channel": 0,
+            "supportsLocalKeyMode": btn_cfg.get("supports_local_key_mode", False),
+            "setsLocalPriority": False,
+            "callsPresent": btn_cfg.get("calls_present", False),
+            "buttonID": 0,
+            "callbackType": "bus_event",
+            "callback_entity": None,
+            "bus_event_type": bus_event["event_type"],
+            "bus_event_filter": dict(filter_dict),
+            "bus_event_click_field": bus_event["click_field"],
+            "bus_event_mode": bus_event["bus_event_mode"],
+            "bus_event_click_map": default_map,
+        }
+
+    def _build_bus_event_vdsd(
+        self,
+        mapping: dict,
+        buttons: list[dict],
+        name: str,
+    ) -> dict:
+        """Build a complete vdSD data dict for a bus-event device."""
+        import uuid as _uuid_mod
+
+        def _int_val(v):
+            return v.value if hasattr(v, "value") else int(v)
+
+        pg = mapping["primary_group"]
+        uid_seed = f"bus_event_{mapping['integration']}_{name}"
+        hardware_guid = "uuid:" + str(
+            _uuid_mod.uuid5(_uuid_mod.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8"), uid_seed)
+        )
+
+        vdsd: dict = {
+            "displayId": mapping["model"],
+            "primaryGroup": _int_val(pg),
+            "model": mapping["model"],
+            "vendorName": mapping["vendor_name"],
+            "modelVersion": "1.0",
+            "modelUID": mapping["model_uid"],
+            "name": name,
+            "hardwareGuid": hardware_guid,
+            "identify_action": None,
+            "firmwareUpdate_action": None,
+            "optional": {},
+            "buttons": buttons,
+            "binary_inputs": [],
+            "sensors": [],
+            "output": None,
+        }
+        auto_features = derive_model_features_for_config(vdsd)
+        vdsd["model_features"] = sorted(auto_features)
+        return vdsd
 
     # ── Entity-based creation path ─────────────────────────────────────────────
 
