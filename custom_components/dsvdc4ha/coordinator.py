@@ -131,9 +131,11 @@ class HubCoordinator:
                     setup_input_listeners,
                     setup_output_listeners,
                     seed_initial_values,
+                    setup_bus_event_listeners,
                 )
                 from homeassistant.helpers import device_registry as dr
                 dev_reg = dr.async_get(self.hass)
+                domain_data = self.hass.data.get(DOMAIN, {})
                 internal_url = (
                     self.hass.config.internal_url or "http://homeassistant.local:8123"
                 ).rstrip("/")
@@ -157,8 +159,15 @@ class HubCoordinator:
                                 )
                         if url_map:
                             self.api.patch_vdsd_config_urls(url_map)
-                        setup_input_listeners(self.hass, self.api, subentry.subentry_id, vdsds)
-                        setup_output_listeners(self.hass, self.api, subentry.subentry_id, vdsds)
+                        # Cancel old listeners before re-registering so no orphan
+                        # listeners survive after a subentry is deleted post-reconnect.
+                        old_data = domain_data.pop(subentry.subentry_id, {})
+                        for unsub in old_data.get("unsubs", []):
+                            unsub()
+                        unsubs = setup_input_listeners(self.hass, self.api, subentry.subentry_id, vdsds)
+                        unsubs += setup_output_listeners(self.hass, self.api, subentry.subentry_id, vdsds)
+                        unsubs += setup_bus_event_listeners(self.hass, self.api, subentry.subentry_id, vdsds)
+                        domain_data[subentry.subentry_id] = {"unsubs": unsubs}
                         await seed_initial_values(self.hass, self.api, subentry.subentry_id, vdsds)
                         await self.api.announce_device(subentry.subentry_id)
                 from . import _backfill_missing_icons
