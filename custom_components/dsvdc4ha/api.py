@@ -241,9 +241,9 @@ class DsvdcApi:
         self._devices: dict[str, Device] = {}  # entry_id → Device
         self._pending_vanish: dict[str, Device] = {}  # entry_id → Device awaiting session to vanish
         self._ever_announced: set[str] = set()
-        # Per (entry_id, vdsd_idx): set of entity_ids currently unavailable.
-        # When non-empty the vdSD lifecycle is INACTIVE.
-        self._unavailable_entities: dict[tuple[str, int], set[str]] = {}
+        # (entry_id, vdsd_idx, entity_id) tuples for entities explicitly
+        # disabled by the user in the HA entity registry.
+        self._user_disabled: set[tuple[str, int, str]] = set()
 
     async def start(
         self,
@@ -662,8 +662,7 @@ class DsvdcApi:
         session-ready event.
         """
         self._ever_announced.discard(entry_id)
-        for k in [k for k in self._unavailable_entities if k[0] == entry_id]:
-            del self._unavailable_entities[k]
+        self._user_disabled = {t for t in self._user_disabled if t[0] != entry_id}
         if device := self._devices.pop(entry_id, None):
             if self._host and self._host.session:
                 await device.vanish(self._host.session)
@@ -720,65 +719,55 @@ class DsvdcApi:
             return
         await vdsd.set_lifecycle_state(state)
 
-    async def report_entity_available(
+    def record_user_disabled(
         self,
         entry_id: str,
         vdsd_idx: int,
         entity_id: str,
-        available: bool,
+        disabled: bool,
     ) -> None:
-        """Track per-entity availability and update vdSD lifecycle accordingly.
+        """Track whether an HA entity was explicitly disabled in the entity registry.
 
-        A vdSD transitions to INACTIVE when any of its callback entities is
-        unavailable and back to ACTIVE only when all entities are available.
+        Lifecycle state is driven exclusively by this: entity availability
+        (unavailable/unknown state) does NOT affect active status in dSS.
         """
-        key = (entry_id, vdsd_idx)
-        unavail = self._unavailable_entities.setdefault(key, set())
-        was_inactive = bool(unavail)
-
-        if available:
-            unavail.discard(entity_id)
+        key = (entry_id, vdsd_idx, entity_id)
+        if disabled:
+            self._user_disabled.add(key)
         else:
-            unavail.add(entity_id)
+            self._user_disabled.discard(key)
 
-        is_inactive = bool(unavail)
-        if was_inactive == is_inactive:
-            return
+    def has_user_disabled(self, entry_id: str, vdsd_idx: int) -> bool:
+        """Return True if any entity for this vdSD was explicitly disabled by the user."""
+        return any(t[0] == entry_id and t[1] == vdsd_idx for t in self._user_disabled)
 
-        new_state = DeviceLifecycleState.INACTIVE if is_inactive else DeviceLifecycleState.ACTIVE
-        await self.set_vdsd_lifecycle(entry_id, vdsd_idx, new_state)
-
-    def has_unavailable_entities(self, entry_id: str, vdsd_idx: int) -> bool:
-        """Return True if any tracked HA entity for this vdSD is currently unavailable."""
-        return bool(self._unavailable_entities.get((entry_id, vdsd_idx)))
-
-    async def report_button_click(self, button: ButtonInput, click_type: int) -> None:
-        if self._host is None:
+    async def report_button_click(self, entry_id: str, button: ButtonInput, click_type: int) -> None:
+        if self._host is None or entry_id not in self._devices:
             return
         await button.update_click(click_type=click_type, session=self._host.session)
 
-    async def report_button_action(self, button: ButtonInput, action_id: int) -> None:
-        if self._host is None:
+    async def report_button_action(self, entry_id: str, button: ButtonInput, action_id: int) -> None:
+        if self._host is None or entry_id not in self._devices:
             return
         await button.update_action(action_id=action_id, session=self._host.session)
 
-    async def report_sensor_value(self, sensor: SensorInput, value: float | None) -> None:
-        if self._host is None:
+    async def report_sensor_value(self, entry_id: str, sensor: SensorInput, value: float | None) -> None:
+        if self._host is None or entry_id not in self._devices:
             return
         await sensor.update_value(value=value, session=self._host.session)
 
-    async def report_binary_value(self, bi: BinaryInput, value: bool | None) -> None:
-        if self._host is None:
+    async def report_binary_value(self, entry_id: str, bi: BinaryInput, value: bool | None) -> None:
+        if self._host is None or entry_id not in self._devices:
             return
         await bi.update_value(value=value, session=self._host.session)
 
-    async def report_binary_extended_value(self, bi: BinaryInput, value: int | None) -> None:
-        if self._host is None:
+    async def report_binary_extended_value(self, entry_id: str, bi: BinaryInput, value: int | None) -> None:
+        if self._host is None or entry_id not in self._devices:
             return
         await bi.update_extended_value(value=value, session=self._host.session)
 
-    async def report_channel_value(self, channel: OutputChannel, value: float) -> None:
-        if self._host is None:
+    async def report_channel_value(self, entry_id: str, channel: OutputChannel, value: float) -> None:
+        if self._host is None or entry_id not in self._devices:
             return
         await channel.update_value(value)
 

@@ -322,12 +322,13 @@ def _create_property_entities(
                     active_ent._attr_is_on = new_active
                     active_ent.async_write_ha_state()
                 if not new_active and _hass is not None:
-                    # dSS set this vdSD inactive; restore ACTIVE unless HA entities are unavailable.
+                    # dSS set this vdSD inactive; restore ACTIVE unless the user
+                    # explicitly disabled an entity for this vdSD in the HA registry.
                     _coordinator = _hass.data.get(DOMAIN, {}).get("hub")
                     if (
                         _coordinator is not None
                         and _coordinator.api is not None
-                        and not _coordinator.api.has_unavailable_entities(_sid, _vdsd_idx)
+                        and not _coordinator.api.has_user_disabled(_sid, _vdsd_idx)
                     ):
                         _LOGGER.info(
                             "dSS set vdSD %s[%d] inactive — auto-restoring to ACTIVE",
@@ -708,15 +709,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         if action == "update" and "disabled_by" in event.data.get("changes", {}):
             reg_entry = er.async_get(hass).async_get(entity_id)
-            active = reg_entry is not None and reg_entry.disabled_by is None
+            is_disabled = reg_entry is None or reg_entry.disabled_by is not None
             from pydsvdcapi.enums import DeviceLifecycleState
-            lc_state = DeviceLifecycleState.ACTIVE if active else DeviceLifecycleState.INACTIVE
             for subentry_id, vdsd_idx in entity_index[entity_id]:
+                coordinator.api.record_user_disabled(subentry_id, vdsd_idx, entity_id, is_disabled)
+                any_disabled = coordinator.api.has_user_disabled(subentry_id, vdsd_idx)
+                lc_state = DeviceLifecycleState.INACTIVE if any_disabled else DeviceLifecycleState.ACTIVE
                 hass.async_create_task(
                     coordinator.api.set_vdsd_lifecycle(subentry_id, vdsd_idx, lc_state)
                 )
         elif action == "remove":
+            dd = hass.data.get(DOMAIN, {})
             for subentry_id, _ in entity_index.pop(entity_id, []):
+                subentry_data = dd.pop(subentry_id, {})
+                for unsub in subentry_data.get("unsubs", []):
+                    unsub()
+                rewire = dd.get("_vdsd_rewire", {})
+                for key in [k for k in rewire if k.startswith(f"{subentry_id}_")]:
+                    del rewire[key]
                 hass.async_create_task(coordinator.api.vanish_device(subentry_id))
 
     entry.async_on_unload(
@@ -745,12 +755,19 @@ async def _async_subentry_update_listener(
     dev_reg = dr.async_get(hass)
 
     for subentry_id in removed:
-        await coordinator.api.vanish_device(subentry_id)
-        ent_reg.async_clear_config_subentry(entry.entry_id, subentry_id)
-        dev_reg.async_clear_config_subentry(entry.entry_id, subentry_id)
+        # Cancel listeners first so no further HA→dSS pushes can be queued or
+        # reach dSS after vanish_device removes the device from the registry.
         subentry_data = domain_data.pop(subentry_id, {})
         for unsub in subentry_data.get("unsubs", []):
             unsub()
+        # Drop stale rewire closures for this subentry so _do_reconnect doesn't
+        # iterate them unnecessarily.
+        rewire = domain_data.get("_vdsd_rewire", {})
+        for key in [k for k in rewire if k.startswith(f"{subentry_id}_")]:
+            del rewire[key]
+        await coordinator.api.vanish_device(subentry_id)
+        ent_reg.async_clear_config_subentry(entry.entry_id, subentry_id)
+        dev_reg.async_clear_config_subentry(entry.entry_id, subentry_id)
 
     if added:
         from .listeners import setup_input_listeners, setup_output_listeners, seed_initial_values, setup_bus_event_listeners

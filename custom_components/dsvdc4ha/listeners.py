@@ -176,8 +176,8 @@ def setup_input_listeners(
                 # state machine in ButtonEventTranslator.
                 from .button_translator import ButtonEventTranslator
 
-                async def _click_cb(ct: int, _btn=btn) -> None:
-                    await api.report_button_click(_btn, ct)
+                async def _click_cb(ct: int, _btn=btn, _eid=entry_id) -> None:
+                    await api.report_button_click(_eid, _btn, ct)
 
                 translator = ButtonEventTranslator(hass, entity_id, _click_cb)
                 unsubs.append(translator.setup())
@@ -194,21 +194,15 @@ def setup_input_listeners(
             ) -> None:
                 new_state = event.data.get("new_state")
                 if not new_state or new_state.state in ("unknown", "unavailable"):
-                    hass.async_create_task(
-                        api.report_entity_available(_entry_id, _vdsd_idx, _eid, False)
-                    )
                     return
-                hass.async_create_task(
-                    api.report_entity_available(_entry_id, _vdsd_idx, _eid, True)
-                )
                 try:
                     value = int(float(new_state.state))
                 except ValueError:
                     return
                 if _cb_type == "clickTypes":
-                    hass.async_create_task(api.report_button_click(_btn, value))
+                    hass.async_create_task(api.report_button_click(_entry_id, _btn, value))
                 else:
-                    hass.async_create_task(api.report_button_action(_btn, value))
+                    hass.async_create_task(api.report_button_action(_entry_id, _btn, value))
 
             unsubs.append(async_track_state_change_event(hass, entity_id, _on_button_state))
 
@@ -233,19 +227,13 @@ def setup_input_listeners(
             ) -> None:
                 new_state = event.data.get("new_state")
                 if not new_state or new_state.state in ("unknown", "unavailable"):
-                    hass.async_create_task(api.report_sensor_value(_si, None))
-                    hass.async_create_task(
-                        api.report_entity_available(_entry_id, _vdsd_idx, _eid, False)
-                    )
+                    hass.async_create_task(api.report_sensor_value(_entry_id, _si, None))
                     return
-                hass.async_create_task(
-                    api.report_entity_available(_entry_id, _vdsd_idx, _eid, True)
-                )
                 try:
                     value = float(new_state.state)
                     unit = new_state.attributes.get("unit_of_measurement")
                     value = convert_sensor_value(_st, unit, value)
-                    hass.async_create_task(api.report_sensor_value(_si, value))
+                    hass.async_create_task(api.report_sensor_value(_entry_id, _si, value))
                 except ValueError:
                     pass
 
@@ -279,29 +267,23 @@ def setup_input_listeners(
             ) -> None:
                 new_state = event.data.get("new_state")
                 if not new_state or new_state.state in ("unknown", "unavailable"):
-                    hass.async_create_task(
-                        api.report_entity_available(_entry_id, _vdsd_idx, _eid, False)
-                    )
                     return
-                hass.async_create_task(
-                    api.report_entity_available(_entry_id, _vdsd_idx, _eid, True)
-                )
                 if _attr and _transform and _transform in TRANSFORMS:
                     raw = new_state.attributes.get(_attr)
                     try:
                         val = apply_transform(_transform, raw)
-                        hass.async_create_task(api.report_binary_value(_bi, val > 0))
+                        hass.async_create_task(api.report_binary_value(_entry_id, _bi, val > 0))
                     except Exception:
                         pass
                 elif _is_bool:
                     value = new_state.state in ("on", "true", "1", "True")
                     if _invert:
                         value = not value
-                    hass.async_create_task(api.report_binary_value(_bi, value))
+                    hass.async_create_task(api.report_binary_value(_entry_id, _bi, value))
                 else:
                     try:
                         value_int = int(float(new_state.state))
-                        hass.async_create_task(api.report_binary_extended_value(_bi, value_int))
+                        hass.async_create_task(api.report_binary_extended_value(_entry_id, _bi, value_int))
                     except ValueError:
                         pass
 
@@ -346,8 +328,6 @@ async def seed_initial_values(
                         value = convert_sensor_value(sensor_type, unit, raw)
                     except ValueError:
                         pass
-                else:
-                    await api.report_entity_available(entry_id, idx, entity_id, False)
             if value is None:
                 value = si.min_value
             await si.update_value(value=value, session=None)
@@ -360,7 +340,6 @@ async def seed_initial_values(
                 continue
             state = hass.states.get(entity_id)
             if not state or state.state in ("unknown", "unavailable"):
-                await api.report_entity_available(entry_id, idx, entity_id, False)
                 continue
             is_bool = bi_data.get("valueType", "boolean") == "boolean"
             if is_bool:
@@ -397,8 +376,6 @@ async def seed_initial_values(
                             ch_value = float(state.state)
                         except ValueError:
                             pass
-                else:
-                    await api.report_entity_available(entry_id, idx, read_entity, False)
             await ch.update_value(ch_value)
 
 
@@ -446,16 +423,10 @@ def setup_output_listeners(
                     ) -> None:
                         new_state = event.data.get("new_state")
                         if not new_state or new_state.state in ("unknown", "unavailable"):
-                            hass.async_create_task(
-                                api.report_entity_available(_entry_id, _vdsd_idx, _eid, False)
-                            )
                             return
-                        hass.async_create_task(
-                            api.report_entity_available(_entry_id, _vdsd_idx, _eid, True)
-                        )
                         try:
                             val = eval_push(_expr, new_state)
-                            hass.async_create_task(api.report_channel_value(_ch, val))
+                            hass.async_create_task(api.report_channel_value(_entry_id, _ch, val))
                         except Exception:
                             _LOGGER.warning("push_expr eval failed: %s", _expr, exc_info=True)
                     unsubs.append(
@@ -472,16 +443,10 @@ def setup_output_listeners(
                     ) -> None:
                         new_state = event.data.get("new_state")
                         if not new_state or new_state.state in ("unknown", "unavailable"):
-                            hass.async_create_task(
-                                api.report_entity_available(_entry_id, _vdsd_idx, _eid, False)
-                            )
                             return
-                        hass.async_create_task(
-                            api.report_entity_available(_entry_id, _vdsd_idx, _eid, True)
-                        )
                         try:
                             value = float(new_state.state)
-                            hass.async_create_task(api.report_channel_value(_ch, value))
+                            hass.async_create_task(api.report_channel_value(_entry_id, _ch, value))
                         except ValueError:
                             pass
                     unsubs.append(
@@ -586,8 +551,8 @@ def setup_bus_event_listeners(
             click_map: dict = btn_data.get("bus_event_click_map", {})
 
             if mode == "timed":
-                async def _click_cb(ct: int, _btn=btn) -> None:
-                    await api.report_button_click(_btn, ct)
+                async def _click_cb(ct: int, _btn=btn, _eid=entry_id) -> None:
+                    await api.report_button_click(_eid, _btn, ct)
 
                 engine = BusEventTimingEngine(hass, _click_cb)
 
@@ -598,7 +563,10 @@ def setup_bus_event_listeners(
                     _field=click_field,
                     _map=click_map,
                     _engine=engine,
+                    _entry_id=entry_id,
                 ) -> None:
+                    if not api.get_device(_entry_id):
+                        return
                     data = event.data
                     for k, v in _flt.items():
                         if str(data.get(k)) != str(v):
@@ -637,6 +605,7 @@ def setup_bus_event_listeners(
                     _flt=event_filter,
                     _field=click_field,
                     _map=click_map,
+                    _entry_id=entry_id,
                 ) -> None:
                     data = event.data
                     for k, v in _flt.items():
@@ -655,7 +624,7 @@ def setup_bus_event_listeners(
                             raw, event_type,
                         )
                         return
-                    hass.async_create_task(api.report_button_click(_btn, ct))
+                    hass.async_create_task(api.report_button_click(_entry_id, _btn, ct))
 
                 unsubs.append(hass.bus.async_listen(event_type, _direct_handler))
 
