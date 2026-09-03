@@ -918,6 +918,10 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         self._bus_event_per_button_overrides: list[dict[str, str]] = []
         self._bus_event_current_button_idx: int = 0
         self._bus_event_pending_vdsds: list[dict] = []
+        # Sensor interval confirmation state
+        self._sensor_interval_confirm_after = None   # Callable[[], Coroutine]
+        self._sensor_interval_confirm_idx: int = -1  # index in _current_sensors
+        self._sensor_interval_derived: dict | None = None  # raw analysis result
 
     async def _resolve_entity_icon(self, entity_id: str) -> tuple[str, str | None]:
         """Return (icon_name, base64_16x16_png_or_None) for an entity.
@@ -988,6 +992,55 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
             vol.Required("entry_name"): selector.TextSelector(),
         })
         return self.async_show_form(step_id="config_entry_name", data_schema=schema)
+
+    # ── Sensor interval helpers ───────────────────────────────────────────────
+
+    async def _analyze_and_maybe_confirm_sensor_intervals(
+        self,
+        entity_id: str | None,
+        sensor_idx: int,
+        after_callable,
+    ):
+        """Analyze entity history; update sensor at sensor_idx; confirm if min_push < 2 s."""
+        if not entity_id:
+            return await after_callable()
+        from .history_analysis import analyze_sensor_intervals
+        derived = await analyze_sensor_intervals(self.hass, entity_id)
+        if not derived:
+            return await after_callable()
+        si = self._current_sensors[sensor_idx]
+        si["updateInterval"] = derived["update_interval"]
+        si["aliveSignInterval"] = derived["alive_sign_interval"]
+        si["minPushInterval"] = derived["min_push_interval"]
+        si["changesOnlyInterval"] = derived["changes_only_interval"]
+        if derived["min_push_interval"] < 2.0:
+            self._sensor_interval_confirm_after = after_callable
+            self._sensor_interval_confirm_idx = sensor_idx
+            self._sensor_interval_derived = derived
+            return await self.async_step_sensor_interval_confirm()
+        return await after_callable()
+
+    async def async_step_sensor_interval_confirm(self, user_input: dict | None = None):
+        """Let the user confirm or override minPushInterval when entity updates < 2 s."""
+        derived = self._sensor_interval_derived or {}
+        derived_min_push = derived.get("min_push_interval", 0.0)
+        if user_input is not None:
+            min_push = float(user_input.get("minPushInterval", 2.0))
+            self._current_sensors[self._sensor_interval_confirm_idx]["minPushInterval"] = min_push
+            return await self._sensor_interval_confirm_after()
+        schema = vol.Schema({
+            vol.Required("minPushInterval", default=2.0): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=0, step=0.1, mode="box", unit_of_measurement="s")
+            ),
+        })
+        return self.async_show_form(
+            step_id="sensor_interval_confirm",
+            data_schema=schema,
+            description_placeholders={
+                "derived_interval": f"{derived_min_push:.2f}",
+                "update_interval": f"{derived.get('update_interval', 0.0):.1f}",
+            },
+        )
 
     # ── Creation mode ─────────────────────────────────────────────────────────
 
@@ -1611,12 +1664,24 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
         self._current_output = vdsd["output"]
         self._current_channels = vdsd["output"]["channels"] if vdsd["output"] else []
 
+        # Determine the natural next step (before possible sensor-interval detour).
         if vdsd["output"] and self._current_channels:
             apply_all = vdsd["output"].get("apply_all_expr")
-            all_auto = apply_all is not None or all(ch.get("apply_expr") for ch in self._current_channels)
-            if not all_auto:
-                return await self.async_step_entity_channel_mapping()
-        return await self.async_step_model_features()
+            all_auto = apply_all is not None or all(
+                ch.get("apply_expr") for ch in self._current_channels
+            )
+            natural_next = (
+                self.async_step_entity_channel_mapping if not all_auto
+                else self.async_step_model_features
+            )
+        else:
+            natural_next = self.async_step_model_features
+
+        if self._current_sensors:
+            return await self._analyze_and_maybe_confirm_sensor_intervals(
+                entity_id, 0, natural_next
+            )
+        return await natural_next()
 
     async def async_step_entity_channel_mapping(self, user_input: dict | None = None):
         """Let the user bind HA entities / actions to each output channel."""
@@ -1821,11 +1886,13 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 "callback_entity": entity_id,
             })
 
+        _new_sensor_idx: int | None = None
         if "sensor" in mapping:
             s = mapping["sensor"]
             st = int(user_input.get("sensor_type", s["sensor_type"]))
+            _new_sensor_idx = len(self._current_sensors)
             self._current_sensors.append({
-                "dsIndex": len(self._current_sensors),
+                "dsIndex": _new_sensor_idx,
                 "name": friendly_name,
                 "group": s["group"],
                 "sensorType": st,
@@ -1945,11 +2012,17 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 _mdi_icon_name_for(_state_for_slug, entity_id) if _state_for_slug else None
             )
 
-        # Name the newly added artefact(s)
+        # Name the newly added artefact(s), then continue.
         self._init_name_inputs("device_entity_build")
         if self._pending_name_input_items:
-            return await self.async_step_name_inputs()
-        return await self.async_step_device_entity_build()
+            natural_next = self.async_step_name_inputs
+        else:
+            natural_next = self.async_step_device_entity_build
+        if _new_sensor_idx is not None:
+            return await self._analyze_and_maybe_confirm_sensor_intervals(
+                entity_id, _new_sensor_idx, natural_next
+            )
+        return await natural_next()
 
     async def async_step_device_entity_select(self, user_input: dict | None = None):
         """Let the user select which device entities to expose as vdSDs."""
@@ -2768,7 +2841,11 @@ class VdsdSubentryFlowHandler(ConfigSubentryFlow):
                 si["value_attribute"] = attr
             if transform := user_input.get("transform"):
                 si["value_transform"] = transform
-            return await self.async_step_vdsd_overview()
+            return await self._analyze_and_maybe_confirm_sensor_intervals(
+                si.get("callback_entity"),
+                len(self._current_sensors) - 1,
+                self.async_step_vdsd_overview,
+            )
 
         schema = vol.Schema({
             vol.Optional("source_entity"): selector.EntitySelector(),

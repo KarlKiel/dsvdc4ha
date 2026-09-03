@@ -257,6 +257,16 @@
             "changesOnlyInterval": "Minimum time in seconds between pushes of the same (unchanged) value. Default 0 means every update triggers a push."
           }
         },
+        "sensor_interval_confirm": {
+          "title": "High-frequency sensor — confirm push interval",
+          "description": "The entity updates approximately every {update_interval} s (derived from 24 h of history). The derived minimum push interval ({derived_interval} s) is below 2 s.\n\n⚠ Pushing sensor values more often than every 2 seconds increases load on the dSS server. Values below 2 s are supported but not recommended.\n\nYou can lower the value to match the entity's update rate, or keep the recommended default of 2 s.",
+          "data": {
+            "minPushInterval": "Minimum push interval (seconds)"
+          },
+          "data_description": {
+            "minPushInterval": "Minimum time between consecutive value pushes to dSS. Must be ≥ 0. Recommended: 2 s or higher."
+          }
+        },
         "output": {
           "title": "Configure Output",
           "data": {
