@@ -278,6 +278,11 @@ class DsvdcApi:
             if self._vdc is None:
                 return
             await self._flush_pending_vanish(session)
+            # Remove ghost devices that were restored from the pydsvdcapi YAML
+            # state file but are no longer configured in this integration.
+            # If not purged, announce_devices() would announce them, start their
+            # alive timers, and cause repeated "device not found" vdSM log spam.
+            await self._purge_ghost_devices(session)
             # Always announce the VDC container so DSS knows it is connected.
             await self._vdc.announce(session)
             # Announce unknown devices concurrently — DSS may not confirm any single
@@ -653,6 +658,33 @@ class DsvdcApi:
                         "(update device in config flow to remove it)", f,
                     )
         return vdsd
+
+    async def _purge_ghost_devices(self, session: Any) -> None:
+        """Vanish and remove devices restored from YAML that are no longer configured.
+
+        pydsvdcapi's VDC restores all previously-known devices from its YAML
+        state file on startup.  Any device not re-added via add_device() is a
+        ghost: if left in _vdc._devices, announce_devices() will announce it,
+        start its alive timers, and cause repeated "device not found" errors.
+        """
+        if self._vdc is None:
+            return
+        known_keys = {
+            str(self._build_device_dsuid(eid).device_base())
+            for eid in self._devices
+        }
+        for dsuid_key, device in list(self._vdc.devices.items()):
+            if dsuid_key not in known_keys:
+                _LOGGER.info(
+                    "Purging ghost device %s (restored from state file, not in current config)",
+                    dsuid_key,
+                )
+                try:
+                    if device.is_announced:
+                        await device.vanish(session)
+                except Exception:
+                    _LOGGER.debug("Ghost vanish failed for %s (ignored)", dsuid_key, exc_info=True)
+                self._vdc.remove_device(device.dsuid, track_vanish=False)
 
     async def vanish_device(self, entry_id: str) -> None:
         """Vanish and remove a device from dS.
