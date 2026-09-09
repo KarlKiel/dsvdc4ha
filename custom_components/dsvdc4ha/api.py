@@ -660,12 +660,17 @@ class DsvdcApi:
         return vdsd
 
     async def _purge_ghost_devices(self, session: Any) -> None:
-        """Vanish and remove devices restored from YAML that are no longer configured.
+        """Remove devices restored from YAML that are no longer configured.
 
         pydsvdcapi's VDC restores all previously-known devices from its YAML
         state file on startup.  Any device not re-added via add_device() is a
         ghost: if left in _vdc._devices, announce_devices() will announce it,
         start its alive timers, and cause repeated "device not found" errors.
+
+        With pydsvdcapi >= 0.9.2, remove_device(track_vanish=True) already
+        calls reset_announcement() (stops alive timers), sends VDC_SEND_VANISH
+        immediately via _vanish_now(), and schedules an auto-save so the YAML
+        state file no longer contains this device on the next restart.
         """
         if self._vdc is None:
             return
@@ -679,12 +684,10 @@ class DsvdcApi:
                     "Purging ghost device %s (restored from state file, not in current config)",
                     dsuid_key,
                 )
-                try:
-                    if device.is_announced:
-                        await device.vanish(session)
-                except Exception:
-                    _LOGGER.debug("Ghost vanish failed for %s (ignored)", dsuid_key, exc_info=True)
-                self._vdc.remove_device(device.dsuid, track_vanish=False)
+                # track_vanish=True: pydsvdcapi calls reset_announcement()
+                # (stops timers), sends VDC_SEND_VANISH immediately, and
+                # schedules YAML auto-save — permanently breaking the cycle.
+                self._vdc.remove_device(device.dsuid, track_vanish=True)
 
     async def vanish_device(self, entry_id: str) -> None:
         """Vanish and remove a device from dS.
