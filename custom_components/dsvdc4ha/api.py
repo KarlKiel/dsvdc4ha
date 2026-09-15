@@ -285,8 +285,14 @@ class DsvdcApi:
             await self._purge_ghost_devices(session)
             # Always announce the VDC container so DSS knows it is connected.
             await self._vdc.announce(session)
-            # Announce unknown devices concurrently — DSS may not confirm any single
-            # announce until all pending announces are in flight; sequential would deadlock.
+            # Announce ALL devices on every session ready — not just those not yet
+            # seen by dSS.  After a TCP disconnect pydsvdcapi calls reset_announcement()
+            # which sets _announced=False and stops alive timers on every device.
+            # Skipping already-"ever announced" devices means alive timers never
+            # restart after a reconnect, so vdSM times out and repeatedly marks
+            # devices inactive.  pydsvdcapi's device.announce() is idempotent:
+            # if _announced is already True (device never lost its session) it
+            # returns 0 with no side effects, so calling it unconditionally is safe.
             async def _announce_device(entry_id: str, device) -> None:
                 try:
                     count = await device.announce(session)
@@ -295,10 +301,8 @@ class DsvdcApi:
                 except Exception:
                     _LOGGER.warning("Failed to announce device %s on session ready", entry_id, exc_info=True)
 
-            unknown = [(eid, dev) for eid, dev in self._devices.items()
-                       if eid not in self._ever_announced]
-            if unknown:
-                await asyncio.gather(*(_announce_device(eid, dev) for eid, dev in unknown))
+            if self._devices:
+                await asyncio.gather(*(_announce_device(eid, dev) for eid, dev in self._devices.items()))
             if _cb is not None:
                 _cb()
 
