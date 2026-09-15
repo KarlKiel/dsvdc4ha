@@ -304,14 +304,23 @@ async def seed_initial_values(
     SensorInput and OutputChannel has reported at least one value.  We push
     the current HA state (or a safe default) with session=None so the flag is
     set before announce() is awaited, avoiding the 61-second timeout.
+
+    All update calls are gathered concurrently: update_value(session=None) does
+    no I/O (just sets the internal value + event), so gathering eliminates the
+    per-call event-loop yield overhead without any ordering constraint.
     """
+    import asyncio as _asyncio
+
     device = api.get_device(entry_id)
     if not device:
         return
+
+    tasks = []
     for idx, vdsd_data in enumerate(vdsds_data):
         vdsd = device.get_vdsd(idx)
         if not vdsd:
             continue
+
         for si_data in vdsd_data.get("sensors", []):
             si = vdsd.get_sensor_input(si_data["dsIndex"])
             if not si:
@@ -330,7 +339,8 @@ async def seed_initial_values(
                         pass
             if value is None:
                 value = si.min_value
-            await si.update_value(value=value, session=None)
+            tasks.append(si.update_value(value=value, session=None))
+
         for bi_data in vdsd_data.get("binary_inputs", []):
             bi = vdsd.get_binary_input(bi_data["dsIndex"])
             if not bi:
@@ -343,13 +353,13 @@ async def seed_initial_values(
                 continue
             is_bool = bi_data.get("valueType", "boolean") == "boolean"
             if is_bool:
-                value = state.state in ("on", "true", "1", "True")
+                bval: bool = state.state in ("on", "true", "1", "True")
                 if bi_data.get("sensorFunction") in _INVERTED_BINARY_SENSOR_FUNCTIONS:
-                    value = not value
-                await bi.update_value(value, session=None)
+                    bval = not bval
+                tasks.append(bi.update_value(bval, session=None))
             else:
                 try:
-                    await bi.update_extended_value(int(float(state.state)), session=None)
+                    tasks.append(bi.update_extended_value(int(float(state.state)), session=None))
                 except ValueError:
                     pass
 
@@ -376,7 +386,10 @@ async def seed_initial_values(
                             ch_value = float(state.state)
                         except ValueError:
                             pass
-            await ch.update_value(ch_value)
+            tasks.append(ch.update_value(ch_value))
+
+    if tasks:
+        await _asyncio.gather(*tasks)
 
 
 def setup_output_listeners(

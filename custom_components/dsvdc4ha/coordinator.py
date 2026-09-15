@@ -169,7 +169,12 @@ class HubCoordinator:
                         unsubs += setup_bus_event_listeners(self.hass, self.api, subentry.subentry_id, vdsds)
                         domain_data[subentry.subentry_id] = {"unsubs": unsubs}
                         await seed_initial_values(self.hass, self.api, subentry.subentry_id, vdsds)
-                        await self.api.announce_device(subentry.subentry_id)
+                        # Announce in background — _hooked fires when dSS connects and
+                        # announces all devices; this is a safety net for devices added
+                        # after _hooked has already fired (session was already active).
+                        self.hass.async_create_task(
+                            self.api.announce_device(subentry.subentry_id)
+                        )
                 from . import _backfill_missing_icons
                 await _backfill_missing_icons(self.hass, self._entry)
             # Re-attach DSS→HA on_settings_changed callbacks to the new vdsd objects.

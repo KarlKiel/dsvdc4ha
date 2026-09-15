@@ -647,9 +647,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Register, seed initial values, then announce each device subentry.
-    # Order matters: add_device first (builds the object graph), then wire up
-    # HA→dS listeners, then seed current HA state so pydsvdcapi's
-    # _wait_for_initial_values() is satisfied before announce() is awaited.
+    # Order: add_device (builds the object graph) → wire HA→dS listeners →
+    # seed current HA state (satisfies pydsvdcapi's _wait_for_initial_values) →
+    # fire announce as a background task so setup_entry returns without waiting
+    # for each dSS network round-trip (200 ms pace + ack per vdSD).
     await _backfill_missing_icons(hass, entry)
     from .listeners import setup_input_listeners, setup_output_listeners, seed_initial_values, setup_bus_event_listeners
     dev_reg = dr.async_get(hass)
@@ -678,7 +679,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         unsubs += setup_bus_event_listeners(hass, coordinator.api, subentry.subentry_id, vdsds)
         hass.data[DOMAIN][subentry.subentry_id] = {"unsubs": unsubs}
         await seed_initial_values(hass, coordinator.api, subentry.subentry_id, vdsds)
-        await coordinator.api.announce_device(subentry.subentry_id)
+        hass.async_create_task(coordinator.api.announce_device(subentry.subentry_id))
 
     # Expose vdSD and input property groups as hidden diagnostic/config entities.
     _add_sensor = hass.data[DOMAIN].get("_add_sensor_entities")
@@ -797,7 +798,9 @@ async def _async_subentry_update_listener(
             unsubs += setup_bus_event_listeners(hass, coordinator.api, subentry_id, vdsds)
             domain_data[subentry_id] = {"unsubs": unsubs}
             await seed_initial_values(hass, coordinator.api, subentry_id, vdsds)
-            await coordinator.api.announce_device(subentry_id)
+            # Register HA entities first so the device appears in the UI immediately;
+            # the dSS announce runs in the background (200 ms pace + network ack per
+            # vdSD would otherwise delay the device showing up in HA).
             if add_sensor:
                 _sensor_mod._add_entities_for_subentry(subentry, add_sensor)
             if add_binary:
@@ -810,6 +813,7 @@ async def _async_subentry_update_listener(
                     add_sensor, add_number, add_select, add_switch, add_text,
                     hass=hass,
                 )
+            hass.async_create_task(coordinator.api.announce_device(subentry_id))
 
     if removed or added:
         entity_index: dict = domain_data.get("_entity_index", {})
