@@ -301,8 +301,13 @@ class DsvdcApi:
                 except Exception:
                     _LOGGER.warning("Failed to announce device %s on session ready", entry_id, exc_info=True)
 
-            if self._devices:
-                await asyncio.gather(*(_announce_device(eid, dev) for eid, dev in self._devices.items()))
+            # Sequential (not concurrent) to avoid pace_announce() race conditions.
+            # With asyncio.gather, 20 concurrent announces compete for the vdSM
+            # request/response channel; mismatched acks leave some devices
+            # un-announced.  Sequential respects the 200ms spacing enforced by
+            # pydsvdcapi and the first-in/first-out nature of the vdSM protocol.
+            for eid, dev in self._devices.items():
+                await _announce_device(eid, dev)
             if _cb is not None:
                 _cb()
 
